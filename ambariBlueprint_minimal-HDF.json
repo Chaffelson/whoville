@@ -1,0 +1,71 @@
+{
+  "configurations": {
+    "core-site": {
+      "fs.trash.interval": "4320"
+    },
+    "ams-grafana-env": {
+      "metrics_grafana_password": "StrongPassword"
+    },
+    "hdfs-site": {
+      "dfs.replication" : "1",
+      "dfs.namenode.safemode.threshold-pct": "0.99"
+    },
+    "mapred-site": {
+      "mapreduce.job.reduce.slowstart.completedmaps": "0.7",
+      "mapreduce.map.output.compress": "true",
+      "mapreduce.output.fileoutputformat.compress": "true"
+    },
+    "yarn-site": {
+      "yarn.acl.enable": "true"
+    },
+    "druid-middlemanager" : {
+      "druid.processing.numThreads" : "7"
+    },
+    "druid-historical" : {
+      "druid.processing.numThreads" : "7"
+    },
+    "druid-common": {
+      "druid.storage.storageDirectory" : "/user/druid/data",
+      "druid.indexer.logs.type" : "hdfs",
+      "druid.indexer.logs.directory": "/user/druid/logs",
+      "druid.storage.type" : "hdfs",
+      "druid.metadata.storage.connector.user" : "druid",
+      "druid.metadata.storage.connector.password" : "StrongPassword",
+      "druid.metadata.storage.connector.port" : "3306",
+      "druid.metadata.storage.connector.connectURI" : "jdbc:mysql://localhost:3306/druid?createDatabaseIfNotExist=true",
+      "druid.metadata.storage.type" : "mysql",
+      "druid.extensions.loadList" : "[\"druid-datasketches\", \"druid-hdfs-storage\", \"ambari-metrics-emitter\", \"mysql-metadata-storage\", \"druid-s3-extensions\"]"
+    },
+    "druid-superset": {
+      "SECRET_KEY": "StrongPassword",
+      "SUPERSET_DATABASE_TYPE" : "mysql",
+      "SUPERSET_DATABASE_PASSWORD": "StrongPassword",
+      "SUPERSET_DATABASE_HOSTNAME" : "sandbox.hortonworks.com",
+      "SUPERSET_DATABASE_PORT" : "3306",
+      "SUPERSET_WEBSERVER_PORT" : "9089"
+    },
+    "druid-superset-env": {
+      "superset_admin_email": "a@b.c",
+      "superset_admin_firstname": "Admin",
+      "superset_admin_lastname": "Jones",
+      "superset_admin_password": "StrongPassword"
+    },
+    "streamline-common": {
+      "jar.storage.type": "local",
+      "streamline.storage.type": "mysql",
+      "streamline.storage.connector.connectURI": "jdbc:mysql://sandbox.hortonworks.com:3306/streamline",
+      "registry.url" : "http://sandbox.hortonworks.com:7788/api/v1",
+      "streamline.dashboard.url" : "http://sandbox.hortonworks.com:9089",
+      "streamline.storage.connector.password": "StrongPassword"
+    },
+    "registry-common": {
+      "jar.storage.type": "local",
+      "registry.storage.connector.connectURI": "jdbc:mysql://sandbox.hortonworks.com:3306/registry",
+      "registry.storage.type": "mysql",
+      "registry.storage.connector.password": "StrongPassword"
+    },
+    "nifi-ambari-config": {
+      "nifi.security.encrypt.configuration.password": "StrongPassword"
+    }
+  }
+}
