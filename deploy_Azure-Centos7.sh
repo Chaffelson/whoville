@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 
-# Login to preferred AWS EC2 Zone
-# Launch Instance
-# Centos 7 HVM (with updates)
-# t2.xlarge (smallest successfull test on 4x16)
-# 25GiB SSD (Delete on Term)
-# Security Group - All Traffic / MyIp
-# Use preferred key
+# Login to preferred Azure region
+# Launch New Compute
+# Centos-based 7.3 by Rogue Wave (formerly Open Logic)
+# Name appropriately, username 'centos', set your auth and region
+# Choose size: DS4-V2 or larger recommended, minimum 4x16 tested
+# Set storage / networking - 25GiB or larger disk recommended
 # Launch
 # ssh centos@<external fqdn>
 #### Copy/paste the following until the blank line to prep the instance
@@ -78,5 +77,5 @@ curl -sSL https://raw.githubusercontent.com/Chaffelson/AutoHDF/master/ambariBlue
 # This command might fail with 'resources' error, means Ambari isn't ready yet
 sleep 30
 sudo -E /home/$USER/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash
-echo 'if you get the error KeyError: resources then Ambari was too slow to come up, wait a minute and rerun "sudo -E /home/centos/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash"'
+echo 'if you get the error KeyError: resources then Ambari was too slow to come up, wait a minute and rerun "sudo -E /home/$USER/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash"'
 echo Now open your browser to http://$(curl -s icanhazptr.com):8080 and login as admin/admin to observe the cluster install
