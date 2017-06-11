@@ -40,7 +40,7 @@
       "SECRET_KEY": "StrongPassword",
       "SUPERSET_DATABASE_TYPE" : "mysql",
       "SUPERSET_DATABASE_PASSWORD": "StrongPassword",
-      "SUPERSET_DATABASE_HOSTNAME" : "sandbox.hortonworks.com",
+      "SUPERSET_DATABASE_HOSTNAME" : "localhost",
       "SUPERSET_DATABASE_PORT" : "3306",
       "SUPERSET_WEBSERVER_PORT" : "9089"
     },
@@ -53,14 +53,14 @@
     "streamline-common": {
       "jar.storage.type": "local",
       "streamline.storage.type": "mysql",
-      "streamline.storage.connector.connectURI": "jdbc:mysql://sandbox.hortonworks.com:3306/streamline",
-      "registry.url" : "http://sandbox.hortonworks.com:7788/api/v1",
-      "streamline.dashboard.url" : "http://sandbox.hortonworks.com:9089",
+      "streamline.storage.connector.connectURI": "jdbc:mysql://localhost:3306/streamline",
+      "registry.url" : "http://localhost:7788/api/v1",
+      "streamline.dashboard.url" : "http://localhost:9089",
       "streamline.storage.connector.password": "StrongPassword"
     },
     "registry-common": {
       "jar.storage.type": "local",
-      "registry.storage.connector.connectURI": "jdbc:mysql://sandbox.hortonworks.com:3306/registry",
+      "registry.storage.connector.connectURI": "jdbc:mysql://localhost:3306/registry",
       "registry.storage.type": "mysql",
       "registry.storage.connector.password": "StrongPassword"
     },
