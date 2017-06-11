@@ -11,7 +11,9 @@
 # ssh centos@<external fqdn>
 #### Copy/paste the following until the blank line to prep the instance
 sudo su -
+echo Patching...
 yum update -y
+echo Host Setup...
 # The following should really be a systemd service
 cat << 'EOF2' > /root/update_hosts_file.sh
 #!/bin/bash
@@ -30,9 +32,11 @@ source /root/update_hosts_file.sh
 sudo yum install -y wget
 sudo wget -nv http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.5.1.0/ambari.repo -O /etc/yum.repos.d/ambari.repo
 sudo yum repolist
+echo Installing Packages...
 sudo yum localinstall -y https://dev.mysql.com/get/mysql57-community-release-el7-8.noarch.rpm
 sudo yum install -y git python-argparse epel-release mysql-connector-java* mysql-community-server
 # MySQL Setup
+echo Database setup...
 sudo systemctl enable mysqld.service
 sudo systemctl start mysqld.service
 #extract system generated Mysql password
@@ -54,7 +58,8 @@ mysql -h localhost -u root -p"$oldpass" --connect-expired-password < mysql-setup
 mysqladmin -u root -p'Secur1ty!' password StrongPassword
 #test password and confirm dbs created
 mysql -u root -pStrongPassword -e 'show databases;'
-# Install HDP261 on Ambari251
+# Install Ambari251
+echo Installing Ambari
 export install_ambari_agent=true
 export install_ambari_server=true
 export java_provider=oracle
@@ -66,6 +71,7 @@ sudo ambari-server install-mpack --verbose --mpack=http://public-repo-1.hortonwo
 sudo sed -i.bak "s/\(^    total_sinks_count = \)0$/\11/" /var/lib/ambari-server/resources/stacks/HDP/2.0.6/services/stack_advisor.py
 sudo ambari-server restart
 # Ambari blueprint cluster install
+echo Deploying HDP and HDF services
 export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY"
 export cluster_name=HDFSandbox
 export ambari_stack_version=2.6

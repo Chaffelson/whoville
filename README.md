@@ -1,6 +1,5 @@
 # Hortonworks HDF 3.0 Simple Autodeployment
 
-### Description
 A set of quick deployment scripts and supporting artefacts to deploy Hortonworks whoville's: HDP/HDF vanilla Sandboxes
 
 ##### To Deploy: New HDF3 Sandbox on an AWS Instance
@@ -15,12 +14,14 @@ curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/deploy_AW
 ##### To Deploy: HDF3 Example application: Streaming Trucking Demo
 Status: Incomplete but working. Tested with build HDF3.0.0-453
 
-ssh to your HDF3 Sandbox and run:
+1.  connect to your whoville box 
+2.  start all services
+3.  run the following in bash prompt:
 ```bash
 curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/deploy_SAMTruckingDemo.sh | sudo -E sh
 ```
 
-##### To Deploy: 
+##### To Deploy: A public AMI Centos base image
 Note: This may be useful if you intend to create a public AMI of your demo/image
 1.  Get the base Centos7 x64 image in your region from https://wiki.centos.org/Cloud/AWS e.g eu-west-2 ami-c22236a6
 2.  Launch a copy of that AMI on your account
@@ -30,4 +31,6 @@ sudo yum update -y
 sudo shutdown now
 ```
 4.  Create base AMI
-5.  Power up Instance again and continue
+5.  Power up Instance again and install and prepare your business
+6.  You probably want to clean up the VM for imaging, this guide is quite good: https://lonesysadmin.net/2013/03/26/preparing-linux-template-vms/
+7.  Create AMI. Make it Public. Bask in your popularity.
