@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Credit to: https://lonesysadmin.net/2013/03/26/preparing-linux-template-vms/
 sudo su -
+curl -u admin:admin -i -H 'X-Requested-By: ambari' -X PUT \
+   -d '{"RequestInfo":{"context":"_PARSE_.STOP.ALL_SERVICES","operation_level":{"level":"CLUSTER","cluster_name":"whoville"}},"Body":{"ServiceInfo":{"state":"INSTALLED"}}}' \
+   http://localhost:8080/api/v1/clusters/whoville/services
 ambari-agent stop
 ambari-server stop
 systemctl stop mysqld.service

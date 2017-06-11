@@ -1,6 +1,6 @@
-# Hortonworks HDF 3.0 Simple Autodeployment
+# Hortonworks HDP 2.6.1+ / HDF 3.0+ Simple Autodeployment
 
-A set of quick deployment scripts and supporting artefacts to deploy Hortonworks whoville's: HDP/HDF vanilla Sandboxes
+A set of quick deployment scripts and supporting artefacts to deploy Hortonworks whoville: HDP/HDF vanilla Sandboxes
 
 ##### To Deploy: New HDF3 Sandbox on an AWS Instance
 Status: Complete. Tested with build HDF3.0.0-453  
