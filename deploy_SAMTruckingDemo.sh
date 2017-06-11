@@ -5,9 +5,9 @@
 # OS Setup
 sudo yum install -y jq xml2
 # Download schemas
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/AutoHDF/master/schema_rawTruckEvents.avsc
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/AutoHDF/master/schema_geoTruckEvents.avsc
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/AutoHDF/master/schema_TruckSpeedEvents.avsc
+curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_rawTruckEvents.avsc
+curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_geoTruckEvents.avsc
+curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_TruckSpeedEvents.avsc
 # Create Schemas in Registry
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "raw-truck_events_avro", "description": "Raw Geo events from trucks in Kafka Topic", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "raw-truck_speed_events_avro", "description": "Raw Speed Events from trucks in Kafka Topic", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
@@ -25,7 +25,7 @@ curl -X POST -F 'name=truck_speed_events_avro' -F 'description=ver1' -F 'file=@.
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partition 1 --topic truck_speed_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --zookeeper localhost:2181 --list
 # NiFi Template Download
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/AutoHDF/master/nifiTemplate_SAMTruckingDemo.xml
+curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/nifiTemplate_SAMTruckingDemo.xml
 # Get root PG ID
 curl -sX GET http://$(hostname -f):9090/nifi-api/process-groups/root > rootPG.json
 rootpgid=$(jq -r '.id' ./rootPG.json)
