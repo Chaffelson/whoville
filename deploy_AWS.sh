@@ -35,7 +35,7 @@ sudo yum repolist
 echo Installing Packages...
 sudo yum localinstall -y https://dev.mysql.com/get/mysql57-community-release-el7-8.noarch.rpm
 sudo yum install -y git python-argparse epel-release mysql-connector-java* mysql-community-server
-# MySQL Setup
+# MySQL Setup to keep the new services separate from the originals
 echo Database setup...
 sudo systemctl enable mysqld.service
 sudo systemctl start mysqld.service

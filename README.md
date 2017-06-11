@@ -32,5 +32,8 @@ sudo shutdown now
 ```
 4.  Create base AMI
 5.  Power up Instance again and install and prepare your business
-6.  You probably want to clean up the VM for imaging, this guide is quite good: https://lonesysadmin.net/2013/03/26/preparing-linux-template-vms/
+6.  You probably want to clean up the VM for imaging:
+```bash
+curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/image_prepare.sh | sudo -E sh
+```
 7.  Create AMI. Make it Public. Bask in your popularity.
