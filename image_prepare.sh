@@ -22,4 +22,5 @@ rm -f /etc/ssh/*key*
 rm -f ~root/.bash_history
 unset HISTFILE
 rm -rf ~root/.ssh/
+rm -rf /home/centos/.ssh
 echo Ready to 'shutdown now' for imaging
