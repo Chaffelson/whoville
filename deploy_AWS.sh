@@ -73,7 +73,7 @@ sudo ambari-server restart
 # Ambari blueprint cluster install
 echo Deploying HDP and HDF services
 export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY"
-export cluster_name=whoville
+export cluster_name=Whoville
 export ambari_stack_version=2.6
 export host_count=1
 curl -ssLO https://github.com/seanorama/ambari-bootstrap/archive/master.zip
