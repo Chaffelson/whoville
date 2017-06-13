@@ -1,11 +1,11 @@
 # Hortonworks HDP 2.6.1+ / HDF 3.0+ Simple Autodeployment
 
-A set of quick deployment scripts and supporting artefacts to deploy Hortonworks whoville: HDP/HDF vanilla Sandboxes
+A set of quick deployment scripts and supporting artefacts to deploy Hortonworks HDP/HDF vanilla Sandboxes
 
-##### To Deploy: New HDF3 Sandbox on an AWS Instance
+##### To Deploy: New HDF3 install on an AWS Instance
 Status: Complete. Tested with build HDF3.0.0-453  
 
-Create a Centos7 instance on AWS with at least 4cores/16GiB mem/25GiB disk  
+Create a Centos7 instance on AWS with at least 4cores/16GiB mem/25GiB disk  (recommend 8x32 for better experience)
 ssh to the box and run:  
 ```bash
 curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/deploy_AWS.sh | sudo -E sh
