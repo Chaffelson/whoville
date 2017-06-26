@@ -18,11 +18,16 @@
     "yarn-site": {
       "yarn.acl.enable": "true"
     },
+    "druid-broker" : {
+      "druid.processing.buffer.sizeBytes" : "107374182"
+    },
     "druid-middlemanager" : {
-      "druid.processing.numThreads" : "7"
+      "druid.processing.numThreads" : "3",
+      "druid.indexer.runner.javaOpts": "-server -Xmx1g -XX:MaxDirectMemorySize=5g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Dhdp.version={{stack_version}} -Dhadoop.mapreduce.job.classloader=true"
     },
     "druid-historical" : {
-      "druid.processing.numThreads" : "7"
+      "druid.processing.numThreads" : "3",
+      "druid.processing.buffer.sizeBytes" : "107374182"
     },
     "druid-common": {
       "druid.storage.storageDirectory" : "/user/druid/data",
