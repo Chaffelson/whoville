@@ -12,7 +12,7 @@
 #### Copy/paste the following until the blank line to prep the instance
 sudo su -
 echo Patching...
-yum update -y
+yum repolist && yum makecache fast && sudo yum update -y
 echo Host Setup...
 # The following should really be a systemd service
 cat << 'EOF2' > /root/update_hosts_file.sh
@@ -29,14 +29,11 @@ chmod u+x /root/update_hosts_file.sh
 echo sh /root/update_hosts_file.sh >> /etc/rc.local
 chmod +x /etc/rc.d/rc.local
 source /root/update_hosts_file.sh
-sudo yum install -y wget
-sudo wget -nv http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.5.1.0/ambari.repo -O /etc/yum.repos.d/ambari.repo
-sudo yum repolist
 echo Installing Packages...
 sudo yum localinstall -y https://dev.mysql.com/get/mysql57-community-release-el7-8.noarch.rpm
 sudo yum install -y git python-argparse epel-release mysql-connector-java* mysql-community-server
 # MySQL Setup to keep the new services separate from the originals
-echo Database setup...
+echo Secondary Database setup...
 sudo systemctl enable mysqld.service
 sudo systemctl start mysqld.service
 #extract system generated Mysql password
@@ -59,30 +56,34 @@ mysqladmin -u root -p'Secur1ty!' password StrongPassword
 #test password and confirm dbs created
 mysql -u root -pStrongPassword -e 'show databases;'
 # Install Ambari251
-echo Installing Ambari
+echo Installing Primary Database, Java, and Ambari
 export install_ambari_agent=true
 export install_ambari_server=true
 export java_provider=oracle
 export ambari_version=2.5.1.0
 curl -sSL https://raw.githubusercontent.com/seanorama/ambari-bootstrap/master/ambari-bootstrap.sh | sudo -E sh
 sudo ambari-server setup --jdbc-db=mysql --jdbc-driver=/usr/share/java/mysql-connector-java.jar
+echo Installing HDF mPack
 sudo ambari-server install-mpack --verbose --mpack=http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.0.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.0.0.0-453.tar.gz
 # Hack to fix a current bug in Ambari Blueprints
+echo Fix Ambari Bugs
 sudo sed -i.bak "s/\(^    total_sinks_count = \)0$/\11/" /var/lib/ambari-server/resources/stacks/HDP/2.0.6/services/stack_advisor.py
 sudo ambari-server restart
 # Ambari blueprint cluster install
 echo Deploying HDP and HDF services
+sudo su -
 export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY"
 export cluster_name=Whoville
 export ambari_stack_version=2.6
 export host_count=1
 curl -ssLO https://github.com/seanorama/ambari-bootstrap/archive/master.zip
-unzip -q master.zip -d  /root/
+unzip -qo master.zip -d  /root/
 cd /root/ambari-bootstrap-master/deploy
 # Blueprint
+echo Running Cluster Template deployment script
 curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/ambariBlueprint_minimal-HDF.json > configuration-custom.json
-# This command might fail with 'resources' error, means Ambari isn't ready yet
+# This next command might fail with 'resources' error, means Ambari isn't ready yet, so waiting 30s to let Ambari spin up
 sleep 30
-sudo -E /root/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash
+/root/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash
 echo 'if you get the error KeyError: resources then Ambari was too slow to come up, wait a minute and rerun "sudo -E /home/centos/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash"'
 echo Now open your browser to http://$(curl -s icanhazptr.com):8080 and login as admin/admin to observe the cluster install

@@ -27,11 +27,11 @@ Note: This may be useful if you intend to create a public AMI of your demo/image
 2.  Launch a copy of that AMI on your account
 3.  ssh centos@'[FQDN]'  
 ```bash
-sudo yum update -y
+sudo yum makecache fast && sudo yum update -y
 sudo shutdown now
 ```
 4.  Create base AMI
-5.  Power up Instance again and install and prepare your business
+5.  Power up Instance again and install and prepare your stuff
 6.  You probably want to clean up the VM for imaging:
 ```bash
 curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/image_prepare.sh | sudo -E sh
