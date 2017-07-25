@@ -21,7 +21,7 @@ MY_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
 cat << EOF > /etc/hosts
 127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
 ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
-$MY_IP whoville.hortonworks.com
+$MY_IP whoville whoville.hortonworks.com
 EOF
 exit 0
 EOF2
