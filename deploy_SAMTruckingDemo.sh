@@ -15,7 +15,7 @@ curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGr
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "truck_speed_events_avro", "description": "Schema for the kafka topic named truck_speed_events_avro", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
 # Upload schemas to registry
 curl -X POST -F 'name=raw-truck_events_avro' -F 'description=ver1' -F 'file=@./schema_rawTruckEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/raw-truck_events_avro/versions/upload
-curl -X POST -F 'name=raw-truck_speed_events_avro' -F 'description=ver1' -F 'file=@./truckspeedevents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/raw-truck_speed_events_avro/versions/upload
+curl -X POST -F 'name=raw-truck_speed_events_avro' -F 'description=ver1' -F 'file=@./schema_TruckSpeedEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/raw-truck_speed_events_avro/versions/upload
 curl -X POST -F 'name=truck_events_avro' -F 'description=ver1' -F 'file=@./schema_geoTruckEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/truck_events_avro/versions/upload
 curl -X POST -F 'name=truck_speed_events_avro' -F 'description=ver1' -F 'file=@./schema_TruckSpeedEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/truck_speed_events_avro/versions/upload
 # Kafka
