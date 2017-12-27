@@ -1,0 +1,183 @@
+{
+      "streamingEngine": "STORM",
+      "name": "ENRICH-WEATHER",
+      "description": "Enrichment with normalized weather data for a geo location",
+      "jarFileName": "sam-custom-processor-0.0.5.jar",
+      "topologyComponentUISpecification": {
+        "fields": [
+          {
+            "uiName": "weatherServiceURL",
+            "fieldName": "weatherServiceURL",
+            "isUserInput": true,
+            "tooltip": "The URL to the Weather Web Service",
+            "isOptional": false,
+            "type": "string",
+            "defaultValue": ""
+          }
+        ]
+      },
+      "inputSchema": {
+        "fields": [
+  {
+    "name": "eventTime",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventSource",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "truckId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverName",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "routeId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "route",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventType",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "latitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "longitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "correlationId",
+    "type": "LONG",
+    "optional": false
+  },
+  {
+    "name": "geoAddress",
+    "type": "STRING",
+    "optional": true
+  },   
+  {
+    "name": "speed",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "splitJoinValue",
+    "type": "LONG",
+    "optional": false
+  }  
+]
+      },
+      "outputSchema": {
+        "fields": [
+  {
+    "name": "eventTime",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventSource",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "truckId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverName",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "routeId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "route",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventType",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "latitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "longitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "correlationId",
+    "type": "LONG",
+    "optional": false
+  },
+  {
+    "name": "geoAddress",
+    "type": "STRING",
+    "optional": true
+  },   
+  {
+    "name": "speed",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "splitJoinValue",
+    "type": "LONG",
+    "optional": false
+  } ,
+   {
+    "name": "Model_Feature_FoggyWeather",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "Model_Feature_RainyWeather",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "Model_Feature_WindyWeather",
+    "type": "DOUBLE",
+    "optional": false
+  }
+]
+      },
+      "customProcessorImpl": "hortonworks.hdf.sam.custom.processor.enrich.weather.WeatherEnrichmentProcessor"
+}
