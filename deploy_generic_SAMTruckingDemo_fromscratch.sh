@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Launch Centos 7 Vm with at least 4 cores / 14Gb mem / 20Gb disk
 # Then run:
-# curl -sSL https://gist.github.com/abajwa-hw/f796bf572163518442632ecb0c9b2587/raw | sudo -E bash
+# curl -sSL https://raw.githubusercontent.com/harshn08/whoville/master/deploy_generic_SAMTruckingDemo_fromscratch.sh | sudo -E bash
 
 
 export ambari_version=2.5.1.0
