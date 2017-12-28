@@ -213,9 +213,9 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 
 echo "Starting simulator..." 
 export DATA_LOADER_HOME=/tmp/whoville/data_simulator
-
+cd $DATA_LOADER_HOME
 #extract routes data 
-tar -zxvf $DATA_LOADER_HOME/routes.tar.gz
+sudo tar -zxvf $DATA_LOADER_HOME/routes.tar.gz
 
 nohup java -cp $DATA_LOADER_HOME/stream-simulator-jar-with-dependencies.jar \
 hortonworks.hdp.refapp.trucking.simulator.SimulationRegistrySerializerRunnerApp \
@@ -230,4 +230,5 @@ $host:7788/api/v1 \
 ALL_STREAMS \
 NONSECURE &
 
+cd
 echo "Setup complete!"
