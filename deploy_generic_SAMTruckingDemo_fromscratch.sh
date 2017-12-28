@@ -148,6 +148,7 @@ echo Creating Kafka topics...
 ## SAM
 while ! echo exit | nc localhost 7777; do echo "waiting for SAM to be fully up..."; sleep 10; done
 
+export host=$(hostname -f)
 echo "Creating SAM artifacts for host ${host} ..."
 
 echo "Register a service pool cluster..."
