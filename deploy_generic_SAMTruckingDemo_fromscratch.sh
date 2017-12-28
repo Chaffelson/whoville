@@ -212,7 +212,7 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 
 ##TODO: add DataLoader.zip and start simulator
 # creating data simulator folder - 
-export DATA_LOADER_HOME=./data_simulator
+export DATA_LOADER_HOME=/tmp/whoville/data_simulator
 
 #extract routes data 
 tar -zxvf $DATA_LOADER_HOME/routes.tar.gz
