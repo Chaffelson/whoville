@@ -181,15 +181,17 @@ curl -sS -X POST -i -F jarFile=@/tmp/whoville/SAMExtensions/sam-custom-processor
 
 
 echo "Importing truck_demo_pmml.xml..."
-curl -sS -i -F pmmlFile=@/tmp/whoville/SAMExtensions/truck_demo_pmml.xml -F 'modelInfo={"name":"'truck_demo_pmml'","namespace":"ml_model","uploadedFileName":"'truck_demo_pmml.xml'"};type=text/json' -X POST http://${host}:7777/api/v1/catalog/ml/models
+curl -sS -i -F pmmlFile=@/tmp/whoville/SAMExtensions/truck_demo_pmml.xml -F 'modelInfo={"name":"'DriverViolationPredictionModel'","namespace":"ml_model","uploadedFileName":"'truck_demo_pmml.xml'"};type=text/json' -X POST http://${host}:7777/api/v1/catalog/ml/models
 
 echo "import topology to SAM..."
 curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDemo -F namespaceId=1 -X POST http://${host}:7777/api/v1/catalog/topologies/actions/import
 
-#TODO: Deploy SAM topology
-# curl -X POST http://${host}:7777/api/v1/catalog/topologies/1/versions/1/actions/deploy
-# sleep 60
-# curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
+echo "Deploying SAM topology..."
+curl -X POST http://${host}:7777/api/v1/catalog/topologies/1/versions/1/actions/deploy
+echo "Waiting 60s for SAM topology deployment..."
+sleep 60
+echo "Checking SAM topology deployment status..."
+curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
 while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
 while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
