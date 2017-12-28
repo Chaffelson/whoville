@@ -115,10 +115,14 @@ sleep 60
 
 while ! echo exit | nc localhost 7788; do echo "waiting for Schema Registry to be fully up..."; sleep 10; done
 
-echo Downloading schemas...
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_rawTruckEvents.avsc
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_geoTruckEvents.avsc
-curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_TruckSpeedEvents.avsc
+cd /tmp
+git clone https://github.com/harshn08/whoville.git
+cd /tmp/whoville/templates/
+
+#echo Downloading schemas...
+#curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_rawTruckEvents.avsc
+#curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_geoTruckEvents.avsc
+#curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_TruckSpeedEvents.avsc
 
 echo Creating Schemas in Registry...
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "raw-truck_events_avro", "description": "Raw Geo events from trucks in Kafka Topic", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
@@ -138,11 +142,6 @@ echo Creating Kafka topics...
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper ${host}:2181 --replication-factor 1 --partition 1 --topic truck_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper ${host}:2181 --replication-factor 1 --partition 1 --topic truck_speed_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --zookeeper ${host}:2181 --list
-
-
-cd /tmp
-git clone https://github.com/harshn08/whoville.git
-
 
 
 
@@ -200,7 +199,6 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 /usr/hdp/current/phoenix-client/bin/psql.py -t DRIVERS $PHOENIX_PATH/data/drivers.csv
 /usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
 
-##TODO: add missing schema
 
 ##TODO: add DataLoader.zip and start simulator
 
