@@ -211,7 +211,6 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 
 ##TODO: add DataLoader.zip and start simulator
 
-##TODO: deploy SAM topology
 
 
 echo "Setup complete!"
