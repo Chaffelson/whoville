@@ -92,8 +92,8 @@ sudo cp /tmp/configuration-custom.json .
 
 
 # This command might fail with 'resources' error, means Ambari isn't ready yet
-echo Waiting for 30s for deploying
-sleep 30
+echo Waiting for 90s for deploying
+sleep 90
 sudo -E /tmp/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash
 
 
@@ -189,8 +189,8 @@ curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDe
 
 echo "Deploying SAM topology..."
 curl -X POST http://${host}:7777/api/v1/catalog/topologies/1/versions/1/actions/deploy
-echo "Waiting 60s for SAM topology deployment..."
-sleep 60
+echo "Waiting 120s for SAM topology deployment..."
+sleep 120
 echo "Checking SAM topology deployment status..."
 curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
@@ -210,8 +210,8 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 /usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
 
 
-##TODO: add DataLoader.zip and start simulator
-# creating data simulator folder - 
+
+echo "Starting simulator..." 
 export DATA_LOADER_HOME=/tmp/whoville/data_simulator
 
 #extract routes data 
