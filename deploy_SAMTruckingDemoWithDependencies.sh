@@ -22,6 +22,7 @@ EOF
 cd
 export cwd=$(pwd)
 git clone https://github.com/harshn08/whoville.git
+sleep 60
 curl -F udfJarFile=@$cwd/whoville/SAMExtensions/sam-custom-udf-0.0.5.jar -F 'udfConfig={"name":"TIMESTAMP_LONG","displayName":"TIMESTAMP_LONG","description":"Converts a String timestamp to Timestamp Long","type":"FUNCTION","className":"hortonworks.hdf.sam.custom.udf.time.ConvertToTimestampLong"};type=application/json' -X POST http://${host}:7777/api/v1/catalog/streams/udfs
 curl -F udfJarFile=@$cwd/whoville/SAMExtensions/sam-custom-udf-0.0.5.jar -F 'udfConfig={"name":"GET_WEEK","displayName":"GET_WEEK","description":"For a given data time string, returns week of the input date","type":"FUNCTION","className":"hortonworks.hdf.sam.custom.udf.time.GetWeek"};type=application/json' -X POST http://${host}:7777/api/v1/catalog/streams/udfs
 curl -F udfJarFile=@$cwd/whoville/SAMExtensions/sam-custom-udf-0.0.5.jar -F 'udfConfig={"name":"ROUND","displayName":"ROUND","description":"Rounds a double to an integer","type":"FUNCTION","className":"hortonworks.hdf.sam.custom.udf.math.Round"};type=application/json' -X POST http://${host}:7777/api/v1/catalog/streams/udfs
