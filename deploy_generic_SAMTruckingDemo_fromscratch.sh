@@ -184,6 +184,9 @@ curl -sS -X POST -i -F jarFile=@/tmp/whoville/SAMExtensions/sam-custom-processor
 echo "Importing truck_demo_pmml.xml..."
 curl -sS -i -F pmmlFile=@/tmp/whoville/SAMExtensions/truck_demo_pmml.xml -F 'modelInfo={"name":"'DriverViolationPredictionModel'","namespace":"ml_model","uploadedFileName":"'truck_demo_pmml.xml'"};type=text/json' -X POST http://${host}:7777/api/v1/catalog/ml/models
 
+sed -i 's/whoville.hortonworks.com/${host}/g' /tmp/whoville/topology/truckingapp.json
+sed -i 's/Whoville/${cluster_name}/g' /tmp/whoville/topology/truckingapp.json
+
 echo "import topology to SAM..."
 curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDemo -F namespaceId=1 -X POST http://${host}:7777/api/v1/catalog/topologies/actions/import
 
