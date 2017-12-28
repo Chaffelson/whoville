@@ -194,6 +194,9 @@ sleep 120
 echo "Checking SAM topology deployment status..."
 curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
+echo "Creating Storm View..."
+curl -u admin:${ambari_password} -H "X-Requested-By:ambari" -X POST -d '{"ViewInstanceInfo":{"instance_name":"Storm_View","label":"Storm View","visible":true,"icon_path":"","icon64_path":"","description":"storm view","properties":{"storm.host":"'${host}'","storm.port":"8744","storm.sslEnabled":"false"},"cluster_type":"NONE"}}' http://${host}:8080/api/v1/views/Storm_Monitoring/versions/0.1.0/instances/Storm_View
+
 while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
 while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
 
