@@ -231,8 +231,8 @@ hortonworks.hdp.refapp.trucking.simulator.impl.collectors.KafkaEventSerializedWi
 1 \
 $DATA_LOADER_HOME/routes/midwest/ \
 10000 \
-$host:6667 \
-http://$host:7788/api/v1 \
+$(hostname -f):6667 \
+http://$(hostname -f):7788/api/v1 \
 ALL_STREAMS \
 NONSECURE &
 
