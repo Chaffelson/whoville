@@ -108,10 +108,12 @@ ambari_configs
 ambari_wait_request_complete 1
 
 
-echo "Cluster installed...now setup trucking demo"
+echo "Cluster installed. Sleeping 60s before setting up trucking demo..."
+sleep 60
 
-sudo yum install -y jq xml2
+#sudo yum install -y jq xml2
 
+while ! echo exit | nc localhost 7788; do echo "waiting for Schema Registry to be fully up..."; sleep 10; done
 
 echo Downloading schemas...
 curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_rawTruckEvents.avsc
@@ -138,18 +140,15 @@ echo Creating Kafka topics...
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --zookeeper ${host}:2181 --list
 
 
-echo "Creating Hbase Tables..."
-echo "create 'driver_speed','0'" | hbase shell
-echo "create 'driver_violations','0'" | hbase shell
-
-
 cd /tmp
 git clone https://github.com/harshn08/whoville.git
-#sleep 60
+
 
 
 
 ## SAM
+while ! echo exit | nc localhost 7777; do echo "waiting for SAM to be fully up..."; sleep 10; done
+
 echo "Creating SAM artifacts..."
 
 echo "Register a service pool cluster..."
@@ -183,6 +182,15 @@ curl -sS -X POST -i -F jarFile=@/tmp/whoville/SAMExtensions/sam-custom-processor
 
 echo "import topology to SAM..."
 curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDemo -F namespaceId=1 -X POST http://${host}:7777/api/v1/catalog/topologies/actions/import
+
+
+
+while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
+while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
+
+echo "Creating Hbase Tables..."
+echo "create 'driver_speed','0'" | hbase shell
+echo "create 'driver_violations','0'" | hbase shell
 
 
 echo "Creating Phoenix Tables..."
