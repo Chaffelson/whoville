@@ -182,7 +182,10 @@ curl -sS -X POST -i -F jarFile=@/tmp/whoville/SAMExtensions/sam-custom-processor
 echo "import topology to SAM..."
 curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDemo -F namespaceId=1 -X POST http://${host}:7777/api/v1/catalog/topologies/actions/import
 
-
+#Deploy SAM topology
+# curl -X POST http://${host}:7777/api/v1/catalog/topologies/1/versions/1/actions/deploy
+# sleep 60
+# curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
 while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
 while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
@@ -201,6 +204,8 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 
 
 ##TODO: add DataLoader.zip and start simulator
+
+##TODO: deploy SAM topology
 
 
 echo "Setup complete!"
