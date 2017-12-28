@@ -148,13 +148,6 @@ git clone https://github.com/harshn08/whoville.git
 #sleep 60
 
 
-echo "Creating Phoenix Tables..."
-# set phoenix path for sql script and data
-export PHOENIX_PATH=/tmp/whoville/phoenix
-/usr/hdp/current/phoenix-client/bin/sqlline.py $(hostname -f):2181:/hbase-unsecure $PHOENIX_PATH/create_tables.sql 
-/usr/hdp/current/phoenix-client/bin/psql.py -t DRIVERS $PHOENIX_PATH/data/drivers.csv
-/usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
-
 
 ## SAM
 echo "Creating SAM artifacts..."
@@ -191,4 +184,14 @@ curl -sS -X POST -i -F jarFile=@/tmp/whoville/SAMExtensions/sam-custom-processor
 echo "import topology to SAM..."
 curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDemo -F namespaceId=1 -X POST http://${host}:7777/api/v1/catalog/topologies/actions/import
 
+
+echo "Creating Phoenix Tables..."
+# set phoenix path for sql script and data
+export PHOENIX_PATH=/tmp/whoville/phoenix
+/usr/hdp/current/phoenix-client/bin/sqlline.py $(hostname -f):2181:/hbase-unsecure $PHOENIX_PATH/create_tables.sql 
+/usr/hdp/current/phoenix-client/bin/psql.py -t DRIVERS $PHOENIX_PATH/data/drivers.csv
+/usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
+
 ##TODO: add missing schema
+
+##TODO: add DataLoader.zip and start simulator
