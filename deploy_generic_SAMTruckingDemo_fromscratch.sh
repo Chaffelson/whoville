@@ -211,7 +211,23 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 
 
 ##TODO: add DataLoader.zip and start simulator
+# creating data simulator folder - 
+export DATA_LOADER_HOME=./data_simulator
 
+#extract routes data 
+tar -zxvf $DATA_LOADER_HOME/routes.tar.gz
 
+nohup java -cp $DATA_LOADER_HOME/stream-simulator-jar-with-dependencies.jar \
+hortonworks.hdp.refapp.trucking.simulator.SimulationRegistrySerializerRunnerApp \
+20000 \
+hortonworks.hdp.refapp.trucking.simulator.impl.domain.transport.Truck \
+hortonworks.hdp.refapp.trucking.simulator.impl.collectors.KafkaEventSerializedWithRegistryCollector \
+1 \
+$DATA_LOADER_HOME/routes/midwest/ \
+10000 \
+$host:6667 
+$host:7788/api/v1 \
+ALL_STREAMS \
+NONSECURE &
 
 echo "Setup complete!"
