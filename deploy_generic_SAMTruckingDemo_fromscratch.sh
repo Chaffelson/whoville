@@ -144,5 +144,18 @@ echo "create 'driver_violations','0'" | hbase shell
 
 
 #TODO: add phoenix tables
+createPhoenixTables () {
+	/usr/hdp/current/phoenix-client/bin/sqlline.py $(hostname -f):2181:/hbase-unsecure $PHOENIX_PATH/create_tables.sql 
+	/usr/hdp/current/phoenix-client/bin/psql.py -t DRIVERS $PHOENIX_PATH/data/drivers.csv
+	/usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
+}
+
+# set phoenix path for sql script and data
+export PHOENIX_PATH=./phoenix
+
+echo "Creating Phoenix Tables..."
+# creating phoenix Tables
+createPhoenixTables
+
 #TODO: add SAM
 #TODO: add missing schema
