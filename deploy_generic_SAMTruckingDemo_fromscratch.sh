@@ -148,7 +148,7 @@ echo Creating Kafka topics...
 ## SAM
 while ! echo exit | nc localhost 7777; do echo "waiting for SAM to be fully up..."; sleep 10; done
 
-echo "Creating SAM artifacts..."
+echo "Creating SAM artifacts for host ${host} ..."
 
 echo "Register a service pool cluster..."
 curl -H 'content-type: application/json' http://${host}:7777/api/v1/catalog/clusters -d @- <<EOF
