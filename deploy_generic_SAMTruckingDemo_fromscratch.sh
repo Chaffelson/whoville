@@ -192,8 +192,8 @@ curl -F file=@/tmp/whoville/topology/truckingapp.json -F topologyName=TruckingDe
 
 echo "Deploying SAM topology..."
 curl -X POST http://${host}:7777/api/v1/catalog/topologies/1/versions/1/actions/deploy
-echo "Waiting 120s for SAM topology deployment..."
-sleep 120
+echo "Waiting 180s for SAM topology deployment..."
+sleep 180
 echo "Checking SAM topology deployment status..."
 curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
@@ -223,7 +223,7 @@ cd $DATA_LOADER_HOME
 #extract routes data 
 sudo tar -zxvf $DATA_LOADER_HOME/routes.tar.gz
 
-nohup java -cp $DATA_LOADER_HOME/stream-simulator-jar-with-dependencies.jar \
+nohup sudo java -cp $DATA_LOADER_HOME/stream-simulator-jar-with-dependencies.jar \
 hortonworks.hdp.refapp.trucking.simulator.SimulationRegistrySerializerRunnerApp \
 20000 \
 hortonworks.hdp.refapp.trucking.simulator.impl.domain.transport.Truck \
