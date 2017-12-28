@@ -195,3 +195,6 @@ export PHOENIX_PATH=/tmp/whoville/phoenix
 ##TODO: add missing schema
 
 ##TODO: add DataLoader.zip and start simulator
+
+
+echo "Setup complete!"
