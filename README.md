@@ -40,7 +40,7 @@ Detailed walkthrough available [here](http://community.hortonworks.com/articles/
 
 ##### What is not automated
 - [ ] Import of Supserset dashboard
-  - This can be manually created using steps in [docs](https://docs.hortonworks.com/HDPDocuments/HDF3/HDF-3.0.3/bk_getting-started-with-stream-analytics/content/ch_sam-create-insights.html)
+  - This can be manually created using steps in [docs](https://docs.hortonworks.com/HDPDocuments/HDF3/HDF-3.0.3/bk_getting-started-with-stream-analytics/content/ch_sam-create-insights.html) or [tutorial](https://hortonworks.com/tutorial/real-time-event-processing-in-nifi-sam-schema-registry-and-superset/#step-4-visualize-trucking-data-via-superset)
 
 ###### Older versions
 Previous README available [here](https://github.com/harshn08/whoville/blob/master/README-HDP261.md)
