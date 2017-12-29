@@ -3,7 +3,7 @@
 A set of quick deployment scripts and supporting artefacts to deploy Hortonworks HDP/HDF demo Sandboxes
 
 ##### To Deploy: New HDF3 install with HDF3 Example application: Streaming Trucking Demo
-Status: Tested with build HDF3.0.0-453 / HDP 2.6.3 / Ambari 2.5.1
+Status: Tested with build HDP 2.6.3 / Ambari 2.5.1 / HDF mpack 3.0.1.1-5
 
 - Pre-reqs:
   - Launch a single vanilla Centos/RHEL 7.x VM (e.g. on local VM or openstack or cloud provider of choice) 
