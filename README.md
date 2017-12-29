@@ -3,7 +3,7 @@
 A set of quick deployment scripts and supporting artefacts to deploy Hortonworks HDP/HDF demo Sandboxes
 
 ##### To Deploy: New HDF3 install with HDF3 Example application: Streaming Trucking Demo
-Status: Complete. Tested with build HDF3.0.0-453  
+Status: Tested with build HDF3.0.0-453 / HDP 2.6.3 / Ambari 2.5.1
 
 Create a Centos7 instance on AWS with at least 4cores/16GiB mem/25GiB disk  (recommend 8x32 for better experience)
 ssh to the box and run:  
