@@ -11,8 +11,12 @@ ssh to the box and run:
 curl -sSL https://raw.githubusercontent.com/harshn08/whoville/master/deploy_generic_SAMTruckingDemo_fromscratch.sh | sudo -E bash
 ```
 
+Once the script completes (about 30min), you can start reviewing the Registry, NiFi, SAM, Storm UIs. However, you will need to wait for additional 20-30min for Druid to index the data before you can start creating Superset dashboards against the Druid cubes.
+
+
 ##### Demo walkthrough
-Walkthrough available [here](http://community.hortonworks.com/articles/148015/partner-demo-kit-for-hdp-26hdf-30.html)
+Detailed walkthrough available [here](http://community.hortonworks.com/articles/148015/partner-demo-kit-for-hdp-26hdf-30.html)
+
 ##### What is automated
 - Ambari install
 - HDF Mpack install
