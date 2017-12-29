@@ -68,7 +68,7 @@ curl -iv -u admin:admin -H "X-Requested-By: blah" -X PUT -d "{ \"Users\": { \"us
 sudo ambari-server restart
 # Ambari blueprint cluster install
 echo "Deploying HDP and HDF services..."
-export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY HBASE PHOENIX"
+export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY HBASE PHOENIX ZEPPELIN"
 export cluster_name=Whoville
 export ambari_stack_version=2.6
 export host_count=1
