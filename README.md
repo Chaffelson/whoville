@@ -30,3 +30,5 @@ Walkthrough available [here](http://community.hortonworks.com/articles/148015/pa
 - Supserset dashboard
   - This can be manually created using steps in [docs](https://docs.hortonworks.com/HDPDocuments/HDF3/HDF-3.0.3/bk_getting-started-with-stream-analytics/content/ch_sam-create-insights.html)
 
+###### Older versions
+Previous README available [here](https://github.com/harshn08/whoville/blob/master/README-HDP261.md)
