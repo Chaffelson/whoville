@@ -57,12 +57,17 @@ sudo ambari-server setup --jdbc-db=mysql --jdbc-driver=/usr/share/java/mysql-con
 sudo ambari-server install-mpack --verbose --mpack=${mpack_url}
 # Hack to fix a current bug in Ambari Blueprints
 sudo sed -i.bak "s/\(^    total_sinks_count = \)0$/\11/" /var/lib/ambari-server/resources/stacks/HDP/2.0.6/services/stack_advisor.py
-#update admin password
+
+echo "Creating Storm View..."
+curl -u admin:admin -H "X-Requested-By:ambari" -X POST -d '{"ViewInstanceInfo":{"instance_name":"Storm_View","label":"Storm View","visible":true,"icon_path":"","icon64_path":"","description":"storm view","properties":{"storm.host":"'${host}'","storm.port":"8744","storm.sslEnabled":"false"},"cluster_type":"NONE"}}' http://${host}:8080/api/v1/views/Storm_Monitoring/versions/0.1.0/instances/Storm_View
+
+echo "Updating admin password..."
 curl -iv -u admin:admin -H "X-Requested-By: blah" -X PUT -d "{ \"Users\": { \"user_name\": \"admin\", \"old_password\": \"admin\", \"password\": \"${ambari_password}\" }}" http://localhost:8080/api/v1/users/admin
+
 
 sudo ambari-server restart
 # Ambari blueprint cluster install
-echo Deploying HDP and HDF services
+echo "Deploying HDP and HDF services..."
 export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY HBASE PHOENIX"
 export cluster_name=Whoville
 export ambari_stack_version=2.6
@@ -72,17 +77,17 @@ unzip -q master.zip -d  /tmp
 
 
 cd /tmp
-echo downloading twitter flow
+echo "downloading twitter flow..."
 twitter_flow=$(curl -L ${nifi_flow})
 #change kafka broker string for Ambari to replace later
 twitter_flow=$(echo ${twitter_flow}  | sed "s/demo.hortonworks.com/${host}/g")
 nifi_config="\"nifi-flow-env\" : { \"properties_attributes\" : { }, \"properties\" : { \"content\" : \"${twitter_flow}\"  }  },"
 echo ${nifi_config} > nifi-config.json
 
-echo downloading Blueprint configs template
+echo "downloading Blueprint configs template..."
 curl -sSL https://gist.github.com/abajwa-hw/73be0ce6f2b88353125ae460547ece46/raw > configuration-custom-template.json
 
-echo adding Nifi flow to blueprint configs template
+echo "adding Nifi flow to blueprint configs template..."
 sed -e "2r nifi-config.json" configuration-custom-template.json  > configuration-custom.json
 
 
@@ -197,8 +202,6 @@ sleep 180
 echo "Checking SAM topology deployment status..."
 curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
-echo "Creating Storm View..."
-curl -u admin:${ambari_password} -H "X-Requested-By:ambari" -X POST -d '{"ViewInstanceInfo":{"instance_name":"Storm_View","label":"Storm View","visible":true,"icon_path":"","icon64_path":"","description":"storm view","properties":{"storm.host":"'${host}'","storm.port":"8744","storm.sslEnabled":"false"},"cluster_type":"NONE"}}' http://${host}:8080/api/v1/views/Storm_Monitoring/versions/0.1.0/instances/Storm_View
 
 while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
 while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
