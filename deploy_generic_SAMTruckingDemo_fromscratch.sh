@@ -206,7 +206,7 @@ while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be full
 echo "Creating Hbase Tables..."
 echo "create 'driver_speed','0'" | hbase shell
 echo "create 'driver_violations','0'" | hbase shell
-echo "create 'violation_events','0'" | hbase shell
+echo "create 'violation_events','events'" | hbase shell
 
 
 echo "Creating Phoenix Tables..."
