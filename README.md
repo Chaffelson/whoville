@@ -18,8 +18,7 @@ curl -sSL https://raw.githubusercontent.com/harshn08/whoville/master/deploy_gene
 
 Once the script completes (about 30min), you can start reviewing the Registry, NiFi, SAM, Storm UIs. However, you will need to wait for additional 20-30min for Druid to index the data before you can start creating Superset dashboards against the Druid cubes.
 
-#### Login details 
-
+##### Login details 
 - Ambari port: 8080 login: admin/StrongPassword
 - Supserset port: 9089 login: admin/StrongPassword
 
