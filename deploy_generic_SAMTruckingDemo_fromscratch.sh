@@ -241,6 +241,29 @@ ALL_STREAMS \
 NONSECURE &
 
 
+echo "Updating Zeppelin notebooks"
+sudo curl -sSL https://raw.githubusercontent.com/hortonworks-gallery/zeppelin-notebooks/master/update_all_notebooks.sh | sudo -E sh 
+
+
+sudo curl -u admin:${ambari_password} -H 'X-Requested-By: blah' -X POST -d "
+{
+   \"RequestInfo\":{
+      \"command\":\"RESTART\",
+      \"context\":\"Restart Zeppelin\",
+      \"operation_level\":{
+         \"level\":\"HOST\",
+         \"cluster_name\":\"${cluster_name}\"
+      }
+   },
+   \"Requests/resource_filters\":[
+      {
+         \"service_name\":\"ZEPPELIN\",
+         \"component_name\":\"ZEPPELIN_MASTER\",
+         \"hosts\":\"${host}\"
+      }
+   ]
+}" http://localhost:8080/api/v1/clusters/${cluster_name}/requests  
+
 
 cd
 echo "Setup complete!"
