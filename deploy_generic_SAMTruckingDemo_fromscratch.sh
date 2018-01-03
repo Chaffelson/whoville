@@ -148,37 +148,46 @@ ambari_wait_request_complete 1
 echo "Cluster installed. Sleeping 60s before setting up trucking demo..."
 sleep 60
 
-#sudo yum install -y jq xml2
-
 while ! echo exit | nc localhost 7788; do echo "waiting for Schema Registry to be fully up..."; sleep 10; done
 
 cd /tmp
 git clone https://github.com/harshn08/whoville.git
 cd /tmp/whoville/templates/
 
-#echo Downloading schemas...
-#curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_rawTruckEvents.avsc
-#curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_geoTruckEvents.avsc
-#curl -ssLO https://raw.githubusercontent.com/Chaffelson/whoville/master/templates/schema_TruckSpeedEvents.avsc
-
-echo Creating Schemas in Registry...
+echo "Creating Schemas in Registry..."
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "raw-truck_events_avro", "description": "Raw Geo events from trucks in Kafka Topic", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "raw-truck_speed_events_avro", "description": "Raw Speed Events from trucks in Kafka Topic", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "truck_events_avro", "description": "Schema for the kafka topic named truck_events_avro", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
 curl -H "Content-Type: application/json" -X POST -d '{ "type": "avro", "schemaGroup": "truck-sensors-kafka", "name": "truck_speed_events_avro", "description": "Schema for the kafka topic named truck_speed_events_avro", "compatibility": "BACKWARD", "evolve": true}' http://localhost:7788/api/v1/schemaregistry/schemas
 
-echo Uploading schemas to registry...
+echo "Uploading schemas to registry..."
 curl -X POST -F 'name=raw-truck_events_avro' -F 'description=ver1' -F 'file=@./schema_rawTruckEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/raw-truck_events_avro/versions/upload
 curl -X POST -F 'name=raw-truck_speed_events_avro' -F 'description=ver1' -F 'file=@./truckspeedevents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/raw-truck_speed_events_avro/versions/upload
 curl -X POST -F 'name=truck_events_avro' -F 'description=ver1' -F 'file=@./schema_geoTruckEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/truck_events_avro/versions/upload
 curl -X POST -F 'name=truck_speed_events_avro' -F 'description=ver1' -F 'file=@./schema_TruckSpeedEvents.avsc' http://localhost:7788/api/v1/schemaregistry/schemas/truck_speed_events_avro/versions/upload
 
-echo Creating Kafka topics...
+echo "Creating Kafka topics..."
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper ${host}:2181 --replication-factor 1 --partition 1 --topic raw-truck_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper ${host}:2181 --replication-factor 1 --partition 1 --topic raw-truck_speed_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper ${host}:2181 --replication-factor 1 --partition 1 --topic truck_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --zookeeper ${host}:2181 --replication-factor 1 --partition 1 --topic truck_speed_events_avro
 /usr/hdp/current/kafka-broker/bin/kafka-topics.sh --zookeeper ${host}:2181 --list
+
+while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
+while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
+
+echo "Creating Hbase Tables..."
+echo "create 'driver_speed','0'" | hbase shell
+echo "create 'driver_violations','0'" | hbase shell
+echo "create 'violation_events','events'" | hbase shell
+
+
+echo "Creating Phoenix Tables..."
+# set phoenix path for sql script and data
+export PHOENIX_PATH=/tmp/whoville/phoenix
+/usr/hdp/current/phoenix-client/bin/sqlline.py $(hostname -f):2181:/hbase-unsecure $PHOENIX_PATH/create_tables.sql 
+/usr/hdp/current/phoenix-client/bin/psql.py -t DRIVERS $PHOENIX_PATH/data/drivers.csv
+/usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
 
 
 
@@ -235,22 +244,6 @@ sleep 180
 echo "Checking SAM topology deployment status..."
 curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | grep -Po '"name":"([A-Z_]+)'| grep -Po '([A-Z_]+)'
 
-
-while ! echo exit | nc localhost 16010; do echo "waiting for Hbase master to be fully up..."; sleep 10; done
-while ! echo exit | nc localhost 16030; do echo "waiting for Hbase RS to be fully up..."; sleep 10; done
-
-echo "Creating Hbase Tables..."
-echo "create 'driver_speed','0'" | hbase shell
-echo "create 'driver_violations','0'" | hbase shell
-echo "create 'violation_events','events'" | hbase shell
-
-
-echo "Creating Phoenix Tables..."
-# set phoenix path for sql script and data
-export PHOENIX_PATH=/tmp/whoville/phoenix
-/usr/hdp/current/phoenix-client/bin/sqlline.py $(hostname -f):2181:/hbase-unsecure $PHOENIX_PATH/create_tables.sql 
-/usr/hdp/current/phoenix-client/bin/psql.py -t DRIVERS $PHOENIX_PATH/data/drivers.csv
-/usr/hdp/current/phoenix-client/bin/psql.py -t TIMESHEET $PHOENIX_PATH/data/timesheet.csv
 
 
 
