@@ -117,6 +117,8 @@ sed -e "2r nifi-config.json" configuration-custom-template.json  > configuration
 if [ "${install_solr}" = true  ]; then
   echo "adding Solr to blueprint configs template..."
   sed -e "2r solr-config.json" configuration-custom.json > configuration-custom-solr.json
+  sudo mv configuration-custom.json configuration-custom-nifi.json
+  sudo mv configuration-custom-solr.json configuration-custom.json
 fi
 
 
