@@ -11,7 +11,16 @@ export ambari_password=${ambari_password:-StrongPassword}
 export db_password=${db_password:-StrongPassword}
 export nifi_flow="https://gist.githubusercontent.com/abajwa-hw/3857a205d739473bb541490f6471cdba/raw"
 #export nifi_flow="https://gist.githubusercontent.com/abajwa-hw/a78634099c82cd2bab1ccceb8cc2b86e/raw"
+export install_solr=true    ## for Twitter demo
 export host=$(hostname -f)
+
+export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY HBASE PHOENIX ZEPPELIN"
+export cluster_name=Whoville
+export ambari_stack_version=2.6
+export host_count=1
+#service user for Ambari to setup demos
+export service_user="demokitadmin"
+export service_password="BadPass#1"
 
 
 #echo Patching...
@@ -61,17 +70,30 @@ sudo sed -i.bak "s/\(^    total_sinks_count = \)0$/\11/" /var/lib/ambari-server/
 echo "Creating Storm View..."
 curl -u admin:admin -H "X-Requested-By:ambari" -X POST -d '{"ViewInstanceInfo":{"instance_name":"Storm_View","label":"Storm View","visible":true,"icon_path":"","icon64_path":"","description":"storm view","properties":{"storm.host":"'${host}'","storm.port":"8744","storm.sslEnabled":"false"},"cluster_type":"NONE"}}' http://${host}:8080/api/v1/views/Storm_Monitoring/versions/0.1.0/instances/Storm_View
 
+#create demokitadmin user
+curl -iv -u admin:admin -H "X-Requested-By: blah" -X POST -d "{\"Users/user_name\":\"${service_user}\",\"Users/password\":\"${service_password}\",\"Users/active\":\"true\",\"Users/admin\":\"true\"}" http://localhost:8080/api/v1/users
+
 echo "Updating admin password..."
 curl -iv -u admin:admin -H "X-Requested-By: blah" -X PUT -d "{ \"Users\": { \"user_name\": \"admin\", \"old_password\": \"admin\", \"password\": \"${ambari_password}\" }}" http://localhost:8080/api/v1/users/admin
 
+cd /tmp
+
+#solr pre-restart steps
+if [ "${install_solr}" = true  ]; then
+	sudo git clone https://github.com/abajwa-hw/solr-stack.git   /var/lib/ambari-server/resources/stacks/HDP/${ambari_stack_version}/services/SOLRDEMO
+   cat << EOF > custom_order.json
+    "SOLR_MASTER-START" : ["ZOOKEEPER_SERVER-START"],
+EOF
+
+   sudo sed -i.bak '/"dependencies for all cases",/ r custom_order.json' /var/lib/ambari-server/resources/stacks/HDP/2.5/role_command_order.json
+   
+   solr_config="\"  solr-config\": { \"solr.download.location\": \"HDPSEARCH\", \"solr.cloudmode\": \"true\", \"solr.demo_mode\": \"true\" },"	
+   echo ${solr_config} > solr-config.json
+fi
 
 sudo ambari-server restart
 # Ambari blueprint cluster install
 echo "Deploying HDP and HDF services..."
-export ambari_services="AMBARI_METRICS HDFS MAPREDUCE2 YARN ZOOKEEPER DRUID STREAMLINE NIFI KAFKA STORM REGISTRY HBASE PHOENIX ZEPPELIN"
-export cluster_name=Whoville
-export ambari_stack_version=2.6
-export host_count=1
 curl -ssLO https://github.com/seanorama/ambari-bootstrap/archive/master.zip
 unzip -q master.zip -d  /tmp
 
@@ -81,8 +103,9 @@ echo "downloading twitter flow..."
 twitter_flow=$(curl -L ${nifi_flow})
 #change kafka broker string for Ambari to replace later
 twitter_flow=$(echo ${twitter_flow}  | sed "s/demo.hortonworks.com/${host}/g")
-nifi_config="\"nifi-flow-env\" : { \"properties_attributes\" : { }, \"properties\" : { \"content\" : \"${twitter_flow}\"  }  },"
+nifi_config="\"  nifi-flow-env\" : { \"properties_attributes\" : { }, \"properties\" : { \"content\" : \"${twitter_flow}\"  }  },"
 echo ${nifi_config} > nifi-config.json
+
 
 echo "downloading Blueprint configs template..."
 curl -sSL https://gist.github.com/abajwa-hw/73be0ce6f2b88353125ae460547ece46/raw > configuration-custom-template.json
@@ -90,6 +113,11 @@ curl -sSL https://gist.github.com/abajwa-hw/73be0ce6f2b88353125ae460547ece46/raw
 echo "adding Nifi flow to blueprint configs template..."
 sed -e "2r nifi-config.json" configuration-custom-template.json  > configuration-custom.json
 
+
+if [ "${install_solr}" = true  ]; then
+  echo "adding Solr to blueprint configs template..."
+  sed -e "2r solr-config.json" configuration-custom.json > configuration-custom-solr.json
+fi
 
 
 cd /tmp/ambari-bootstrap-master/deploy
