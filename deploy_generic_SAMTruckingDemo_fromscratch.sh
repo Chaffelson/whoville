@@ -119,6 +119,8 @@ if [ "${install_solr}" = true  ]; then
   sed -e "2r solr-config.json" configuration-custom.json > configuration-custom-solr.json
   sudo mv configuration-custom.json configuration-custom-nifi.json
   sudo mv configuration-custom-solr.json configuration-custom.json
+  
+  export ambari_services="${ambari_services} SOLR"
 fi
 
 
@@ -127,7 +129,7 @@ sudo cp /tmp/configuration-custom.json .
 
 
 # This command might fail with 'resources' error, means Ambari isn't ready yet
-echo Waiting for 90s for deploying
+echo "Waiting for 90s before deploying cluster with services: ${ambari_services}"
 sleep 90
 sudo -E /tmp/ambari-bootstrap-master/deploy/deploy-recommended-cluster.bash
 
