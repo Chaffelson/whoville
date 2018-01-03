@@ -87,7 +87,7 @@ EOF
 
    sudo sed -i.bak '/"dependencies for all cases",/ r custom_order.json' /var/lib/ambari-server/resources/stacks/HDP/2.5/role_command_order.json
    
-   solr_config="\"  solr-config\": { \"solr.download.location\": \"HDPSEARCH\", \"solr.cloudmode\": \"true\", \"solr.demo_mode\": \"true\" },"	
+   solr_config="\"solr-config\": { \"solr.download.location\": \"HDPSEARCH\", \"solr.cloudmode\": \"true\", \"solr.demo_mode\": \"true\" },"	
    echo ${solr_config} > solr-config.json
 fi
 
@@ -103,7 +103,7 @@ echo "downloading twitter flow..."
 twitter_flow=$(curl -L ${nifi_flow})
 #change kafka broker string for Ambari to replace later
 twitter_flow=$(echo ${twitter_flow}  | sed "s/demo.hortonworks.com/${host}/g")
-nifi_config="\"  nifi-flow-env\" : { \"properties_attributes\" : { }, \"properties\" : { \"content\" : \"${twitter_flow}\"  }  },"
+nifi_config="\"nifi-flow-env\" : { \"properties_attributes\" : { }, \"properties\" : { \"content\" : \"${twitter_flow}\"  }  },"
 echo ${nifi_config} > nifi-config.json
 
 
