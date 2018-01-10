@@ -39,7 +39,7 @@
       "druid.metadata.storage.connector.port" : "3306",
       "druid.metadata.storage.connector.connectURI" : "jdbc:mysql://localhost:3306/druid?createDatabaseIfNotExist=true",
       "druid.metadata.storage.type" : "mysql",
-      "druid.extensions.loadList" : "[\"druid-datasketches\", \"druid-hdfs-storage\", \"ambari-metrics-emitter\", \"mysql-metadata-storage\", \"druid-s3-extensions\"]"
+      "druid.extensions.loadList" : "[\"druid-datasketches\", \"druid-hdfs-storage\", \"ambari-metrics-emitter\", \"mysql-metadata-storage\"]"
     },
     "druid-superset": {
       "SECRET_KEY": "StrongPassword",
