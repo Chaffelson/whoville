@@ -1,0 +1,243 @@
+{
+      "streamingEngine": "STORM",
+      "name": "ENRICH-PHOENIX",
+      "description": "Enriches the input schema with data from Phoenix based on user supplied SQL",
+      "jarFileName": "sam-custom-processor-0.0.5-jar-with-dependencies.jar",
+      "topologyComponentUISpecification": {
+        "fields": [
+          {
+            "uiName": "Phoenix ZooKeeper Connection URL",
+            "fieldName": "zkServerUrl",
+            "isUserInput": true,
+            "tooltip": "ZooKeeper server url in the format of $FQDN_ZK_HOST:$ZK_PORT",
+            "isOptional": false,
+            "type": "string",
+            "defaultValue": ""
+          },
+          {
+            "uiName": "enrichmentSQL",
+            "fieldName": "enrichmentSQL",
+            "isUserInput": true,
+            "tooltip": "SQL to execute for the enriched values",
+            "isOptional": false,
+            "type": "string",
+            "defaultValue": ""
+          },
+          {
+            "uiName": "enrichedOutputFields",
+            "fieldName": "enrichedOutputFields",
+            "isUserInput": true,
+            "tooltip": "The output field names to store new enriched values",
+            "isOptional": false,
+            "type": "string",
+            "defaultValue": ""
+          },
+          {
+            "uiName": "secureCluster",
+            "fieldName": "secureCluster",
+            "isUserInput": true,
+            "tooltip": "Check if connecting to a secure HBase\/Phoenix Cluster",
+            "isOptional": false,
+            "type": "boolean",
+            "defaultValue": true
+          },
+          {
+            "uiName": "kerberosClientPrincipal",
+            "fieldName": "kerberosClientPrincipal",
+            "isUserInput": true,
+            "tooltip": "kerberosClientPrincipal",
+            "isOptional": true,
+            "type": "string",
+            "defaultValue": ""
+          },
+          {
+            "uiName": "kerberosKeyTabFile",
+            "fieldName": "kerberosKeyTabFile",
+            "isUserInput": true,
+            "tooltip": "kerberosKeyTabFile",
+            "isOptional": true,
+            "type": "string",
+            "defaultValue": ""
+          }
+        ]
+      },
+      "inputSchema": {
+        "fields": [
+  {
+    "name": "eventTime",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventSource",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "truckId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverName",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "routeId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "route",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventType",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "latitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "longitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "correlationId",
+    "type": "LONG",
+    "optional": false
+  },
+  {
+    "name": "geoAddress",
+    "type": "STRING",
+    "optional": true
+  },  
+  {
+    "name": "speed",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "week",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "splitJoinValue",
+    "type": "LONG",
+    "optional": false
+  }  
+]
+      },
+      "outputSchema": {
+        "fields": [
+  {
+    "name": "eventTime",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventSource",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "truckId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "driverName",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "routeId",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "route",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "eventType",
+    "type": "STRING",
+    "optional": false
+  },
+  {
+    "name": "latitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "longitude",
+    "type": "DOUBLE",
+    "optional": false
+  },
+  {
+    "name": "correlationId",
+    "type": "LONG",
+    "optional": false
+  },
+  {
+    "name": "geoAddress",
+    "type": "STRING",
+    "optional": true
+  },   
+  {
+    "name": "speed",
+    "type": "INTEGER",
+    "optional": false
+  },
+  {
+    "name": "week",
+    "type": "INTEGER",
+    "optional": false
+  }, 
+  {
+    "name": "splitJoinValue",
+    "type": "LONG",
+    "optional": false
+  },
+  {
+    "name": "driverCertification",
+    "type": "STRING",
+    "optional": true
+  },
+  {
+    "name": "driverWagePlan",
+    "type": "STRING",
+    "optional": true
+  },
+  {
+    "name": "driverFatigueByHours",
+    "type": "STRING",
+    "optional": true
+  },
+  {
+    "name": "driverFatigueByMiles",
+    "type": "STRING",
+    "optional": true
+  }  
+]
+      },
+      "customProcessorImpl": "hortonworks.hdf.sam.custom.processor.enrich.phoenix.PhoenixEnrichmentSecureProcessor"
+}
