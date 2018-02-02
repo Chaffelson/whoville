@@ -269,6 +269,8 @@ NONSECURE &
 
 echo "Updating Zeppelin notebooks"
 sudo curl -sSL https://raw.githubusercontent.com/hortonworks-gallery/zeppelin-notebooks/master/update_all_notebooks.sh | sudo -E sh 
+sudo -u zeppelin hdfs dfs -rmr /user/zeppelin/notebook/*
+sudo -u zeppelin hdfs dfs -put /usr/hdp/current/zeppelin-server/notebook/* /user/zeppelin/notebook/
 
 
 sudo curl -u admin:${ambari_password} -H 'X-Requested-By: blah' -X POST -d "
