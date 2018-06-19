@@ -61,7 +61,7 @@ echo Installing Ambari
 
 export install_ambari_server=true
 #export java_provider=oracle
-curl -sSL https://raw.githubusercontent.com/seanorama/ambari-bootstrap/master/ambari-bootstrap.sh | sudo -E sh
+curl -sSL https://raw.githubusercontent.com/abajwa-hw/ambari-bootstrap/master/ambari-bootstrap.sh | sudo -E sh
 sudo ambari-server setup --jdbc-db=mysql --jdbc-driver=/usr/share/java/mysql-connector-java.jar
 sudo ambari-server install-mpack --verbose --mpack=${mpack_url}
 # Hack to fix a current bug in Ambari Blueprints
