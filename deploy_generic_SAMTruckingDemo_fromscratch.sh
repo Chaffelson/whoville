@@ -61,7 +61,7 @@ echo Installing Ambari
 
 export install_ambari_server=true
 #export java_provider=oracle
-curl -sSL https://raw.githubusercontent.com/seanorama/ambari-bootstrap/master/ambari-bootstrap.sh | sudo -E sh
+curl -sSL https://raw.githubusercontent.com/abajwa-hw/ambari-bootstrap/master/ambari-bootstrap.sh | sudo -E sh
 sudo ambari-server setup --jdbc-db=mysql --jdbc-driver=/usr/share/java/mysql-connector-java.jar
 sudo ambari-server install-mpack --verbose --mpack=${mpack_url}
 # Hack to fix a current bug in Ambari Blueprints
@@ -269,6 +269,8 @@ NONSECURE &
 
 echo "Updating Zeppelin notebooks"
 sudo curl -sSL https://raw.githubusercontent.com/hortonworks-gallery/zeppelin-notebooks/master/update_all_notebooks.sh | sudo -E sh 
+sudo -u zeppelin hdfs dfs -rmr /user/zeppelin/notebook/*
+sudo -u zeppelin hdfs dfs -put /usr/hdp/current/zeppelin-server/notebook/* /user/zeppelin/notebook/
 
 
 sudo curl -u admin:${ambari_password} -H 'X-Requested-By: blah' -X POST -d "
