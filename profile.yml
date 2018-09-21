@@ -1,0 +1,24 @@
+cb_config:
+infra:
+  EC2:
+    key: ...
+    secret: ...
+    region: eu-central-1
+    infraarn: arn:aws:iam::<account>:instance-profile/<InfRoleName>
+    credarn: arn:aws:iam::<account>:instance-profile/<CredRoleName>
+deploy:
+  namespace: whoville-
+  globalpurge: false  # CAUTION: Will kill anything it finds matching namespace
+  email: admin@example.com
+  username: admin
+  password: admin-password1
+  sshkey_name: <sshkeyname>
+  sshkey_pub: ssh-rsa ...
+  githubuser:
+  githubtoken:
+  resources:
+    - loc: local
+      uri: resources/v2
+  objectstore: s3
+  bucket: whoville
+  bucketrole: arn:aws:iam::<account>:instance-profile/<CredRoleName>
