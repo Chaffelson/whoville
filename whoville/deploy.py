@@ -41,6 +41,14 @@ valid_source_types = ['url', 'file']
 # Separator char when parsing readable nested dict keys in this code
 sep = ':'
 
+# All Stack statuses, taken from cloudbreak/models/StackResponse/status
+responses = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
+             "UPDATE_IN_PROGRESS", "UPDATE_REQUESTED", "UPDATE_FAILED",
+             "CREATE_FAILED", "ENABLE_SECURITY_FAILED",
+             "PRE_DELETE_IN_PROGRESS", "DELETE_IN_PROGRESS", "DELETE_FAILED",
+             "DELETE_COMPLETED", "STOPPED", "STOP_REQUESTED",
+             "START_REQUESTED", "STOP_IN_PROGRESS", "START_IN_PROGRESS",
+             "START_FAILED", "STOP_FAILED", "WAIT_FOR_SYNC"]
 
 @utils.singleton
 class Horton:
@@ -821,14 +829,19 @@ def create_stack(name, wait=False, purge=False, **kwargs):
     start_ts = datetime.utcnow()
     stack = [x for x in list_stacks() if x.name == name]
     if stack:
+        log.info("Stack [%s] already Exists", name)
+        stack = stack[0]
         if horton.global_purge or purge:
-            log.info("Stack [%s] Exists and Purge is True, deleting",
-                     name)
-            delete_stack(stack[0].id)
+            log.info("Purge is True, deleting existing Stack", name)
+            delete_stack(stack.id)
+        elif any(s in stack.status for s in ['FAILED', 'STOP']) or any(s in stack.cluster.status for s in ['FAILED', 'STOP']):
+            log.info("Stack [%s] in bad state [%s], recreating",
+                     name, str(stack.status + stack.cluster.status))
+            delete_stack(stack.id)
         else:
-            log.info("Stack [%s] Exists and Purge is False, returning Existing"
-                     "Stack", name)
-            return stack[0]
+            log.info("Stack [%s] Exists in State [%s] and Purge is False,"
+                     " returning Existing Stack", name, stack.cluster.status)
+            return stack
     log.info("Stack [%s] not found, Creating", name)
     resp = whoville.cloudbreak.V2stacksApi().post_private_stack_v2(
         body=horton.specs[name],
@@ -1089,16 +1102,17 @@ def wait_for_event(name, state, start_ts, wait):
     stack = [x for x in list_stacks()
              if x.name == name]
     if stack:
-        current_level = event_key[stack[0].status]
+        stack = stack[0]
+        current_level = event_key[stack.status]
         if current_level >= target_level:
-            log.info("Stack [%s] at State [%s], which is higher than [%s], "
-                     "Returning Success", name, stack[0].status, state)
+            log.info("Stack [%s] at State [%s], which is >= [%s], "
+                     "Returning Success", name, stack.status, state)
             return
     whoville.utils.wait_to_complete(
         monitor_event_stream,
         start_ts=start_ts,
         identity=('stack_name', name),
-        target_event=('event_type', state),
+        target_event=('cluster_status', state),
         valid_events=[
             'UPDATE_IN_PROGRESS', 'BILLING_STARTED', 'AVAILABLE',
             'CREATE_IN_PROGRESS', 'DELETE_IN_PROGRESS', 'DELETE_COMPLETED',
@@ -1127,7 +1141,8 @@ def add_security_rule(cidr, start, end, protocol):
 
 
 def write_cache(name, item, cache_key):
-    log.info("Writing [%s] from [%s] to Horton Cache key [%s]")
+    log.info("Writing [%s] from [%s] to Horton Cache key [%s]",
+             item, name, cache_key)
     horton = Horton()
     if item in ['public_ip']:
         stack = [x for x in list_stacks()

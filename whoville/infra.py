@@ -108,12 +108,17 @@ def create_cloudbreak(session, cbd_name):
         }
     ]
     if session.type == 'ec2':
-        image = list_images(
+        images = list_images(
             session,
             filters={
-                'name': '*CentOS Linux 7*x86_64* 18*',
+                'name': '*CentOS Linux 7 x86_64 HVM EBS ENA*',
             }
-        )[-1]
+        )
+        image = sorted(images, key=lambda k: k.extra['description'][-7:])
+        if not image:
+            raise ValueError("Couldn't find a valid Centos7 Image")
+        else:
+            image = image[-1]
         bd = image.extra['block_device_mapping'][0]
         root_vol = {
             'VirtualName': None,
@@ -124,17 +129,33 @@ def create_cloudbreak(session, cbd_name):
                 'DeleteOnTermination': True
             }
         }
-        machine = list_sizes(session, cpu_min=4, cpu_max=4, mem_min=16000,
-                             mem_max=20000)[-1]
-        network = list_networks(session, {'name': 'default'})[-1]
-        subnet = list_subnets(session, {'extra.vpc_id': network.id})[-1]
+        machines = list_sizes(session, cpu_min=4, cpu_max=4, mem_min=16000,
+                             mem_max=20000)
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[-1]
+        networks = list_networks(session)
+        network = sorted(networks, key=lambda k: k.extra['is_default'])
+        if not network:
+            raise ValueError("There should be at least one network, this "
+                             "is rather unexpected")
+        else:
+            network = network[-1]
+        subnets = list_subnets(session, {'extra.vpc_id': network.id})
+        subnet = sorted(subnets, key=lambda k: k.state)
+        if not subnet:
+            raise ValueError("There should be at least one subnet on a network")
+        else:
+            subnet = subnet[0]
         sec_group = list_security_groups(session, {'name': namespace})
         if not sec_group:
-            sec_group = session.ex_create_security_group(
+            _ = session.ex_create_security_group(
                 name=namespace + 'whoville-default',
                 description=namespace + 'whoville-default Security Group',
                 vpc_id=network.id
             )
+            sec_group = list_security_groups(session, {'name': namespace})[-1]
         else:
             sec_group = sec_group[-1]
         net_rules.append(
@@ -178,6 +199,8 @@ def create_cloudbreak(session, cbd_name):
         log.info("Assigning Static IP to Cloudbreak")
         # TODO: Reuse Elastic IPs isntead of making new each time
         elastic_ip = session.ex_allocate_address()
+        if not elastic_ip:
+            raise ValueError("Couldn't get a Static IP for Cloudbreak")
         session.ex_associate_address_with_node(cbd, elastic_ip)
         # Assign Role ARN
         s_boto3 = create_boto3_session()
@@ -252,14 +275,15 @@ def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
 
 def list_networks(session, filters=None):
     networks = session.ex_list_networks()
-    if not filter:
+    if filters is None:
         return networks
-    for key, val in filters.items():
-        networks = [
-            x for x in networks
-            if val in whoville.utils.get_val(x, key)
-        ]
-    return networks
+    else:
+        for key, val in filters.items():
+            networks = [
+                x for x in networks
+                if val in whoville.utils.get_val(x, key)
+            ]
+        return networks
 
 
 def list_subnets(session, filters=None):

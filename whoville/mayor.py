@@ -109,6 +109,7 @@ def step_4_build():
         log.info("Started Priority [%s] at [%s]", str(seq_key), start_ts)
         steps = horton.seq[seq_key]
         for step in steps:
+            step_ts = datetime.utcnow()
             for action, args in step.items():
                 log.info("Executing Action [%s] with Args [%s] at [%s]",
                          action, str(args), datetime.utcnow())
@@ -135,7 +136,7 @@ def step_4_build():
                     whoville.deploy.wait_for_event(
                         fullname,
                         event,
-                        start_ts,
+                        step_ts,
                         horton.defs[def_key]['control']['deploywait']
                     )
                 if action == 'openport':
@@ -162,9 +163,10 @@ def step_4_build():
                     log.info("Replacing string [%s] with [%s] in Resource [%s]"
                              " in def [%s]",
                              cache_key, horton.cache[cache_key], res_name, def_key)
-                    horton.resources[def_key][res_name].replace(
+                    s = horton.resources[def_key][res_name].replace(
                         cache_key, horton.cache[cache_key]
                     )
+                    horton.resources[def_key][res_name] = s
                 log.info("Completed Action [%s] with Args [%s] at [%s]",
                          action, str(args), datetime.utcnow())
         finish_ts = datetime.utcnow()

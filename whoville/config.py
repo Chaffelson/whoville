@@ -46,8 +46,11 @@ if not cb_config.verify_ssl:
 
 
 # Resolve Configuration overrides from local profile
-profile = utils.load(
-    utils.fs_read(
-        '.profile.yml'
+try:
+    profile = utils.load(
+        utils.fs_read(
+            '.profile.yml'
+        )
     )
-)
+except Exception:
+    raise ValueError(".profile.yml not found - Have you set your Profile up?")
