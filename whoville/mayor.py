@@ -169,7 +169,7 @@ def step_4_build():
                          action, str(args), datetime.utcnow())
         finish_ts = datetime.utcnow()
         diff_ts = finish_ts - start_ts
-        log.info("Completed Deployment [%s] at [%s] after [%d]",
+        log.info("Completed Deployment [%s] at [%s] after [%d] seconds",
                  seq_key, finish_ts, diff_ts.seconds)
 
 

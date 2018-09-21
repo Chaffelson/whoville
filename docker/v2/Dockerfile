@@ -26,9 +26,9 @@ ENV PROFILE=/.secrets.yaml
 ENV PYTHONUNBUFFERED=0
 
 RUN apk update && apk upgrade \
-    && apk add --no-cache --virtual .build-deps gcc build-base linux-headers \
-    ca-certificates python3-dev libffi-dev libressl-dev git \
-    && apk add -U --no-cache libxslt-dev bash \
+    && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \
+    libressl-dev ca-certificates python3-dev linux-headers \
+    && apk add -U --no-cache bash 
     && git clone https://github.com/Chaffelson/whoville.git -b ${BRANCH} \
     && cd /whoville \
     && pip install -e . \

@@ -11,17 +11,10 @@ with open('README.rst') as readme_file:
 with open('docs/history.rst') as history_file:
     history = history_file.read()
 
-proj_version = '0.0.1'
+with open('requirements.txt') as reqs_file:
+    requirements = reqs_file.read().splitlines()
 
-requirements = [
-    'urllib3',  # Required for timeouts during security tests
-    'six',  # Required for managing Python version compatibility
-    'ruamel.yaml<=0.15.42',  # Required for parsing Json/Yaml consistently
-    'docker',  # Used to deploy demo assemblies
-    'requests[security]',  # Used in utils functions, security extras for Py2
-    'pygithub>=1.4',  # For Working with Github support
-    'apache-libcloud>=2.3.0'  # Direct Cloud Service interaction
-]
+proj_version = '0.0.1'
 
 setup(
     name='whoville',
