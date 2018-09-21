@@ -1,0 +1,8 @@
+include docs/history.rst
+include LICENSE
+include README.rst
+include requirements.txt
+
+graft whoville
+
+global-exclude *.py[co]

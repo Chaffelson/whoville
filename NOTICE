@@ -1,0 +1,9 @@
+Whoville
+Copyright (c) 2017-2018, Daniel Chaffelson
+
+This software includes derived works from the Swagger Codegen (ASLv2) project (https://github.com/swagger-api/swagger-codegen):
+  Copyright 2016 SmartBear Software
+  This includes the generator templates for the Python language in the swagger_templates directory.
+
+This software includes derived works from the Cloudbreak (ASLv2) project (https://github.com/hortonworks/cloudbreak):
+  This includes code that was generated based on Cloudbreak public interface definitions.
