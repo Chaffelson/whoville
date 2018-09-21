@@ -33,7 +33,7 @@ RUN apk update && apk upgrade \
     && cd /whoville \
     && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps \
-    && sed -i s/profile_file = '.profile.yml'/profile_file = '${PROFILE}'/g /whoville/whoville/config.py
+    && sed -i s/profile_file = '.profile.yml'/profile_file = '${PROFILE}'/g /whoville/whoville/config.py \
     && echo "python3 /whoville/whoville/mayor.py" > /run-module.sh
 
 ENTRYPOINT ["/bin/bash"]
