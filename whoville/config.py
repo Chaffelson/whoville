@@ -13,6 +13,8 @@ import urllib3
 from whoville.cloudbreak import configuration as cb_config
 from whoville import utils
 
+# --- Profile File Name ------
+profile_file = '.profile.yml'
 
 # --- Logging ------
 logging.basicConfig(level=logging.INFO)
@@ -47,10 +49,6 @@ if not cb_config.verify_ssl:
 
 # Resolve Configuration overrides from local profile
 try:
-    profile = utils.load(
-        utils.fs_read(
-            '.profile.yml'
-        )
-    )
+    profile = utils.load(utils.fs_read(profile_file))
 except Exception:
     raise ValueError(".profile.yml not found - Have you set your Profile up?")

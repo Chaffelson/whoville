@@ -22,7 +22,7 @@ LABEL maintainer="Dan Chaffelson <chaffelson@gmail.com>"
 LABEL site="https://github.com/Chaffelson/whoville"
 
 ENV BRANCH=hdp3cbd
-ENV PROFILE=/.profile.yaml
+ENV PROFILE=${PROFILE:-/profile.yml}
 ENV PYTHONUNBUFFERED=0
 
 RUN apk update && apk upgrade \
@@ -33,7 +33,8 @@ RUN apk update && apk upgrade \
     && cd /whoville \
     && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps \
-    && echo "python3 /whoville/whoville/mayor.py $PROFILE" > /run-module.sh
+    && sed -i s/profile_file = '.profile.yml'/profile_file = '${PROFILE}'/g /whoville/whoville/config.py
+    && echo "python3 /whoville/whoville/mayor.py" > /run-module.sh
 
 ENTRYPOINT ["/bin/bash"]
 CMD ["/run-module.sh"]

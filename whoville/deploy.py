@@ -1116,7 +1116,7 @@ def wait_for_event(name, state, start_ts, wait):
         valid_events=[
             'UPDATE_IN_PROGRESS', 'BILLING_STARTED', 'AVAILABLE',
             'CREATE_IN_PROGRESS', 'DELETE_IN_PROGRESS', 'DELETE_COMPLETED',
-            'BILLING_TERMINATED'
+            'BILLING_TERMINATED', 'REQUESTED'
         ],
         whoville_delay=15,
         whoville_max_wait=wait
