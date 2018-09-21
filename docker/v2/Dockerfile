@@ -22,16 +22,16 @@ LABEL maintainer="Dan Chaffelson <chaffelson@gmail.com>"
 LABEL site="https://github.com/Chaffelson/whoville"
 
 ENV BRANCH=hdp3cbd
-ENV PROFILE=/.secrets.yaml
+ENV PROFILE=/.profile.yaml
 ENV PYTHONUNBUFFERED=0
 
 RUN apk update && apk upgrade \
     && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \
     libressl-dev ca-certificates python3-dev linux-headers \
     && apk add -U --no-cache bash \
-    && git clone https://github.com/Chaffelson/whoville.git -b ${BRANCH} \
+    && git clone --depth 1 -b ${BRANCH} https://github.com/Chaffelson/whoville.git /whoville \
     && cd /whoville \
-    && pip install -e . \
+    && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps \
     && echo "python3 /whoville/whoville/mayor.py $PROFILE" > /run-module.sh
 

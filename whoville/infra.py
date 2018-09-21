@@ -157,7 +157,7 @@ def create_cloudbreak(session, cbd_name):
             ssh_key = ssh_key[0]
 
         script = '''#!/bin/bash
-        curl -s https://raw.githubusercontent.com/Chaffelson/whoville/cloudbreak/whoville/demo/resources/whoville/cbd_bootstrap_centos7.sh | bash'''
+        curl -s https://raw.githubusercontent.com/Chaffelson/whoville/hdp3cbd/bootstrap/v2/cbd_bootstrap_centos7.sh | bash'''
         cbd = create_node(
             session=session,
             name=cbd_name,
