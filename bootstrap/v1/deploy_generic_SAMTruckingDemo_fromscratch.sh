@@ -106,6 +106,9 @@ twitter_flow=$(echo ${twitter_flow}  | sed "s/demo.hortonworks.com/${host}/g")
 nifi_config="\"nifi-flow-env\" : { \"properties_attributes\" : { }, \"properties\" : { \"content\" : \"${twitter_flow}\"  }  },"
 echo ${nifi_config} > nifi-config.json
 
+echo "downloading stream simulator jar"
+curl -sSL https://s3.eu-west-2.amazonaws.com/whoville/v1/stream-simulator-jar-with-dependencies.jar > stream-simulator-jar-with-dependencies.jar
+
 
 echo "downloading Blueprint configs template..."
 curl -sSL https://gist.github.com/abajwa-hw/73be0ce6f2b88353125ae460547ece46/raw > configuration-custom-template.json
@@ -248,7 +251,7 @@ curl -X GET http://${host}:7777/api/v1/catalog/topologies/1/deploymentstate | gr
 
 
 echo "Starting simulator..." 
-export DATA_LOADER_HOME=/tmp/whoville/data_simulator
+export DATA_LOADER_HOME=/tmp
 cd $DATA_LOADER_HOME
 #extract routes data 
 sudo tar -zxvf $DATA_LOADER_HOME/routes.tar.gz

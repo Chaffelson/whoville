@@ -44,3 +44,9 @@ Detailed walkthrough available [here](http://community.hortonworks.com/articles/
 
 ###### Older versions
 Previous README available [here](https://github.com/harshn08/whoville/blob/master/README-HDP261.md)
+
+
+### Notes
+Some resources have been moved to an S3 bucket to be more accessible and reduce the size of this repo
+https://s3.eu-west-2.amazonaws.com/whoville/v1/sam-custom-processor-0.0.5.jar
+https://s3.eu-west-2.amazonaws.com/whoville/v1/stream-simulator-jar-with-dependencies.jar
