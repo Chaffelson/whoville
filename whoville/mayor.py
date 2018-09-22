@@ -11,6 +11,7 @@ from __future__ import absolute_import
 import logging
 from datetime import datetime
 import whoville
+import socket
 
 
 log = logging.getLogger(__name__)
@@ -59,7 +60,8 @@ def step_2_init_infra():
         purge=horton.global_purge
     )
     log.info("------------- Connecting to Cloudbreak")
-    url = 'https://' + horton.find('cbd:extra:dns_name') + '/cb/api'
+    public_dns_name = str(socket.gethostbyaddr(horton.find('cbd:public_ips')[0])[0])
+    url = 'https://' + public_dns_name + '/cb/api'
     log.info("Setting endpoint to %s", url)
     whoville.utils.set_endpoint(url)
     log.info("------------- Authenticating to Cloudbreak")

@@ -15,6 +15,7 @@ from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 import boto3
 import whoville
+import socket
 
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
@@ -75,9 +76,10 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
                      "Cloudbreak [%s]", cbd_name)
             cbd = create_cloudbreak(s_libc, cbd_name)
             log.info("Waiting for Cloudbreak Deployment to Complete")
+            public_dns_name = str(socket.gethostbyaddr(cbd.public_ips[0])[0])
             whoville.utils.wait_to_complete(
                 whoville.utils.is_endpoint_up,
-                'https://' + cbd.extra['dns_name'],
+                'https://' + public_dns_name,
                 whoville_delay=30,
                 whoville_max_wait=600
             )
@@ -104,6 +106,12 @@ def create_cloudbreak(session, cbd_name):
             'protocol': 'tcp',
             'from_port': 443,
             'to_port': 443,
+            'cidr_ips': ['0.0.0.0/0']
+        },
+        {
+            'protocol': 'tcp',
+            'from_port': 22,
+            'to_port': 22,
             'cidr_ips': ['0.0.0.0/0']
         }
     ]
@@ -168,10 +176,10 @@ def create_cloudbreak(session, cbd_name):
         )
         for rule in net_rules:
             add_sec_rule_to_ec2_group(session, rule, sec_group.id)
-        ssh_key = list_keypairs(session, {'name': 'field'})
+        ssh_key = list_keypairs(session, {'name': '_field'})
         if not ssh_key:
             ssh_key = session.import_key_pair_from_string(
-                name='field',
+                name='_field',
                 key_material=whoville.config.profile['deploy']['sshkey_pub']
             )
         else:
