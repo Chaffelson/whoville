@@ -15,7 +15,9 @@ from whoville.cloudbreak import configuration as cb_config
 
 
 # --- Profile File Name ------
-profile_loc = os.environ["PROFILE"] if os.environ["PROFILE"] else 'profile.yml'
+profile_loc = os.environ.get("PROFILE")
+if not profile_loc:
+    profile_loc = 'profile.yml'
 
 # --- Logging ------
 logging.basicConfig(level=logging.INFO)
