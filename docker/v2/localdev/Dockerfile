@@ -21,20 +21,35 @@ FROM python:3.7-alpine
 LABEL maintainer="Dan Chaffelson <chaffelson@gmail.com>"
 LABEL site="https://github.com/Chaffelson/whoville"
 
-ENV BRANCH=hdp3cbd
-ENV PROFILE=${PROFILE:-/profile.yml}
 ENV PYTHONUNBUFFERED=0
+ENV TZ=${TZ:-"Europe/London"}
+
+
+ADD ./requirements.txt /requirements.txt
 
 RUN apk update && apk upgrade \
     && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \
-    libressl-dev ca-certificates python3-dev linux-headers \
-    && apk add -U --no-cache bash \
-    && git clone --depth 1 -b ${BRANCH} https://github.com/Chaffelson/whoville.git /whoville \
-    && cd /whoville \
-    && pip install --no-cache-dir -r requirements.txt \
+    libressl-dev ca-certificates python3-dev linux-headers tzdata \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && pip install --no-cache -r requirements.txt \  
     && apk del .build-deps \
-    && sed -i s/profile_file = '.profile.yml'/profile_file = '${PROFILE}'/g /whoville/whoville/config.py \
-    && echo "python3 /whoville/whoville/mayor.py" > /run-module.sh
+    
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["/run-module.sh"]
+ADD ./ /whoville
+WORKDIR /whoville
+ENV PYTHONPATH=/whoville
+
+ENTRYPOINT ["python3"]
+CMD ["./whoville/mayor.py"]
+
+#ENV BRANCH=hdp3cbd
+#    && git clone --depth 1 -b ${BRANCH} https://github.com/Chaffelson/whoville.git /whoville \
+
+
+# Local Environment Execution Options
+#docker build -t whoville:hdp3cbd .
+#&& docker run
+#-v /Users/dchaffey/PycharmProjects/whoville:/whoville
+#-e TZ={timezone}
+#--name whoville
+#whoville:hdp3cbd 

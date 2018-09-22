@@ -11,13 +11,15 @@ from __future__ import absolute_import
 import logging
 import base64
 import re
+import sys
 from datetime import datetime, timedelta
 from calendar import timegm
 import json
 import six
-import whoville
+from whoville import config, utils, infra
+from whoville import cloudbreak as cb
 from whoville.cloudbreak.rest import ApiException
-from whoville import utils
+
 
 __all__ = [
     "list_credentials", 'create_credential', 'list_blueprints', 'list_recipes',
@@ -50,6 +52,7 @@ responses = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
              "START_REQUESTED", "STOP_IN_PROGRESS", "START_IN_PROGRESS",
              "START_FAILED", "STOP_FAILED", "WAIT_FOR_SYNC"]
 
+
 @utils.singleton
 class Horton:
     """
@@ -69,8 +72,8 @@ class Horton:
         self.deps = {}  # Dependencies loaded for a given Definition
         self.seq = {}  # Prioritised list of tasks to execute
         self.cache = {}  # Key:Value store for passing params between Defs
-        self.namespace = whoville.config.profile['deploy']['namespace']
-        self.global_purge = whoville.config.profile['deploy']['globalpurge']
+        self.namespace = config.profile['deploy']['namespace']
+        self.global_purge = config.profile['deploy']['globalpurge']
 
     def find(self, items):
         """
@@ -83,11 +86,11 @@ class Horton:
         Returns:
             The value if found, or None if not
         """
-        return whoville.utils.get_val(self, items, sep)
+        return utils.get_val(self, items, sep)
 
 
 def list_credentials(**kwargs):
-    return whoville.cloudbreak.V1credentialsApi().get_publics_credential(
+    return cb.V1credentialsApi().get_publics_credential(
         **kwargs
     )
 
@@ -97,7 +100,7 @@ def create_credential(from_profile=False, platform='AWS', desc='', name=None,
     if from_profile:
         if platform == 'AWS':
             provider = 'EC2'
-            infra = whoville.config.profile['infra'][provider]
+            infra = config.profile['infra'][provider]
             if 'credarn' in infra:
                 sub_params = {
                     'roleArn': infra['credarn'],
@@ -127,8 +130,8 @@ def create_credential(from_profile=False, platform='AWS', desc='', name=None,
                                  selector, platform)
         else:
             raise ValueError("Platform [%s] unsupported", platform)
-    return whoville.cloudbreak.V1credentialsApi().post_private_credential(
-        body=whoville.cloudbreak.CredentialRequest(
+    return cb.V1credentialsApi().post_private_credential(
+        body=cb.CredentialRequest(
             cloud_platform=platform,
             description=name,
             name=name,
@@ -157,7 +160,7 @@ def get_credential(name, create=False, purge=False, **kwargs):
 
 
 def delete_credential(identifier, identifier_type='id', **kwargs):
-    return whoville.cloudbreak.V1credentialsApi().delete_credential(
+    return cb.V1credentialsApi().delete_credential(
         id=identifier
     )
 
@@ -165,7 +168,7 @@ def delete_credential(identifier, identifier_type='id', **kwargs):
 def list_blueprints(bool_response=False, **kwargs):
     # Using this function as a test for the Cloudbreak Api being available
     try:
-        bps = whoville.cloudbreak.V1blueprintsApi().get_publics_blueprint(
+        bps = cb.V1blueprintsApi().get_publics_blueprint(
             **kwargs
         )
         return bps
@@ -179,8 +182,8 @@ def list_blueprints(bool_response=False, **kwargs):
 def create_blueprint(name, desc, blueprint, tags=None, **kwargs):
     log.info("Creating Blueprint [%s] with desc [%s] with Tags [%s]",
              name, desc, str(tags))
-    return whoville.cloudbreak.V1blueprintsApi().post_private_blueprint(
-        body=whoville.cloudbreak.BlueprintRequest(
+    return cb.V1blueprintsApi().post_private_blueprint(
+        body=cb.BlueprintRequest(
             description=desc,
             name=name,
             ambari_blueprint=base64.b64encode(
@@ -193,7 +196,7 @@ def create_blueprint(name, desc, blueprint, tags=None, **kwargs):
 
 def delete_blueprint(bp_id, **kwargs):
     try:
-        return whoville.cloudbreak.V1blueprintsApi().delete_blueprint(
+        return cb.V1blueprintsApi().delete_blueprint(
             id=bp_id,
             **kwargs
         )
@@ -203,7 +206,7 @@ def delete_blueprint(bp_id, **kwargs):
 
 def get_blueprint(identifier, identifier_type='name', **kwargs):
     if identifier_type == 'name':
-        bp_info = whoville.cloudbreak.V1blueprintsApi().get_public_blueprint(
+        bp_info = cb.V1blueprintsApi().get_public_blueprint(
             name=identifier,
             **kwargs
         )
@@ -221,9 +224,9 @@ def create_recipe(name, desc, recipe_type, recipe, purge=False, **kwargs):
         target = [x.id for x in list_recipes() if x.name == name]
         if target:
             delete_recipe(target[0])
-    return whoville.cloudbreak.V1recipesApi().post_private_recipe(
+    return cb.V1recipesApi().post_private_recipe(
         # blueprint has to be a base64 encoded string for file upload
-        body=whoville.cloudbreak.RecipeRequest(
+        body=cb.RecipeRequest(
             name=name,
             description=desc,
             recipe_type=recipe_type.upper(),
@@ -238,12 +241,12 @@ def create_recipe(name, desc, recipe_type, recipe, purge=False, **kwargs):
 
 
 def list_recipes(**kwargs):
-    return whoville.cloudbreak.V1recipesApi().get_publics_recipe(**kwargs)
+    return cb.V1recipesApi().get_publics_recipe(**kwargs)
 
 
 def delete_recipe(rp_id, **kwargs):
     try:
-        return whoville.cloudbreak.V1recipesApi().delete_recipe(
+        return cb.V1recipesApi().delete_recipe(
             id=rp_id,
             **kwargs
         )
@@ -252,7 +255,7 @@ def delete_recipe(rp_id, **kwargs):
 
 
 def list_image_catalogs(**kwargs):
-    return whoville.cloudbreak.V1imagecatalogsApi().get_publics_image_catalogs(
+    return cb.V1imagecatalogsApi().get_publics_image_catalogs(
         **kwargs
     )
 
@@ -260,8 +263,8 @@ def list_image_catalogs(**kwargs):
 def create_image_catalog(name, url, **kwargs):
     log.info("Creating Image Catalog [%s] at url [%s]",
              name, url)
-    return whoville.cloudbreak.V1imagecatalogsApi().post_private_image_catalog(
-        body=whoville.cloudbreak.ImageCatalogRequest(
+    return cb.V1imagecatalogsApi().post_private_image_catalog(
+        body=cb.ImageCatalogRequest(
             name=name,
             url=url,
         ),
@@ -271,7 +274,7 @@ def create_image_catalog(name, url, **kwargs):
 
 def delete_image_catalog(name, **kwargs):
     assert isinstance(name, six.string_types)
-    api = whoville.cloudbreak.V1imagecatalogsApi()
+    api = cb.V1imagecatalogsApi()
     return api.delete_public_image_catalog_by_name(
         name=name,
         **kwargs
@@ -280,13 +283,13 @@ def delete_image_catalog(name, **kwargs):
 
 def get_images(platform, catalog=None, **kwargs):
     if catalog:
-        return whoville.cloudbreak.V1imagecatalogsApi()\
+        return cb.V1imagecatalogsApi()\
             .get_public_images_by_provider_and_custom_image_catalog(
             name=catalog,
             platform=platform,
             **kwargs
         )
-    return whoville.cloudbreak.V1imagecatalogsApi() \
+    return cb.V1imagecatalogsApi() \
         .get_images_by_provider(
         platform=platform,
         **kwargs
@@ -294,8 +297,8 @@ def get_images(platform, catalog=None, **kwargs):
 
 
 def get_regions_by_credential(cred_name, **kwargs):
-    return whoville.cloudbreak.V2connectorsApi().get_regions_by_credential_id(
-        body=whoville.cloudbreak.PlatformResourceRequestJson(
+    return cb.V2connectorsApi().get_regions_by_credential_id(
+        body=cb.PlatformResourceRequestJson(
             credential_name=cred_name,
             **kwargs
         )
@@ -303,8 +306,8 @@ def get_regions_by_credential(cred_name, **kwargs):
 
 
 def get_custom_params(bp_name, **kwargs):
-    return whoville.cloudbreak.V1utilApi().get_custom_parameters(
-        body=whoville.cloudbreak.ParametersQueryRequest(
+    return cb.V1utilApi().get_custom_parameters(
+        body=cb.ParametersQueryRequest(
             blueprint_name=bp_name,
         ),
         **kwargs
@@ -312,30 +315,30 @@ def get_custom_params(bp_name, **kwargs):
 
 
 def list_stacks(**kwargs):
-    return whoville.cloudbreak.V2stacksApi().get_publics_stack_v2(**kwargs)
+    return cb.V2stacksApi().get_publics_stack_v2(**kwargs)
 
 
 def get_stack_matrix(**kwargs):
-    return whoville.cloudbreak.V1utilApi().get_stack_matrix_util(**kwargs)
+    return cb.V1utilApi().get_stack_matrix_util(**kwargs)
 
 
 def get_default_security_rules(**kwargs):
-    return whoville.cloudbreak.V1securityrulesApi().get_default_security_rules(
+    return cb.V1securityrulesApi().get_default_security_rules(
         **kwargs
     )
 
 
 def get_ssh_keys(params, **kwargs):
-    body = whoville.cloudbreak.RecommendationRequestJson()
+    body = cb.RecommendationRequestJson()
     _ = {body.__setattr__(x, y) for x, y in params.items()}
-    return whoville.cloudbreak.V1connectorsApi().get_platform_s_sh_keys(
+    return cb.V1connectorsApi().get_platform_s_sh_keys(
         body=body,
         **kwargs
     )
 
 
 def list_mpacks(**kwargs):
-    return whoville.cloudbreak.V1mpacksApi().get_public_management_packs(
+    return cb.V1mpacksApi().get_public_management_packs(
         **kwargs
     )
 
@@ -344,8 +347,8 @@ def create_mpack(name, desc, url, purge_on_install, **kwargs):
     log.info("Creating MPack [%s] with desc [%s] from url [%s] with "
              "purge_on_install as [%s]",
              name, desc, url[:50], purge_on_install)
-    return whoville.cloudbreak.V1mpacksApi().post_public_management_pack(
-        body=whoville.cloudbreak.ManagementPackRequest(
+    return cb.V1mpacksApi().post_public_management_pack(
+        body=cb.ManagementPackRequest(
             name=name,
             description=desc,
             mpack_url=url,
@@ -357,7 +360,7 @@ def create_mpack(name, desc, url, purge_on_install, **kwargs):
 
 def delete_mpack(name, **kwargs):
     assert isinstance(name, six.string_types)
-    return whoville.cloudbreak.V1mpacksApi().delete_public_management_pack(
+    return cb.V1mpacksApi().delete_public_management_pack(
         name=name,
         **kwargs
     )
@@ -428,7 +431,7 @@ def prep_dependencies(def_key, shortname=None):
                     deps[res_type] = dep[0]
                 else:
                     deps[res_type] = \
-                        whoville.deploy.create_blueprint(
+                        create_blueprint(
                             source='file',
                             desc=desc,
                             name=res_name,
@@ -439,7 +442,7 @@ def prep_dependencies(def_key, shortname=None):
                     deps[res_type] = dep[0]
                 else:
                     deps[res_type] = \
-                        whoville.deploy.create_image_catalog(
+                        create_image_catalog(
                         name=res_name,
                         url=horton.defs[def_key][res_type]['def']
                     )
@@ -449,7 +452,7 @@ def prep_dependencies(def_key, shortname=None):
                     deps[res_type].append(dep[0])
                 else:
                     deps[res_type].append(
-                        whoville.deploy.create_recipe(
+                        create_recipe(
                             name=res_name,
                             desc=desc,
                             recipe_type=res['typ'],
@@ -481,7 +484,7 @@ def prep_dependencies(def_key, shortname=None):
                     else:
                         params = None
                     deps[res_type].append(
-                        whoville.deploy.create_auth_conf(
+                        create_auth_conf(
                             name=res_name,
                             host=res['host'],
                             params=params
@@ -532,13 +535,13 @@ def prep_images_dependency(def_key, fullname=None):
     stack_version = bp_content['Blueprints']['stack_version']
     log.info("fetching stack matrix for name:version [%s]:[%s]",
              stack_name, stack_version)
-    stack_matrix = whoville.deploy.get_stack_matrix()
-    stack_root = whoville.utils.get_val(
+    stack_matrix = get_stack_matrix()
+    stack_root = utils.get_val(
         stack_matrix,
         [stack_name.lower(),
          bp_content['Blueprints']['stack_version']]
     )
-    images = whoville.deploy.get_images(
+    images = get_images(
         catalog=cat_name,
         platform=horton.cred.cloud_platform
     )
@@ -556,7 +559,7 @@ def prep_images_dependency(def_key, fullname=None):
              len(images_by_os))
     valid_images = []
     for image in images_by_os:
-        if type(image) == whoville.cloudbreak.BaseImageResponse:
+        if type(image) == cb.BaseImageResponse:
             ver_check = [
                 x.version for x in image.__getattribute__(
                     '_'.join([stack_name.lower(), 'stacks'])
@@ -564,7 +567,7 @@ def prep_images_dependency(def_key, fullname=None):
             ]
             if ver_check:
                 valid_images.append(image)
-        elif type(image) == whoville.cloudbreak.ImageResponse:
+        elif type(image) == cb.ImageResponse:
             if image.stack_details.version == stack_root.version:
                 valid_images.append(image)
 
@@ -572,7 +575,7 @@ def prep_images_dependency(def_key, fullname=None):
         log.info("found [%d] images matching requirements", len(valid_images))
         prewarmed = [
             x for x in valid_images
-            if isinstance(x, whoville.cloudbreak.ImageResponse)
+            if isinstance(x, cb.ImageResponse)
         ]
         if prewarmed:
             valid_images = prewarmed
@@ -595,14 +598,14 @@ def prep_cluster(def_key, fullname=None):
     stack_version = bp_content['Blueprints']['stack_version']
 
     # Cloud Storage
-    object_store = whoville.config.profile['deploy']['objectstore']
+    object_store = config.profile['deploy']['objectstore']
     if object_store:
         if 'cloudstor' in horton.defs[def_key]['infra']:
             if object_store == 's3':
-                bucket = whoville.config.profile['deploy']['bucket']
-                cloud_stor = whoville.cloudbreak.CloudStorageRequest(
-                    s3=whoville.cloudbreak.S3CloudStorageParameters(
-                        instance_profile=whoville.config.profile['deploy']['bucketrole']
+                bucket = config.profile['deploy']['bucket']
+                cloud_stor = cb.CloudStorageRequest(
+                    s3=cb.S3CloudStorageParameters(
+                        instance_profile=config.profile['deploy']['bucketrole']
                     ),
                     locations=[]
                 )
@@ -622,10 +625,10 @@ def prep_cluster(def_key, fullname=None):
 
     log.info("using mpack [%s]", str(mpacks))
 
-    cluster_req = whoville.cloudbreak.ClusterV2Request(
-                ambari=whoville.cloudbreak.AmbariV2Request(
+    cluster_req = cb.ClusterV2Request(
+                ambari=cb.AmbariV2Request(
                     blueprint_name=horton.deps[fullname]['blueprint'].name,
-                    ambari_stack_details=whoville.cloudbreak.AmbariStackDetails(
+                    ambari_stack_details=cb.AmbariStackDetails(
                         version=stack_version,
                         verify=False,
                         enable_gpl_repo=False,
@@ -633,10 +636,10 @@ def prep_cluster(def_key, fullname=None):
                         os=tgt_os_name,
                         mpacks=mpacks
                     ),
-                    user_name=whoville.config.profile['deploy']['username'],
-                    password=whoville.config.profile['deploy']['password'],
+                    user_name=config.profile['deploy']['username'],
+                    password=config.profile['deploy']['password'],
                     validate_blueprint=False,  # Hardcoded?
-                    ambari_security_master_key=whoville.config.profile['deploy']['password'],
+                    ambari_security_master_key=config.profile['deploy']['password'],
                     kerberos=None,
                     enable_security=False  # Hardcoded?
                 ),
@@ -647,11 +650,11 @@ def prep_cluster(def_key, fullname=None):
         cluster_req.ldap_config_name = '-'.join([fullname, horton.defs[def_key]['auth']['name']])
         cluster_req.proxy_name = None
     if 'proxy' in horton.defs[def_key] and horton.defs[def_key]['proxy']:
-        cluster_req.ambari.gateway = whoville.cloudbreak.GatewayJson(
+        cluster_req.ambari.gateway = cb.GatewayJson(
             enable_gateway=True,
             sso_type=horton.defs[def_key]['proxy']['sso'],
             topologies=[
-                whoville.cloudbreak.GatewayTopologyJson(
+                cb.GatewayTopologyJson(
                     topology_name='dp-proxy',
                     exposed_services=horton.defs[def_key]['proxy']['services']
                 )
@@ -670,7 +673,7 @@ def prep_cluster(def_key, fullname=None):
             if not horton.defs[def_key]['krb']['mode'] == 'test':
                 raise ValueError("Kerberising in Cloudbreak Test Mode Only")
             cluster_req.ambari.enable_security = True
-            cluster_req.ambari.kerberos = whoville.cloudbreak.KerberosRequest(
+            cluster_req.ambari.kerberos = cb.KerberosRequest(
                 admin=horton.find('secret:clustercred:username'),
                 password=horton.find('secret:clustercred:password'),
                 master_key=horton.find('secret:clustercred:masterkey'),
@@ -689,8 +692,8 @@ def prep_instance_groups(def_key, fullname):
              horton.cred.name, horton.deps[fullname]['blueprint'].name,
              region, avzone)
 
-    recs = whoville.cloudbreak.V1connectorsApi().create_recommendation(
-        body=whoville.cloudbreak.RecommendationRequestJson(
+    recs = cb.V1connectorsApi().create_recommendation(
+        body=cb.RecommendationRequestJson(
             availability_zone=avzone,
             region=region,
             blueprint_id=horton.deps[fullname]['blueprint'].id,
@@ -701,7 +704,7 @@ def prep_instance_groups(def_key, fullname):
     sec_group = horton.cbd.extra['groups'][0]['group_id']
     if sec_group:
         # Predefined Security Group
-        sec_group = whoville.cloudbreak.SecurityGroupResponse(
+        sec_group = cb.SecurityGroupResponse(
             security_group_id=sec_group,
             cloud_platform=horton.cred.cloud_platform
         )
@@ -749,9 +752,9 @@ def prep_instance_groups(def_key, fullname):
         vol_size = rec.vm_type_meta_json.properties[
                             'recommendedvolumeSizeGB']
         log.info("using [%s] volumes of size [%s]", vol_count, vol_size)
-        item = whoville.cloudbreak.InstanceGroupsV2(
+        item = cb.InstanceGroupsV2(
                     security_group=sec_group,
-                    template=whoville.cloudbreak.TemplateV2Request(
+                    template=cb.TemplateV2Request(
                         parameters={
                             'encrypted': False  # Hardcoded?
                         },
@@ -784,7 +787,7 @@ def prep_stack_specs(def_key, name=None):
     # Sequence matters here, as some later params are have deps in earlier
     # Which also means you can't be clever and define it in one big call
     # Making Placeholder
-    horton.specs[fullname] = whoville.cloudbreak.StackV2Request(
+    horton.specs[fullname] = cb.StackV2Request(
         general='', instance_groups=''
     )
     horton.specs[fullname].tags = {
@@ -794,23 +797,23 @@ def prep_stack_specs(def_key, name=None):
         'StartDate': datetime.now().strftime("%d%b%Y")
     }
     horton.specs[fullname].stack_authentication = \
-        whoville.cloudbreak.StackAuthenticationResponse(
-                public_key_id=whoville.config.profile['deploy']['sshkey_name']
+        cb.StackAuthenticationResponse(
+                public_key_id=config.profile['deploy']['sshkey_name']
             )
-    horton.specs[fullname].general = whoville.cloudbreak.GeneralSettings(
+    horton.specs[fullname].general = cb.GeneralSettings(
             credential_name=horton.cred.name,
             name=fullname
         )
     horton.specs[fullname].image_settings = \
-        whoville.cloudbreak.ImageSettings(
+        cb.ImageSettings(
             image_catalog=cat_name,
             image_id=horton.deps[fullname]['images'][0].uuid
         )
-    horton.specs[fullname].placement = whoville.cloudbreak.PlacementSettings(
+    horton.specs[fullname].placement = cb.PlacementSettings(
             region=horton.cbd.extra['availability'][:-1],
             availability_zone=horton.cbd.extra['availability']
         )
-    horton.specs[fullname].network = whoville.cloudbreak.NetworkV2Request(
+    horton.specs[fullname].network = cb.NetworkV2Request(
         parameters={
             'subnetId': horton.cbd.extra['subnet_id'],
             'vpcId': horton.cbd.extra['vpc_id']
@@ -843,12 +846,12 @@ def create_stack(name, wait=False, purge=False, **kwargs):
                      " returning Existing Stack", name, stack.cluster.status)
             return stack
     log.info("Stack [%s] not found, Creating", name)
-    resp = whoville.cloudbreak.V2stacksApi().post_private_stack_v2(
+    resp = cb.V2stacksApi().post_private_stack_v2(
         body=horton.specs[name],
         **kwargs
     )
     if wait:
-        whoville.utils.wait_to_complete(
+        utils.wait_to_complete(
             monitor_event_stream,
             start_ts=start_ts,
             identity=('stack_id', resp.id),
@@ -867,13 +870,13 @@ def delete_stack(stack_id, force=False, wait=True, **kwargs):
     log.info("Requesting delete of Stack [%d] params Force [%s] and Wait "
              "[%s]", stack_id, force, wait)
     start_ts = datetime.utcnow()
-    resp = whoville.cloudbreak.V2stacksApi().delete_stack_v2(
+    resp = cb.V2stacksApi().delete_stack_v2(
         id=stack_id,
         forced=force,
         **kwargs
     )
     if wait:
-        whoville.utils.wait_to_complete(
+        utils.wait_to_complete(
             monitor_event_stream,
             start_ts=start_ts,
             identity=('stack_id', stack_id),
@@ -890,7 +893,7 @@ def monitor_event_stream(start_ts, identity, target_event, valid_events,
     log.info("Monitoring event stream from [%s] for Event [%s] for Identity "
              "[%s] against Valid Events [%s]",
              str(start_ts), str(target_event), str(identity), str(valid_events))
-    events = whoville.deploy.get_events(
+    events = get_events(
         start_ts=start_ts,
         select_by=identity,
     )
@@ -920,10 +923,10 @@ def get_events(start_ts=None, select_by=None, ordered_by='event_timestamp',
             # standard pythong ts is in s, so x1000 for ms
             # as Cloudbreak seems to assume that all ts are in ms
             submit_ts = timegm(start_ts.timetuple()) * 1000
-        events = whoville.cloudbreak.V1eventsApi().get_events(
+        events = cb.V1eventsApi().get_events(
             since=submit_ts)
     else:
-        events = whoville.cloudbreak.V1eventsApi().get_events()
+        events = cb.V1eventsApi().get_events()
     # Handle filtering whole events by a particular (field, key) tuple
     if not select_by:
         selected = events
@@ -976,7 +979,7 @@ def purge_resource(res_name, res_type):
     else:
         raise ValueError("res_type [%s] unsupported", res_type)
     # select functions
-    target = [x for x in getattr(whoville.deploy, 'list_' + res_type + 's')()
+    target = [x for x in getattr(sys.modules[__name__], 'list_' + res_type + 's')()
               if x.name == res_name]
     if not target:
         log.info("Resource named [%s] of Type [%s] not found, skipping delete",
@@ -985,7 +988,7 @@ def purge_resource(res_name, res_type):
     try:
         log.info("Attempting Delete of [%s]:[%s] identified by [%s]",
                  res_type, res_name, del_arg)
-        getattr(whoville.deploy, 'delete_' + res_type)(
+        getattr(sys.modules[__name__], 'delete_' + res_type)(
             target[0].__getattribute__(del_arg),
             **params
         )
@@ -1048,17 +1051,17 @@ def purge_cloudbreak(for_reals, namespace=''):
 
 
 def list_auth_confs():
-    return whoville.cloudbreak.V1ldapApi().get_publics_ldap()
+    return cb.V1ldapApi().get_publics_ldap()
 
 
 def delete_auth_conf(auth_name):
-    return whoville.cloudbreak.V1ldapApi().delete_private_ldap(auth_name)
+    return cb.V1ldapApi().delete_private_ldap(auth_name)
 
 
 def create_auth_conf(name, host, params=None):
     horton = Horton()
     # TODO: UnHack the DPSPUBLICIP Hacky Hacksaw II: The Revenging
-    obj = whoville.cloudbreak.LdapConfigRequest(
+    obj = cb.LdapConfigRequest(
         name=name,
         server_host=host if host != 'DPSPUBLICIP' else horton.cache['DPSPUBLICIP'],
         server_port=33389,
@@ -1080,7 +1083,7 @@ def create_auth_conf(name, host, params=None):
     if params:
         for k, v in params.items():
             obj.__setattr__(k, v)
-    return whoville.cloudbreak.V1ldapApi().post_private_ldap(
+    return cb.V1ldapApi().post_private_ldap(
         body=obj
     )
 
@@ -1108,7 +1111,7 @@ def wait_for_event(name, state, start_ts, wait):
             log.info("Stack [%s] at State [%s], which is >= [%s], "
                      "Returning Success", name, stack.status, state)
             return
-    whoville.utils.wait_to_complete(
+    utils.wait_to_complete(
         monitor_event_stream,
         start_ts=start_ts,
         identity=('stack_name', name),
@@ -1126,8 +1129,8 @@ def wait_for_event(name, state, start_ts, wait):
 def add_security_rule(cidr, start, end, protocol):
     horton = Horton()
     if horton.cred.cloud_platform == 'AWS':
-        whoville.infra.add_sec_rule_to_ec2_group(
-            session=whoville.infra.create_libcloud_session(),
+        infra.add_sec_rule_to_ec2_group(
+            session=infra.create_libcloud_session(),
             rule={
                 'protocol': protocol,
                 'from_port': start,

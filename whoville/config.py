@@ -10,11 +10,12 @@ from __future__ import absolute_import
 import logging
 import os
 import urllib3
+from ruamel.yaml import safe_load
 from whoville.cloudbreak import configuration as cb_config
-from whoville import utils
+
 
 # --- Profile File Name ------
-profile_file = '.profile.yml'
+profile_file = 'profile.yml'
 
 # --- Logging ------
 logging.basicConfig(level=logging.INFO)
@@ -49,6 +50,7 @@ if not cb_config.verify_ssl:
 
 # Resolve Configuration overrides from local profile
 try:
-    profile = utils.load(utils.fs_read(profile_file))
-except Exception:
-    raise ValueError(".profile.yml not found - Have you set your Profile up?")
+    with open(str(profile_file), 'r') as f:
+        profile = safe_load(f.read())
+except IOError as e:
+    raise IOError("profile.yml not found - Have you set your Profile up?")

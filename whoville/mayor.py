@@ -10,7 +10,7 @@ Warnings:
 from __future__ import absolute_import
 import logging
 from datetime import datetime
-import whoville
+from whoville import config, utils, security, infra, deploy
 
 
 log = logging.getLogger(__name__)
@@ -19,31 +19,31 @@ log.setLevel(logging.INFO)
 
 # 'horton' is a shared state function to make deployment more readable
 # to non-python users
-horton = whoville.deploy.Horton()
+horton = deploy.Horton()
 
 
 def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service")
     log.info("------------- Validating Profile")
-    if not whoville.config.profile['deploy']:
+    if not config.profile['deploy']:
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
     log.info("------------- Fetching Resources from Profile Definitions")
-    if whoville.config.profile['deploy']['resources']:
-        for res_def in whoville.config.profile['deploy']['resources']:
+    if config.profile['deploy']['resources']:
+        for res_def in config.profile['deploy']['resources']:
             if res_def['loc'] == 'local':
                 log.info("Loading resources from Local path [%s]",
                          res_def['uri'])
-                horton.resources.update(whoville.utils.load_resources_from_files(
+                horton.resources.update(utils.load_resources_from_files(
                     res_def['uri']
                 ))
             elif res_def['loc'] == 'github':
                 log.info("Loading resources from Github Repo [%s]",
                          res_def['repo'])
-                horton.resources.update(whoville.utils.load_resources_from_github(
+                horton.resources.update(utils.load_resources_from_github(
                     repo_name=res_def['repo'],
-                    username=whoville.config.profile['deploy']['githubuser'],
-                    token=whoville.config.profile['deploy']['githubtoken'],
+                    username=config.profile['deploy']['githubuser'],
+                    token=config.profile['deploy']['githubtoken'],
                     tgt_dir=res_def['subdir']
                 ))
             else:
@@ -55,18 +55,18 @@ def step_1_init_service():
 
 def step_2_init_infra():
     log.info("------------- Getting Cloudbreak Environment")
-    horton.cbd = whoville.infra.get_cloudbreak(
+    horton.cbd = infra.get_cloudbreak(
         purge=horton.global_purge
     )
     log.info("------------- Connecting to Cloudbreak")
     url = 'https://' + horton.find('cbd:extra:dns_name') + '/cb/api'
     log.info("Setting endpoint to %s", url)
-    whoville.utils.set_endpoint(url)
+    utils.set_endpoint(url)
     log.info("------------- Authenticating to Cloudbreak")
-    auth_success = whoville.security.service_login(
+    auth_success = security.service_login(
             service='cloudbreak',
-            username=whoville.config.profile['deploy']['email'],
-            password=whoville.config.profile['deploy']['password'],
+            username=config.profile['deploy']['email'],
+            password=config.profile['deploy']['password'],
             bool_response=False
         )
     if not auth_success:
@@ -76,15 +76,15 @@ def step_2_init_infra():
     # Cloudbreak may have just booted and not be ready for queries yet
     # Waiting up to an additional minute for query success
     log.info("Waiting for Cloudbreak API Calls to be available")
-    whoville.utils.wait_to_complete(
-        whoville.deploy.list_blueprints,
+    utils.wait_to_complete(
+        deploy.list_blueprints,
         bool_response=True,
         whoville_delay=5,
         whoville_max_wait=60
     )
     log.info("------------- Setting Deployment Credential")
-    horton.cred = whoville.deploy.get_credential(
-        whoville.config.profile['deploy']['namespace'] + 'credential',
+    horton.cred = deploy.get_credential(
+        config.profile['deploy']['namespace'] + 'credential',
         create=True,
         purge=horton.global_purge
     )
@@ -98,7 +98,9 @@ def step_3_sequencing():
         if priority is not None:
             log.info("Registering [%s] as Priority [%s]",
                      def_key, str(priority))
-            horton.seq[priority] = horton.find('defs:' + def_key + ':control:seq')
+            horton.seq[priority] = horton.find(
+                'defs:' + def_key + ':control:seq'
+            )
         else:
             log.info("Priority not set for [%s], skipping...", def_key)
 
@@ -117,15 +119,15 @@ def step_4_build():
                 if action == 'prepdeps':
                     def_key = args[0]
                     shortname = args[1]
-                    whoville.deploy.prep_dependencies(def_key, shortname)
+                    deploy.prep_dependencies(def_key, shortname)
                 if action == 'prepspec':
                     def_key = args[0]
                     shortname = args[1]
-                    whoville.deploy.prep_stack_specs(def_key, shortname)
+                    deploy.prep_stack_specs(def_key, shortname)
                 if action == 'deploy':
                     for spec_key in args:
                         fullname = horton.namespace + spec_key
-                        whoville.deploy.create_stack(
+                        deploy.create_stack(
                             fullname,
                             purge=False
                         )
@@ -134,7 +136,7 @@ def step_4_build():
                     spec_key = args[1]
                     fullname = horton.namespace + spec_key
                     event = args[2]
-                    whoville.deploy.wait_for_event(
+                    deploy.wait_for_event(
                         fullname,
                         event,
                         step_ts,
@@ -145,7 +147,7 @@ def step_4_build():
                     start_port = args[1]
                     end_port = args[2]
                     cidr = args[3]
-                    whoville.deploy.add_security_rule(
+                    deploy.add_security_rule(
                         protocol=protocol,
                         start=start_port,
                         end=end_port,
@@ -156,14 +158,15 @@ def step_4_build():
                     fullname = horton.namespace + spec_key
                     target = args[1]
                     cache_key = args[2]
-                    whoville.deploy.write_cache(fullname, target, cache_key)
+                    deploy.write_cache(fullname, target, cache_key)
                 if action == 'replace':
                     def_key = args[0]
                     res_name = args[1]
                     cache_key = args[2]
                     log.info("Replacing string [%s] with [%s] in Resource [%s]"
                              " in def [%s]",
-                             cache_key, horton.cache[cache_key], res_name, def_key)
+                             cache_key, horton.cache[cache_key], res_name,
+                             def_key)
                     s = horton.resources[def_key][res_name].replace(
                         cache_key, horton.cache[cache_key]
                     )

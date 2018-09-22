@@ -9,14 +9,12 @@ import logging
 import six
 import requests
 from six.moves.urllib import parse
-import urllib3
-import whoville
+from whoville import config
 
 
 log = logging.getLogger(__name__)
 
-__all__ = ['service_login', 'set_service_auth_token',
-           'service_logout', 'get_service_access_status']
+__all__ = ['service_login', 'set_service_auth_token']
 
 # These are the services that these functions know how to configure
 _valid_services = ['cloudbreak']
@@ -60,7 +58,7 @@ def service_login(service='cloudbreak', username=None, password=None,
     assert isinstance(bool_response, bool)
 
     if service == 'cloudbreak':
-        configuration = whoville.config.cb_config
+        configuration = config.cb_config
     else:
         raise ValueError("Unrecognised Service parameter")
 
@@ -70,11 +68,11 @@ def service_login(service='cloudbreak', username=None, password=None,
 
     if service == 'cloudbreak':
         # TOdo: add tests for cloubreak auth
-        url = whoville.config.cb_config.host.replace(
+        url = config.cb_config.host.replace(
             '/cb/api',
             '/identity/oauth/authorize'
         )
-        redirect_uri = whoville.config.cb_config.host.replace(
+        redirect_uri = config.cb_config.host.replace(
             '/cb/api',
             '/authorize'
         )
@@ -90,7 +88,7 @@ def service_login(service='cloudbreak', username=None, password=None,
             headers={
                 'accept': 'application/x-www-form-urlencoded'
             },
-            verify=whoville.config.cb_config.verify_ssl,
+            verify=config.cb_config.verify_ssl,
             allow_redirects=False,
             data=[
                 ('credentials',
@@ -129,7 +127,7 @@ def set_service_auth_token(token=None, token_name='tokenAuth', service='cloudbre
     assert isinstance(token_name, six.string_types)
     assert token is None or isinstance(token, six.string_types)
     if service == 'cloudbreak':
-        configuration = whoville.config.cb_config
+        configuration = config.cb_config
     else:
         raise ValueError("Unrecognised Service Name")
     configuration.api_key[token_name] = token
@@ -137,55 +135,3 @@ def set_service_auth_token(token=None, token_name='tokenAuth', service='cloudbre
     if not configuration.api_key[token_name]:
         return False
     return True
-
-
-def service_logout(service='cloudbreak'):
-    """
-    Logs out from the service by resetting the token
-    Args:
-        service (str): 'nifi' or 'registry'; the target service
-
-    Returns:
-        (bool): True of access removed, False if still set
-
-    """
-    assert service in _valid_services
-    set_service_auth_token(token=None, service=service)
-    if not get_service_access_status(service, bool_response=True):
-        return True
-    return False
-
-
-def get_service_access_status(service='cloudbreak', bool_response=False):
-    """
-    Gets the access status for the current session
-
-    Args:
-        service (str): A String  to indicate which service to target
-        bool_response (bool): If True, the function will return False on
-            hitting an Error instead of raising it. Useful for connection
-            testing.
-
-    Returns:
-        (bool) if bool_response, else the Service Access Status of the User
-    """
-    log.info("Called get_service_access_status with args %s", locals())
-    assert service in _valid_services
-    assert isinstance(bool_response, bool)
-    if bool_response:
-        # Assume we are using this as a connection test and therefore disable
-        # the Warnings urllib3 will shower us with
-        log.debug("- bool_response is True, disabling urllib3 warnings")
-        logging.getLogger('urllib3').setLevel(logging.ERROR)
-    try:
-        out = getattr(whoville, service).AccessApi().get_access_status()
-        log.info("Got server response, returning")
-        return out
-    except urllib3.exceptions.MaxRetryError as e:
-        log.debug("- Caught exception %s", type(e))
-        if bool_response:
-            log.debug("Connection failed with error %s and bool_response is "
-                      "True, returning False", e)
-            return False
-        log.debug("- bool_response is False, raising Exception")
-        raise e

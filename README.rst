@@ -12,20 +12,19 @@ Quickstart
 
     docker pull Chaffelson/whoville
 
-3. Customise a Profile.yml::
+3. Customise and rename profile.yml::
 
-    vi whoville/profile.RENAME.yml
+    mv profile.RENAME.yml profile.yml && vi profile.yml
 
 4. Run the Docker
-    * Make sure to set PROFILE to the profile.yml you are passing in
-    * Make sure to mount any addition resource volumes specified in your Profile
+    * Make sure to set the profile.yml you are passing in as the first argument of the first -v
+    * Make sure to mount any addition resource volumes specified in your Profile as additional -v's
 
 ::
 
     docker run
-    -e PROFILE=/profile.yml
-    -v profile.yml:/profile.yml
+    -v profile.yml:/whoville/profile.yml
     -v resources/v2:/resources/v2
+    -e TZ={timezone}
     --name whoville
-    whoville:hdp3cbd 
-
+    whoville:latest 

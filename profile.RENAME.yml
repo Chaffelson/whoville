@@ -1,4 +1,5 @@
 RENAME THIS FILE TO .profile.yml before putting your secrets in it, so you don't commit them to the repo!
+Then delete these two lines - they are here to cause an error if you don't read instructions
 
 infra:
   EC2:                          # EC2 matches the Provider Service name that libcloud uses, do not change for AWS users

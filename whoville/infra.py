@@ -14,7 +14,7 @@ from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 import boto3
-import whoville
+from whoville import config, utils
 
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
@@ -26,21 +26,21 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-namespace = whoville.config.profile['deploy']['namespace']
+namespace = config.profile['deploy']['namespace']
 namespace = namespace if namespace else ''
 
 
 def create_libcloud_session(provider='EC2'):
     cls = get_driver(getattr(Provider, provider))
     return cls(
-        **{x:y for x,y in whoville.config.profile['infra'][provider].items()
+        **{x:y for x,y in config.profile['infra'][provider].items()
             if x in ['key', 'secret', 'region']}
     )
 
 
 def create_boto3_session():
-    if 'EC2' in whoville.config.profile['infra']:
-        params = whoville.config.profile['infra']['EC2']
+    if 'EC2' in config.profile['infra']:
+        params = config.profile['infra']['EC2']
         return boto3.Session(
             aws_access_key_id=params['key'],
             aws_secret_access_key=params['secret'],
@@ -75,8 +75,8 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
                      "Cloudbreak [%s]", cbd_name)
             cbd = create_cloudbreak(s_libc, cbd_name)
             log.info("Waiting for Cloudbreak Deployment to Complete")
-            whoville.utils.wait_to_complete(
-                whoville.utils.is_endpoint_up,
+            utils.wait_to_complete(
+                utils.is_endpoint_up,
                 'https://' + cbd.extra['dns_name'],
                 whoville_delay=30,
                 whoville_max_wait=600
@@ -172,7 +172,7 @@ def create_cloudbreak(session, cbd_name):
         if not ssh_key:
             ssh_key = session.import_key_pair_from_string(
                 name='field',
-                key_material=whoville.config.profile['deploy']['sshkey_pub']
+                key_material=config.profile['deploy']['sshkey_pub']
             )
         else:
             ssh_key = ssh_key[0]
@@ -207,8 +207,8 @@ def create_cloudbreak(session, cbd_name):
         client = s_boto3.client('ec2')
         client.associate_iam_instance_profile(
             IamInstanceProfile={
-                'Arn': whoville.config.profile['infra']['EC2']['infraarn'],
-                'Name': whoville.config.profile['infra']['EC2']['infraarn'].rsplit('/')[-1]
+                'Arn': config.profile['infra']['EC2']['infraarn'],
+                'Name': config.profile['infra']['EC2']['infraarn'].rsplit('/')[-1]
             },
             InstanceId=cbd.id
         )
@@ -281,7 +281,7 @@ def list_networks(session, filters=None):
         for key, val in filters.items():
             networks = [
                 x for x in networks
-                if val in whoville.utils.get_val(x, key)
+                if val in utils.get_val(x, key)
             ]
         return networks
 
@@ -293,7 +293,7 @@ def list_subnets(session, filters=None):
     for key, val in filters.items():
         subnets = [
             x for x in subnets
-            if val in whoville.utils.get_val(x, key)
+            if val in utils.get_val(x, key)
         ]
     return subnets
 
@@ -305,7 +305,7 @@ def list_security_groups(session, filters=None):
     for key, val in filters.items():
         sec_groups = [
             x for x in sec_groups
-            if val in whoville.utils.get_val(x, key)
+            if val in utils.get_val(x, key)
         ]
     return sec_groups
 
@@ -317,7 +317,7 @@ def list_keypairs(session, filters=None):
     for key, val in filters.items():
         key_pairs = [
             x for x in key_pairs
-            if val in whoville.utils.get_val(x, key)
+            if val in utils.get_val(x, key)
         ]
     return key_pairs
 
@@ -330,6 +330,6 @@ def list_nodes(session, filters=None):
     for key, val in filters.items():
         nodes = [
             x for x in nodes
-            if val in whoville.utils.get_val(x, key)
+            if val in utils.get_val(x, key)
         ]
     return nodes

@@ -17,7 +17,7 @@ import ruamel.yaml
 import requests
 from github import Github
 from requests.models import Response
-import whoville
+from whoville import config
 
 __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
            'is_endpoint_up', 'set_endpoint', 'get_val',
@@ -95,15 +95,13 @@ def load(obj, dto=None, decode=None):
         prep_obj = obj
     loaded_obj = ruamel.yaml.safe_load(prep_obj)
     if dto:
-        assert dto[0] in ['nifi', 'registry', 'cloudbreak']
+        assert dto[0] in ['cloudbreak']
         assert isinstance(dto[1], six.string_types)
         obj_as_json = dump(loaded_obj)
         response = Response()
         response.data = obj_as_json
         api_clients = {
-            'nifi': whoville.config.nifi_config.api_client,
-            'registry': whoville.config.registry_config.api_client,
-            'cloudbreak': whoville.config.cb_config.api_client,
+            'cloudbreak': config.cb_config.api_client,
         }
         api_client = api_clients[dto[0]]
         return api_client.deserialize(
@@ -167,8 +165,8 @@ def wait_to_complete(test_function, *args, **kwargs):
     """
     log.info("Called wait_to_complete for function %s",
              test_function.__name__)
-    delay = kwargs.pop('whoville_delay', whoville.config.short_retry_delay)
-    max_wait = kwargs.pop('whoville_max_wait', whoville.config.short_max_wait)
+    delay = kwargs.pop('whoville_delay', config.short_retry_delay)
+    max_wait = kwargs.pop('whoville_max_wait', config.short_max_wait)
     timeout = time.time() + max_wait
     while time.time() < timeout:
         log.debug("Calling test_function")
@@ -225,15 +223,9 @@ def set_endpoint(endpoint_url):
     Returns (bool): True for success, False for not
     """
     log.info("Called set_endpoint with args %s", locals())
-    if 'nifi-api' in endpoint_url:
-        log.info("Setting NiFi endpoint to %s", endpoint_url)
-        this_config = whoville.config.nifi_config
-    elif 'registry-api' in endpoint_url:
-        log.info("Setting Registry endpoint to %s", endpoint_url)
-        this_config = whoville.config.registry_config
-    elif 'cb/api' in endpoint_url:
+    if 'cb/api' in endpoint_url:
         log.info("Setting Cloudbreak endpoint to %s", endpoint_url)
-        this_config = whoville.config.cb_config
+        this_config = config.cb_config
     else:
         raise ValueError("Unrecognised API Endpoint")
     if this_config.api_client:
@@ -266,7 +258,7 @@ def get_val(root, items, sep='.'):
     assert isinstance(items, (list, six.string_types))
     for i in items if isinstance(items, list) else items.split(sep):
         if isinstance(root, dict):
-            root = root.get(i)
+            root = root[i]
         else:
             root = root.__getattribute__(i)
     return root
