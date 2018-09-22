@@ -258,7 +258,7 @@ def get_val(root, items, sep='.'):
     assert isinstance(items, (list, six.string_types))
     for i in items if isinstance(items, list) else items.split(sep):
         if isinstance(root, dict):
-            root = root[i]
+            root = root.get(i)
         else:
             root = root.__getattribute__(i)
     return root
