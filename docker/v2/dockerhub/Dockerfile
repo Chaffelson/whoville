@@ -30,8 +30,9 @@ RUN apk update && apk upgrade \
     libressl-dev ca-certificates python3-dev linux-headers tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && git clone --depth 1 -b ${BRANCH} https://github.com/Chaffelson/whoville.git /whoville \
+    && cd /whoville \
     && pip install --no-cache -r requirements.txt \  
-    && apk del .build-deps \
+    && apk del .build-deps
     
 
 WORKDIR /whoville

@@ -32,7 +32,7 @@ RUN apk update && apk upgrade \
     libressl-dev ca-certificates python3-dev linux-headers tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && pip install --no-cache -r requirements.txt \  
-    && apk del .build-deps \
+    && apk del .build-deps 
     
 
 ADD ./ /whoville

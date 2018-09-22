@@ -15,7 +15,7 @@ from whoville.cloudbreak import configuration as cb_config
 
 
 # --- Profile File Name ------
-profile_file = 'profile.yml'
+profile_loc = os.environ["PROFILE"] if os.environ["PROFILE"] else 'profile.yml'
 
 # --- Logging ------
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +50,7 @@ if not cb_config.verify_ssl:
 
 # Resolve Configuration overrides from local profile
 try:
-    with open(str(profile_file), 'r') as f:
+    with open(str(profile_loc), 'r') as f:
         profile = safe_load(f.read())
 except IOError as e:
     raise IOError("profile.yml not found - Have you set your Profile up?")

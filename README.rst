@@ -17,14 +17,15 @@ Quickstart
     mv profile.RENAME.yml profile.yml && vi profile.yml
 
 4. Run the Docker
-    * Make sure to set the profile.yml you are passing in as the first argument of the first -v
-    * Make sure to mount any addition resource volumes specified in your Profile as additional -v's
+    * Make sure to mount your profile.yml, format is '-v /LocalPath:/DockerPath'
+    * Then set PROFILE to the path you have mounted so whoville can find it
+    * Make sure to mount any addition resource volumes specified in your Profile e.g. '-v /MyDemos/:/MyDemos/'
+    * You can optionally set it to run against your local timezone with '-e TZ={timezone}'
 
 ::
 
     docker run
-    -v profile.yml:/whoville/profile.yml
-    -v resources/v2:/resources/v2
-    -e TZ={timezone}
+    -v profile.yml:/profile.yml
+    -e PROFILE=/profile.yml
     --name whoville
-    whoville:latest 
+    whoville:latest
