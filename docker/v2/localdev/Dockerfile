@@ -40,16 +40,8 @@ WORKDIR /whoville
 ENV PYTHONPATH=/whoville
 
 ENTRYPOINT ["python3"]
-CMD ["./whoville/mayor.py"]
-
-#ENV BRANCH=hdp3cbd
-#    && git clone --depth 1 -b ${BRANCH} https://github.com/Chaffelson/whoville.git /whoville \
+#CMD ["./whoville/mayor.py"]
 
 
-# Local Environment Execution Options
-#docker build -t whoville:hdp3cbd .
-#&& docker run
-#-v /Users/dchaffey/PycharmProjects/whoville:/whoville
-#-e TZ={timezone}
-#--name whoville
-#whoville:hdp3cbd 
+# Build & Run Example from project root /whoville
+# docker build -f="./docker/v2/localdev/Dockerfile" -t whoville:hdp3cbd . && docker run -v /whoville:/whoville --env PROFILE=/whoville/profile.yml --name whoville whoville:hdp3cbd

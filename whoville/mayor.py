@@ -60,7 +60,9 @@ def step_2_init_infra():
         purge=horton.global_purge
     )
     log.info("------------- Connecting to Cloudbreak")
-    public_dns_name = str(socket.gethostbyaddr(horton.find('cbd:public_ips')[0])[0])
+    public_dns_name = str(
+        socket.gethostbyaddr(horton.find('cbd:public_ips')[0])[0]
+    )
     url = 'https://' + public_dns_name + '/cb/api'
     log.info("Setting endpoint to %s", url)
     utils.set_endpoint(url)
@@ -137,10 +139,12 @@ def step_4_build():
                     def_key = args[0]
                     spec_key = args[1]
                     fullname = horton.namespace + spec_key
-                    event = args[2]
+                    field = args[2]
+                    state = args[3]
                     deploy.wait_for_event(
                         fullname,
-                        event,
+                        field,
+                        state,
                         step_ts,
                         horton.defs[def_key]['control']['deploywait']
                     )

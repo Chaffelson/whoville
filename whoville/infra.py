@@ -15,8 +15,7 @@ from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 import boto3
-from whoville import config, utils
-
+from whoville import config, utils, security
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
@@ -34,8 +33,8 @@ namespace = namespace if namespace else ''
 def create_libcloud_session(provider='EC2'):
     cls = get_driver(getattr(Provider, provider))
     return cls(
-        **{x:y for x,y in config.profile['infra'][provider].items()
-            if x in ['key', 'secret', 'region']}
+        **{x: y for x, y in config.profile['infra'][provider].items()
+           if x in ['key', 'secret', 'region']}
     )
 
 
@@ -87,7 +86,6 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
 
 
 def create_cloudbreak(session, cbd_name):
-    # TODO: Implement separate namespaces for infra and deploy
     public_ip = requests.get('http://icanhazip.com').text.rstrip()
     net_rules = [
         {
@@ -137,8 +135,9 @@ def create_cloudbreak(session, cbd_name):
                 'DeleteOnTermination': True
             }
         }
-        machines = list_sizes(session, cpu_min=4, cpu_max=4, mem_min=16000,
-                             mem_max=20000)
+        machines = list_sizes(
+            session, cpu_min=4, cpu_max=4, mem_min=16000, mem_max=20000
+        )
         if not machines:
             raise ValueError("Couldn't find a VM of the right size")
         else:
@@ -153,7 +152,7 @@ def create_cloudbreak(session, cbd_name):
         subnets = list_subnets(session, {'extra.vpc_id': network.id})
         subnet = sorted(subnets, key=lambda k: k.state)
         if not subnet:
-            raise ValueError("There should be at least one subnet on a network")
+            raise ValueError("Expecting at least one subnet on a network")
         else:
             subnet = subnet[0]
         sec_group = list_security_groups(session, {'name': namespace})
@@ -176,17 +175,31 @@ def create_cloudbreak(session, cbd_name):
         )
         for rule in net_rules:
             add_sec_rule_to_ec2_group(session, rule, sec_group.id)
-        ssh_key = list_keypairs(session, {'name': '_field'})
+        ssh_key = list_keypairs(
+            session, {'name': config.profile['deploy']['sshkey_name']}
+        )
         if not ssh_key:
             ssh_key = session.import_key_pair_from_string(
-                name='_field',
+                name=config.profile['deploy']['sshkey_name'],
                 key_material=config.profile['deploy']['sshkey_pub']
             )
         else:
-            ssh_key = ssh_key[0]
-
-        script = '''#!/bin/bash
-        curl -s https://raw.githubusercontent.com/Chaffelson/whoville/hdp3cbd/bootstrap/v2/cbd_bootstrap_centos7.sh | bash'''
+            ssh_key = [x for x in ssh_key
+                       if x.name == config.profile['deploy']['sshkey_name']][0]
+        # https://goo.gl/UddnF9 redirects to:
+        # https://raw.githubusercontent.com/Chaffelson/whoville/hdp3cbd/
+        # bootstrap/v2/cbd_bootstrap_centos7.sh
+        # This is just more tidy
+        script_lines = [
+            "#!/bin/bash",
+            "cd /root",
+            "export uaa_secret=" + security.get_secret('masterkey'),
+            "export uaa_default_pw=" + security.get_secret('password'),
+            "export uaa_default_email=" + config.profile['deploy']['email'],
+            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+            "/whoville/hdp3cbd/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+        ]
+        script = '\n'.join(script_lines)
         cbd = create_node(
             session=session,
             name=cbd_name,
@@ -205,18 +218,23 @@ def create_cloudbreak(session, cbd_name):
         session.wait_until_running(nodes=[cbd])
         log.info("Cloudbreak Infra Booted at [%s]", cbd)
         log.info("Assigning Static IP to Cloudbreak")
-        # TODO: Reuse Elastic IPs isntead of making new each time
-        elastic_ip = session.ex_allocate_address()
-        if not elastic_ip:
+        static_ips = [x for x in session.ex_describe_all_addresses()
+                      if x.instance_id is None]
+        if not static_ips:
+            static_ip = session.ex_allocate_address()
+        else:
+            static_ip = static_ips[0]
+        if not static_ip:
             raise ValueError("Couldn't get a Static IP for Cloudbreak")
-        session.ex_associate_address_with_node(cbd, elastic_ip)
+        session.ex_associate_address_with_node(cbd, static_ip)
         # Assign Role ARN
         s_boto3 = create_boto3_session()
         client = s_boto3.client('ec2')
+        infra_arn = config.profile['infra']['EC2']['infraarn']
         client.associate_iam_instance_profile(
             IamInstanceProfile={
-                'Arn': config.profile['infra']['EC2']['infraarn'],
-                'Name': config.profile['infra']['EC2']['infraarn'].rsplit('/')[-1]
+                'Arn': infra_arn,
+                'Name': infra_arn.rsplit('/')[-1]
             },
             InstanceId=cbd.id
         )
@@ -244,6 +262,7 @@ def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
             raise e
 
 
+# noinspection PyCompatibility
 def deploy_node(session, name, image, machine, deploy, params=None):
     obj = {
         'name': name,
@@ -256,6 +275,7 @@ def deploy_node(session, name, image, machine, deploy, params=None):
 
 
 def create_node(session, name, image, machine, params=None):
+    # noinspection PyCompatibility
     obj = {
         'name': name,
         'image': image,
@@ -275,8 +295,8 @@ def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
     machines = [
         x for x in sizes
         if mem_min <= x.ram <= mem_max
-           and cpu_min <= x.extra['cpu'] <= cpu_max
-           and disk_min <= x.disk <= disk_max
+        and cpu_min <= x.extra['cpu'] <= cpu_max
+        and disk_min <= x.disk <= disk_max
     ]
     return machines
 

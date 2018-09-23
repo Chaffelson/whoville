@@ -8,6 +8,8 @@ from __future__ import absolute_import
 import logging
 import six
 import requests
+import secrets
+import string
 from six.moves.urllib import parse
 from whoville import config
 
@@ -105,7 +107,7 @@ def service_login(service='cloudbreak', username=None, password=None,
             if bool_response:
                 return False
             raise ConnectionError("No Access Token in server response. Please "
-                                  "check your config and environment.")
+                                  "check your Auth config and environment.")
         set_service_auth_token(token=token, service='cloudbreak')
         return True
 
@@ -135,3 +137,25 @@ def set_service_auth_token(token=None, token_name='tokenAuth', service='cloudbre
     if not configuration.api_key[token_name]:
         return False
     return True
+
+
+def generate_passphrase():
+    try:
+        with open('/usr/share/dict/words') as f:
+            words = [word.strip() for word in f]
+            return '-'.join(secrets.choice(words) for i in range(4))
+    except FileNotFoundError:
+        picklist = string.ascii_letters + string.digits
+        return ''.join(secrets.choice(picklist) for i in range(20))
+
+
+def get_secret(key='password', create=True):
+    assert key in ['password', 'masterkey']
+    secret = config.profile['deploy'].get(key)
+    if not secret:
+        if create:
+            secret = generate_passphrase()
+            config.profile['deploy'][key] = secret
+        else:
+            return None
+    return secret

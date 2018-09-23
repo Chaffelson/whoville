@@ -8,11 +8,16 @@ objects.
 
 from __future__ import absolute_import
 import logging
+import sys
 import os
 import urllib3
 from ruamel.yaml import safe_load
 from whoville.cloudbreak import configuration as cb_config
 
+
+MIN_PYTHON = (3, 6)
+if sys.version_info < MIN_PYTHON:
+    sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
 # --- Profile File Name ------
 profile_loc = os.environ.get("PROFILE")

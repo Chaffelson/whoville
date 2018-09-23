@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from calendar import timegm
 import json
 import six
-from whoville import config, utils, infra
+from whoville import config, utils, infra, security
 from whoville import cloudbreak as cb
 from whoville.cloudbreak.rest import ApiException
 
@@ -95,21 +95,21 @@ def list_credentials(**kwargs):
     )
 
 
-def create_credential(from_profile=False, platform='AWS', desc='', name=None,
+def create_credential(from_profile=False, platform='AWS', name=None,
                       params=None, **kwargs):
     if from_profile:
         if platform == 'AWS':
             provider = 'EC2'
-            infra = config.profile['infra'][provider]
-            if 'credarn' in infra:
+            inf = config.profile['infra'][provider]
+            if 'credarn' in inf:
                 sub_params = {
-                    'roleArn': infra['credarn'],
+                    'roleArn': inf['credarn'],
                     'selector': 'role-based'
                 }
-            elif 'key' in infra:
+            elif 'key' in inf:
                 sub_params = {
-                    'accessKey': infra['key'],
-                    'secretKey': infra['secret'],
+                    'accessKey': inf['key'],
+                    'secretKey': inf['secret'],
                     'selector': 'key-based'
                 }
             else:
@@ -120,13 +120,13 @@ def create_credential(from_profile=False, platform='AWS', desc='', name=None,
         if platform == 'EC2':
             selector = params['selector']
             if selector == 'role-based':
-                sub_params = {x:y for x,y in params.items()
+                sub_params = {x: y for x, y in params.items()
                               if x in ['selector', 'roleArn']}
             elif selector == 'key-based':
                 sub_params = {x: y for x, y in params.items()
                               if x in ['selector', 'secretKey', 'accessKey']}
             else:
-                raise ValueError("selector [%s] unrecognised for platform [%s]",
+                raise ValueError("Bad selector [%s] for platform [%s]",
                                  selector, platform)
         else:
             raise ValueError("Platform [%s] unsupported", platform)
@@ -149,19 +149,20 @@ def get_credential(name, create=False, purge=False, **kwargs):
             log.info("Credential Purge set, removing [%s]", name)
             delete_credential(cred[0])
         else:
-           return cred[0]
+            return cred[0]
     if not create:
         log.info("Credential [%s] not found, Create not set, returning None",
                  name)
         return None
     log.info("Credential [%s] not found, Create set, Creating Credential",
              name)
-    return create_credential(from_profile=True, name=name)
+    return create_credential(from_profile=True, name=name, **kwargs)
 
 
-def delete_credential(identifier, identifier_type='id', **kwargs):
+def delete_credential(identifier, **kwargs):
     return cb.V1credentialsApi().delete_credential(
-        id=identifier
+        id=identifier,
+        **kwargs
     )
 
 
@@ -190,7 +191,8 @@ def create_blueprint(name, desc, blueprint, tags=None, **kwargs):
                 json.dumps(blueprint).encode()
             ).decode(),
             tags=tags
-        )
+        ),
+        **kwargs
     )
 
 
@@ -386,10 +388,11 @@ def prep_dependencies(def_key, shortname=None):
     else:
         purge = False
 
-    fullname = horton.namespace + shortname if shortname else horton.namespace + def_key
+    fullname = horton.namespace + (shortname if shortname else def_key)
     deps = {}
     log.debug("Def like [%s]", json.dumps(horton.defs[def_key]))
-    for res_type in [x for x in horton.defs[def_key].keys() if x in supported_resouces]:
+    for res_type in [x for x in horton.defs[def_key].keys()
+                     if x in supported_resouces]:
         log.debug("res_type like [%s]", res_type)
         res_defs = horton.defs[def_key][res_type]
         if not isinstance(res_defs, list):
@@ -423,7 +426,8 @@ def prep_dependencies(def_key, shortname=None):
             else:
                 purge_resource(res_name, res_type)
             desc = res['desc'] if 'desc' in res else ''
-            if res_type not in deps and res_type in ['recipe', 'mpack', 'auth']:
+            list_res_types = ['recipe', 'mpack', 'auth']
+            if res_type not in deps and res_type in list_res_types:
                 # Treat everything as a list for simplicity
                 deps[res_type] = []
             if res_type == 'blueprint':
@@ -432,7 +436,6 @@ def prep_dependencies(def_key, shortname=None):
                 else:
                     deps[res_type] = \
                         create_blueprint(
-                            source='file',
                             desc=desc,
                             name=res_name,
                             blueprint=horton.resources[def_key][res['name']]
@@ -497,13 +500,14 @@ def prep_dependencies(def_key, shortname=None):
 
 def find_ambari_group(def_key, name=None):
     horton = Horton()
-    name = horton.namespace + name if name else horton.namespace + def_key
+    name = horton.namespace + (name if name else def_key)
     # If only one group, it must be the gateway
     if 'group' in horton.defs[def_key]:
         if len(horton.defs[def_key]['group']) == 1:
             return horton.defs[def_key]['group'][0]['name']
         else:
-            test =[x['name'] for x in horton.defs[def_key]['group'] if x['type'] == 'GATEWAY']
+            test = [x['name'] for x in horton.defs[def_key]['group']
+                    if x['type'] == 'GATEWAY']
             if test:
                 # If the demo has a gateway defined, use it
                 return test[0]
@@ -545,11 +549,15 @@ def prep_images_dependency(def_key, fullname=None):
         catalog=cat_name,
         platform=horton.cred.cloud_platform
     )
-    log.info("Fetched images from Cloudbreak [%s]", str(images.attribute_map)[:100])
+    log.info("Fetched images from Cloudbreak [%s]",
+             str(images.attribute_map)[:100]
+             )
 
     images_by_type = [
         x for x in
-        images.base_images + images.__getattribute__(stack_name.lower() + '_images')
+        images.base_images + images.__getattribute__(
+            stack_name.lower() + '_images'
+        )
     ]
     if tgt_os:
         images_by_os = [x for x in images_by_type if x.os == tgt_os]
@@ -616,7 +624,8 @@ def prep_cluster(def_key, fullname=None):
                         "propertyName": loc['propname']
                     })
             else:
-                raise ValueError("Object Store [%s] not supported", object_store)
+                raise ValueError("Object Store [%s] not supported",
+                                 object_store)
         else:
             log.info("cloudstorage not defined in demo, skipping...")
             cloud_stor = None
@@ -637,15 +646,14 @@ def prep_cluster(def_key, fullname=None):
                         mpacks=mpacks
                     ),
                     user_name=config.profile['deploy']['username'],
-                    password=config.profile['deploy']['password'],
+                    password=security.get_secret('password'),
                     validate_blueprint=False,  # Hardcoded?
-                    ambari_security_master_key=config.profile['deploy']['password'],
+                    ambari_security_master_key=security.get_secret('masterkey'),
                     kerberos=None,
                     enable_security=False  # Hardcoded?
                 ),
                 cloud_storage=cloud_stor
             )
-    # TODO: Replace MasterKey with Random function
     if 'auth' in horton.defs[def_key] and 'name' in horton.defs[def_key]['auth']:
         cluster_req.ldap_config_name = '-'.join([fullname, horton.defs[def_key]['auth']['name']])
         cluster_req.proxy_name = None
@@ -674,9 +682,9 @@ def prep_cluster(def_key, fullname=None):
                 raise ValueError("Kerberising in Cloudbreak Test Mode Only")
             cluster_req.ambari.enable_security = True
             cluster_req.ambari.kerberos = cb.KerberosRequest(
-                admin=horton.find('secret:clustercred:username'),
-                password=horton.find('secret:clustercred:password'),
-                master_key=horton.find('secret:clustercred:masterkey'),
+                admin=config.profile['deploy']['username'],
+                password=security.get_secret('password'),
+                master_key=security.get_secret('masterkey'),
                 tcp_allowed=False
             )
     return cluster_req
@@ -777,7 +785,7 @@ def prep_instance_groups(def_key, fullname):
 
 def prep_stack_specs(def_key, name=None):
     horton = Horton()
-    fullname = horton.namespace + name if name else horton.namespace + def_key
+    fullname = horton.namespace + (name if name else def_key)
     log.info("Preparing Spec for Def [%s] as Name [%s]", def_key, fullname)
     cat_name = horton.find('defs:' + def_key + ':catalog')
     if horton.global_purge or horton.defs[def_key]['control']['purge']:
@@ -841,6 +849,17 @@ def create_stack(name, wait=False, purge=False, **kwargs):
             log.info("Stack [%s] in bad state [%s], recreating",
                      name, str(stack.status + stack.cluster.status))
             delete_stack(stack.id)
+        elif stack.status == 'DELETE_IN_PROGRESS':
+            log.info("Stack is being deleted, waiting for completion")
+            utils.wait_to_complete(
+                monitor_event_stream,
+                start_ts=start_ts,
+                identity=('stack_name', name),
+                target_event=('stack_status', 'DELETE_COMPLETED'),
+                valid_events=['DELETE_IN_PROGRESS'],
+                whoville_delay=15,
+                whoville_max_wait=wait
+            )
         else:
             log.info("Stack [%s] Exists in State [%s] and Purge is False,"
                      " returning Existing Stack", name, stack.cluster.status)
@@ -901,6 +920,9 @@ def monitor_event_stream(start_ts, identity, target_event, valid_events,
                      for x in events])
     log.info("Found event set [%s] for target event [%s]",
              str(event_set), target_event[0])
+    if not event_set:
+        log.warning("No Events received in the last interval, please check"
+                    "the identity and target event against Cloudbreak")
     if target_event[1] in event_set:
         return True
     valid_test = [x for x in event_set if x not in valid_events]
@@ -1060,15 +1082,15 @@ def delete_auth_conf(auth_name):
 
 def create_auth_conf(name, host, params=None):
     horton = Horton()
-    # TODO: UnHack the DPSPUBLICIP Hacky Hacksaw II: The Revenging
+    host_id = host if host != 'DPSPUBLICIP' else horton.cache['DPSPUBLICIP']
     obj = cb.LdapConfigRequest(
         name=name,
-        server_host=host if host != 'DPSPUBLICIP' else horton.cache['DPSPUBLICIP'],
+        server_host=host_id,
         server_port=33389,
         directory_type='LDAP',
         protocol='ldap',
         bind_dn='uid=admin,ou=people,dc=hadoop,dc=apache,dc=org',
-        bind_password='admin-password1',
+        bind_password=security.get_secret('password'),
         user_search_base='ou=people,dc=hadoop,dc=apache,dc=org',
         user_dn_pattern='cn={0}',
         user_object_class='person',
@@ -1088,7 +1110,7 @@ def create_auth_conf(name, host, params=None):
     )
 
 
-def wait_for_event(name, state, start_ts, wait):
+def wait_for_event(name, field, state, start_ts, wait):
     log.info("Waiting against state [%s] for Stack [%s]",
              state, name)
     event_key = {
@@ -1115,7 +1137,7 @@ def wait_for_event(name, state, start_ts, wait):
         monitor_event_stream,
         start_ts=start_ts,
         identity=('stack_name', name),
-        target_event=('cluster_status', state),
+        target_event=(field, state),
         valid_events=[
             'UPDATE_IN_PROGRESS', 'BILLING_STARTED', 'AVAILABLE',
             'CREATE_IN_PROGRESS', 'DELETE_IN_PROGRESS', 'DELETE_COMPLETED',
