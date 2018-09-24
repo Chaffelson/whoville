@@ -21,10 +21,10 @@ https://www.docker.com/get-started
 
 4. Run the Docker
 
-- Make sure to mount your profile.yml, format is '-v /LocalPath/File:/DockerPath/File'
-- Then set PROFILE to the path you have mounted so whoville can find it
-- Make sure to mount any addition resource volumes specified in your Profile e.g. '-v /MyDemos/:/MyDemos/'
-- You can optionally set it to run against your local timezone with '-e TZ={timezone}'
+- Make sure to mount your profile.yml, format is ``'-v /LocalPath/File:/DockerPath/File'``
+- Then set PROFILE to the path you have mounted so whoville can find it ``-e PROFILE=/profile.yml``
+- Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
+- You can optionally set it to run against your local timezone with ``'-e TZ={timezone}'``
 
 ::
 
@@ -34,7 +34,30 @@ https://www.docker.com/get-started
     --name whoville
     whoville:latest
 
-Overview
---------
+Detailed Guide
+--------------
 
-Coming soon...
+Please see the Github `Wiki <https://github.com/Chaffelson/whoville/wiki>`_
+
+Requirements
+------------
+
+Docker
+    Everything is included if you use the provided Docker Image for development or deployment
+
+Local
+    | Required: Python3.6+
+    | Recommended: A Python IDE with inspection and Github support, such as Pycharm
+
+Support
+-------
+| This software is supplied as-is with no support guarantee under the Apache 2.0 license
+| Please raise any Issues on `Github <https://github.com/Chaffelson/whoville/issues/new>`_
+
+History
+-------
+
+0.0.1-rc1
+    24 Sept 2018
+
+- Initial Release
