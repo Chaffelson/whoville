@@ -809,12 +809,17 @@ def prep_stack_specs(def_key, name=None):
     horton.specs[fullname] = cb.StackV2Request(
         general='', instance_groups=''
     )
-    horton.specs[fullname].tags = {
-        'Owner': horton.cred.name,
-        'EndDate': (
-            datetime.now() + timedelta(days=2)).strftime("%d%b%Y"),
-        'StartDate': datetime.now().strftime("%d%b%Y")
-    }
+    tags = config.profile.get('tags')
+    if not 'Owner' in tags or tags['Owner'] is None:
+        tags['Owner'] = horton.cred.name
+    if not 'StartDate' in tags or tags['StartDate'] is None:
+        tags['StartDate'] = str(datetime.now().strftime("%d%b%Y"))
+    if not 'EndDate' in tags or tags['EndDate'] is None:
+        tags['EndDate'] = str((
+                datetime.now() + timedelta(days=2)).strftime("%d%b%Y"))
+    if not 'Service' in tags or tags['Service'] is None:
+        tags['Service'] = 'EphemeralHortonworksCluster'
+    horton.specs[fullname].tags = tags
     horton.specs[fullname].stack_authentication = \
         cb.StackAuthenticationResponse(
                 public_key_id=config.profile['sshkey_name']
@@ -1111,7 +1116,7 @@ def create_auth_conf(name, host, params=None):
         group_search_base='ou=groups,dc=hadoop,dc=apache,dc=org',
         group_object_class='groupOfNames',
         group_member_attribute='member',
-        group_name_attribute='member',
+        group_name_attribute='cn',
         domain='',
         admin_group=''
     )
