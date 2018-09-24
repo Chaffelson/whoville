@@ -118,6 +118,7 @@ def create_credential(from_profile=False, platform='EC2', name=None,
             raise ValueError("Platform [%s] unsupported", platform)
     else:
         if platform == 'EC2':
+            service = 'AWS'
             selector = params['selector']
             if selector == 'role-based':
                 sub_params = {x: y for x, y in params.items()

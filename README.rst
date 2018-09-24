@@ -6,25 +6,14 @@ An opinionated auto-deployer for the Hortonworks Platform
 Quickstart
 ----------
 
-1. Install / Start a recent version of Docker
-
-https://www.docker.com/get-started
-
-2. Pull the latest whoville Docker image::
-
-    docker pull chaffelson/whoville
-
-3. Customise a profile.yml::
+1. Customise a profile.yml::
 
     curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/profile.RENAME.yml > profile.yml
     vi profile.yml
 
-4. Run the Docker
+2. Install / Start a recent version of `Docker <https://www.docker.com/get-started>`_
 
-- Make sure to mount your profile.yml, format is ``'-v /LocalPath/File:/DockerPath/File'``
-- Then set PROFILE to the path you have mounted so whoville can find it ``-e PROFILE=/profile.yml``
-- Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
-- You can optionally set it to run against your local timezone with ``'-e TZ={timezone}'``
+3. Run the Automated Tooling
 
 ::
 
@@ -33,6 +22,12 @@ https://www.docker.com/get-started
     -e PROFILE=/profile.yml
     --name whoville
     chaffelson/whoville:latest
+
+- Make sure to mount your profile.yml, format is ``'-v /LocalPath/File:/DockerPath/File'``
+- Then set PROFILE to the path you have mounted so whoville can find it ``-e PROFILE=/profile.yml``
+- Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
+- You can optionally set it to run against your local timezone with ``'-e TZ={timezone}'``
+
 
 Detailed Guide
 --------------
