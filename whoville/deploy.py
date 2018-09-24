@@ -819,7 +819,9 @@ def prep_stack_specs(def_key, name=None):
                 datetime.now() + timedelta(days=2)).strftime("%d%b%Y"))
     if not 'Service' in tags or tags['Service'] is None:
         tags['Service'] = 'EphemeralHortonworksCluster'
-    horton.specs[fullname].tags = tags
+    horton.specs[fullname].tags = {
+        'userDefinedTags': tags
+    }
     horton.specs[fullname].stack_authentication = \
         cb.StackAuthenticationResponse(
                 public_key_id=config.profile['sshkey_name']

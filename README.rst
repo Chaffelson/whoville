@@ -52,11 +52,3 @@ Support
 -------
 | This software is supplied as-is with no support guarantee under the Apache 2.0 license
 | Please raise any Issues on `Github <https://github.com/Chaffelson/whoville/issues/new>`_
-
-History
--------
-
-0.0.1-rc1
-    24 Sept 2018
-
-- Initial Release
