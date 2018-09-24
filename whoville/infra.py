@@ -90,6 +90,7 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
 
 
 def create_cloudbreak(session, cbd_name):
+    public_ip = requests.get('http://ipv4.icanhazip.com').text.rstrip()
     s_boto3 = create_boto3_session()
     client_cf = s_boto3.client('cloudformation')
     cf_stacks = client_cf.list_stacks()
@@ -374,3 +375,33 @@ def list_nodes(session, filters=None):
             if val in utils.get_val(x, key)
         ]
     return nodes
+
+
+def list_all_aws_nodes():
+    log.info("Fetching descriptions of all nodes in all AWS Regions."
+             " This will be slow...")
+    b3 = create_boto3_session()
+    ec2 = b3.client('ec2')
+    regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
+    nodes = []
+    for r in regions:
+        ec2 = b3.client('ec2', r)
+        reservations = ec2.describe_instances()['Reservations']
+        log.info("Found [%d] Nodes in Region [%s]",
+                 len(reservations), r)
+        if reservations:
+            nodes += reservations
+    log.info("All known regions checked, returning list")
+    return nodes
+
+
+def get_aws_node_summary(node_list=None):
+    # ToDo: https://wiki.hortonworks.com/pages/viewpage.action?spaceKey=SE&title=Manual+Cloud+Cleanup+Procedure
+    summary = []
+    node_list = node_list if node_list else list_all_aws_nodes()
+    [[summary.append(
+        {p: q for p, q in y.items() if p in ['Placement', 'State', 'Tags']})
+      for y in x['Instances']] for x in node_list]
+    return summary
+
+

@@ -3,6 +3,19 @@ Whoville
 An opinionated auto-deployer for the Hortonworks Platform
 
 
+Requirements
+------------
+Hosting Platform
+    | You will need an AWS account with rights to deploy machines, assume roles, etc.
+    | Please see the Cloudbreak `Requirements <https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#prerequisites>`_
+
+Docker Deployment
+    Everything is included if you use the provided Docker Image for development or deployment
+
+Local Deployment
+    | Required: Python3.6+
+    | Recommended: A Python IDE with inspection and Github support, such as Pycharm
+
 Quickstart
 ----------
 
@@ -27,21 +40,13 @@ Quickstart
 - Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
 - You can optionally set it to run against your local timezone with ``'-e TZ={timezone}'``
 
+4. If you want to use interactive Deployment please see the Detailed Guide below.
 
 Detailed Guide
 --------------
 
 Please see the Github `Wiki <https://github.com/Chaffelson/whoville/wiki>`_
 
-Requirements
-------------
-
-Docker
-    Everything is included if you use the provided Docker Image for development or deployment
-
-Local
-    | Required: Python3.6+
-    | Recommended: A Python IDE with inspection and Github support, such as Pycharm
 
 Support
 -------
