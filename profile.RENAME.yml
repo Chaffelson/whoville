@@ -73,6 +73,15 @@ bucket: whoville
 # See the guide in Note1 about setting up Cloudbreak roles
 bucketrole: arn:aws:iam::CHANGEME:instance-profile/CHANGEME
 
+# It is good practice to tag your services in order to distinguish projects
+# and users and environments
+# Empty tags will be autopopulated with useful defaults
+tags:
+  Owner: user@company.com
+  Service: Whoville Ephemeral Cluster
+  BusinessUnit: DevOps
+  StartDate:
+  EndDate:
 
 # Note 1
 # https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#create-cloudbreak-credential

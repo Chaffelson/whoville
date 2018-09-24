@@ -94,13 +94,14 @@ def create_cloudbreak(session, cbd_name):
     s_boto3 = create_boto3_session()
     client_cf = s_boto3.client('cloudformation')
     cf_stacks = client_cf.list_stacks()
-    log.info("Looking for existing Cloud Formation stacks within namespace: " + namespace)
+    log.info("Looking for existing Cloud Formation stacks within namespace "
+             "[%s]", namespace)
     for cf_stack in cf_stacks['StackSummaries']:
         if namespace in cf_stack['StackName']:
-            log.info("Found Cloud Formation "+cf_stack['StackName']+", deleting to avoid collision with Cloudbreak cluster creation...")
+            log.info("Found Cloud Formation [%s], deleting to avoid collision "
+                     "with Cloudbreak cluster creation...",
+                     cf_stack['StackName'])
             client_cf.delete_stack(StackName=cf_stack['StackName'])
-    
-    public_ip = requests.get('http://icanhazip.com').text.rstrip()
     net_rules = [
         {
             'protocol': 'tcp',
