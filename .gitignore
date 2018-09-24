@@ -1,2 +1,8 @@
 # Created by .ignore support plugin (hsz.mobi)
-.idea/**
+.idea/
+profile.yml
+whoville.egg-info/
+whoville/__pycache__/
+whoville/cloudbreak/__pycache__/
+whoville/cloudbreak/apis/__pycache__/
+whoville/cloudbreak/models/__pycache__/
