@@ -26,25 +26,28 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-namespace = config.profile['deploy']['namespace']
+namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
 
 
 def create_libcloud_session(provider='EC2'):
     cls = get_driver(getattr(Provider, provider))
+    params = config.profile.get('platform')
+    if not params:
+        raise ValueError("Profile not configured with Platform Parameters")
     return cls(
-        **{x: y for x, y in config.profile['infra'][provider].items()
+        **{x: y for x, y in params.items()
            if x in ['key', 'secret', 'region']}
     )
 
 
 def create_boto3_session():
-    if 'EC2' in config.profile['infra']:
-        params = config.profile['infra']['EC2']
+    platform = config.profile.get('platform')
+    if platform['provider'] == 'EC2':
         return boto3.Session(
-            aws_access_key_id=params['key'],
-            aws_secret_access_key=params['secret'],
-            region_name=params['region']
+            aws_access_key_id=platform['key'],
+            aws_secret_access_key=platform['secret'],
+            region_name=platform['region']
         )
     else:
         raise ValueError("EC2 infra access keys not defined in Profile")
@@ -176,16 +179,16 @@ def create_cloudbreak(session, cbd_name):
         for rule in net_rules:
             add_sec_rule_to_ec2_group(session, rule, sec_group.id)
         ssh_key = list_keypairs(
-            session, {'name': config.profile['deploy']['sshkey_name']}
+            session, {'name': config.profile['sshkey_name']}
         )
         if not ssh_key:
             ssh_key = session.import_key_pair_from_string(
-                name=config.profile['deploy']['sshkey_name'],
-                key_material=config.profile['deploy']['sshkey_pub']
+                name=config.profile['sshkey_name'],
+                key_material=config.profile['sshkey_pub']
             )
         else:
             ssh_key = [x for x in ssh_key
-                       if x.name == config.profile['deploy']['sshkey_name']][0]
+                       if x.name == config.profile['sshkey_name']][0]
         # https://goo.gl/UddnF9 redirects to:
         # https://raw.githubusercontent.com/Chaffelson/whoville/hdp3cbd/
         # bootstrap/v2/cbd_bootstrap_centos7.sh
@@ -195,7 +198,7 @@ def create_cloudbreak(session, cbd_name):
             "cd /root",
             "export uaa_secret=" + security.get_secret('masterkey'),
             "export uaa_default_pw=" + security.get_secret('password'),
-            "export uaa_default_email=" + config.profile['deploy']['email'],
+            "export uaa_default_email=" + config.profile['email'],
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
             "/whoville/hdp3cbd/bootstrap/v2/cbd_bootstrap_centos7.sh)"
         ]
@@ -230,7 +233,7 @@ def create_cloudbreak(session, cbd_name):
         # Assign Role ARN
         s_boto3 = create_boto3_session()
         client = s_boto3.client('ec2')
-        infra_arn = config.profile['infra']['EC2']['infraarn']
+        infra_arn = config.profile['platform']['infraarn']
         client.associate_iam_instance_profile(
             IamInstanceProfile={
                 'Arn': infra_arn,
@@ -274,8 +277,8 @@ def deploy_node(session, name, image, machine, deploy, params=None):
     return session.deploy_node(**obj)
 
 
+# noinspection PyCompatibility
 def create_node(session, name, image, machine, params=None):
-    # noinspection PyCompatibility
     obj = {
         'name': name,
         'image': image,

@@ -72,8 +72,8 @@ class Horton:
         self.deps = {}  # Dependencies loaded for a given Definition
         self.seq = {}  # Prioritised list of tasks to execute
         self.cache = {}  # Key:Value store for passing params between Defs
-        self.namespace = config.profile['deploy']['namespace']
-        self.global_purge = config.profile['deploy']['globalpurge']
+        self.namespace = config.profile['namespace']
+        self.global_purge = config.profile['globalpurge']
 
     def find(self, items):
         """
@@ -95,21 +95,21 @@ def list_credentials(**kwargs):
     )
 
 
-def create_credential(from_profile=False, platform='AWS', name=None,
+def create_credential(from_profile=False, platform='EC2', name=None,
                       params=None, **kwargs):
     if from_profile:
-        if platform == 'AWS':
-            provider = 'EC2'
-            inf = config.profile['infra'][provider]
-            if 'credarn' in inf:
+        platform = config.profile.get('platform')
+        if platform['provider'] == 'EC2':
+            service = 'AWS'
+            if 'credarn' in platform:
                 sub_params = {
-                    'roleArn': inf['credarn'],
+                    'roleArn': platform['credarn'],
                     'selector': 'role-based'
                 }
-            elif 'key' in inf:
+            elif 'key' in platform:
                 sub_params = {
-                    'accessKey': inf['key'],
-                    'secretKey': inf['secret'],
+                    'accessKey': platform['key'],
+                    'secretKey': platform['secret'],
                     'selector': 'key-based'
                 }
             else:
@@ -132,7 +132,7 @@ def create_credential(from_profile=False, platform='AWS', name=None,
             raise ValueError("Platform [%s] unsupported", platform)
     return cb.V1credentialsApi().post_private_credential(
         body=cb.CredentialRequest(
-            cloud_platform=platform,
+            cloud_platform=service,
             description=name,
             name=name,
             parameters=sub_params
@@ -383,8 +383,8 @@ def prep_dependencies(def_key, shortname=None):
 
     if horton.global_purge:
         purge = True
-    elif 'purge' in horton.defs[def_key]['control']:
-        purge = horton.defs[def_key]['control']['purge']
+    elif 'purge' in horton.defs[def_key]:
+        purge = horton.defs[def_key]['purge']
     else:
         purge = False
 
@@ -606,14 +606,14 @@ def prep_cluster(def_key, fullname=None):
     stack_version = bp_content['Blueprints']['stack_version']
 
     # Cloud Storage
-    object_store = config.profile['deploy']['objectstore']
+    object_store = config.profile['objectstore']
     if object_store:
         if 'cloudstor' in horton.defs[def_key]['infra']:
             if object_store == 's3':
-                bucket = config.profile['deploy']['bucket']
+                bucket = config.profile['bucket']
                 cloud_stor = cb.CloudStorageRequest(
                     s3=cb.S3CloudStorageParameters(
-                        instance_profile=config.profile['deploy']['bucketrole']
+                        instance_profile=config.profile['bucketrole']
                     ),
                     locations=[]
                 )
@@ -645,7 +645,7 @@ def prep_cluster(def_key, fullname=None):
                         os=tgt_os_name,
                         mpacks=mpacks
                     ),
-                    user_name=config.profile['deploy']['username'],
+                    user_name=config.profile['username'],
                     password=security.get_secret('password'),
                     validate_blueprint=False,  # Hardcoded?
                     ambari_security_master_key=security.get_secret('masterkey'),
@@ -682,7 +682,7 @@ def prep_cluster(def_key, fullname=None):
                 raise ValueError("Kerberising in Cloudbreak Test Mode Only")
             cluster_req.ambari.enable_security = True
             cluster_req.ambari.kerberos = cb.KerberosRequest(
-                admin=config.profile['deploy']['username'],
+                admin=config.profile['username'],
                 password=security.get_secret('password'),
                 master_key=security.get_secret('masterkey'),
                 tcp_allowed=False
@@ -788,7 +788,7 @@ def prep_stack_specs(def_key, name=None):
     fullname = horton.namespace + (name if name else def_key)
     log.info("Preparing Spec for Def [%s] as Name [%s]", def_key, fullname)
     cat_name = horton.find('defs:' + def_key + ':catalog')
-    if horton.global_purge or horton.defs[def_key]['control']['purge']:
+    if horton.global_purge or horton.defs[def_key]['purge']:
         stack = [x for x in list_stacks() if x.name == fullname]
         if stack:
             delete_stack(stack[0].id)
@@ -806,7 +806,7 @@ def prep_stack_specs(def_key, name=None):
     }
     horton.specs[fullname].stack_authentication = \
         cb.StackAuthenticationResponse(
-                public_key_id=config.profile['deploy']['sshkey_name']
+                public_key_id=config.profile['sshkey_name']
             )
     horton.specs[fullname].general = cb.GeneralSettings(
             credential_name=horton.cred.name,
@@ -830,7 +830,9 @@ def prep_stack_specs(def_key, name=None):
     horton.specs[fullname].cluster = prep_cluster(def_key, fullname)
     if 'input' in horton.defs[def_key]:
         horton.specs[fullname].inputs = horton.defs[def_key]['input']
-    horton.specs[fullname].instance_groups = prep_instance_groups(def_key, fullname)
+    horton.specs[fullname].instance_groups = prep_instance_groups(
+        def_key, fullname
+    )
 
 
 def create_stack(name, wait=False, purge=False, **kwargs):

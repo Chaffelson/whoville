@@ -71,3 +71,4 @@ Cmdline Login::
     cat /var/log/cloud-init.log  # Server bootstrap, can indicate initialization errors
     cat /var/log/cbd_bootstrap_centos7.log  # Cloudbreak installer log, can indicate install failure
     curl http://169.254.169.254/latest/user-data  # Check the passed-in build script
+    cd /root && cbd restart  # Restarting Cloudbreak, may provide a view of error basis

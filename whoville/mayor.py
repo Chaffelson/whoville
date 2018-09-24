@@ -22,16 +22,15 @@ log.setLevel(logging.INFO)
 # to non-python users
 horton = deploy.Horton()
 
-
 def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service")
     log.info("------------- Validating Profile")
-    if not config.profile['deploy']:
+    if not config.profile:
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
     log.info("------------- Fetching Resources from Profile Definitions")
-    if config.profile['deploy']['resources']:
-        for res_def in config.profile['deploy']['resources']:
+    if config.profile['resources']:
+        for res_def in config.profile['resources']:
             if res_def['loc'] == 'local':
                 log.info("Loading resources from Local path [%s]",
                          res_def['uri'])
@@ -43,8 +42,8 @@ def step_1_init_service():
                          res_def['repo'])
                 horton.resources.update(utils.load_resources_from_github(
                     repo_name=res_def['repo'],
-                    username=config.profile['deploy']['githubuser'],
-                    token=config.profile['deploy']['githubtoken'],
+                    username=config.profile['githubuser'],
+                    token=config.profile['githubtoken'],
                     tgt_dir=res_def['subdir']
                 ))
             else:
@@ -52,6 +51,8 @@ def step_1_init_service():
                                  res_def['loc'])
         for k, v in horton.resources.items():
             horton.defs[k] = v[k + '.yaml']
+    else:
+        log.warning("Found no Resources to load!")
 
 
 def step_2_init_infra():
@@ -69,8 +70,8 @@ def step_2_init_infra():
     log.info("------------- Authenticating to Cloudbreak")
     auth_success = security.service_login(
             service='cloudbreak',
-            username=config.profile['deploy']['email'],
-            password=config.profile['deploy']['password'],
+            username=config.profile['email'],
+            password=config.profile['password'],
             bool_response=False
         )
     if not auth_success:
@@ -88,7 +89,7 @@ def step_2_init_infra():
     )
     log.info("------------- Setting Deployment Credential")
     horton.cred = deploy.get_credential(
-        config.profile['deploy']['namespace'] + 'credential',
+        config.profile['namespace'] + 'credential',
         create=True,
         purge=horton.global_purge
     )
@@ -98,12 +99,12 @@ def step_3_sequencing():
     log.info("------------- Establishing Deployment Sequence")
     for def_key in horton.defs.keys():
         log.info("Checking Definition [%s]", def_key)
-        priority = horton.find('defs:' + def_key + ':control:priority')
+        priority = horton.find('defs:' + def_key + ':priority')
         if priority is not None:
             log.info("Registering [%s] as Priority [%s]",
                      def_key, str(priority))
             horton.seq[priority] = horton.find(
-                'defs:' + def_key + ':control:seq'
+                'defs:' + def_key + ':seq'
             )
         else:
             log.info("Priority not set for [%s], skipping...", def_key)
@@ -146,7 +147,7 @@ def step_4_build():
                         field,
                         state,
                         step_ts,
-                        horton.defs[def_key]['control']['deploywait']
+                        horton.defs[def_key]['deploywait']
                     )
                 if action == 'openport':
                     protocol = args[0]

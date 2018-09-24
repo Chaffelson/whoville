@@ -51,9 +51,8 @@ def service_login(service='cloudbreak', username=None, password=None,
 
     """
     log_args = locals()
-    log_args['password'] = 'REDACTED'
+    _ = log_args.pop('password')
     log.info("Called service_login with args %s", log_args)
-    # TODO: Tidy up logging and automate sensitive value redaction
     assert service in _valid_services
     assert isinstance(username, six.string_types)
     assert isinstance(password, six.string_types)
@@ -69,7 +68,6 @@ def service_login(service='cloudbreak', username=None, password=None,
         "Login is only available when connecting over HTTPS."
 
     if service == 'cloudbreak':
-        # TOdo: add tests for cloubreak auth
         url = config.cb_config.host.replace(
             '/cb/api',
             '/identity/oauth/authorize'
@@ -151,11 +149,11 @@ def generate_passphrase():
 
 def get_secret(key='password', create=True):
     assert key in ['password', 'masterkey']
-    secret = config.profile['deploy'].get(key)
+    secret = config.profile.get(key)
     if not secret:
         if create:
             secret = generate_passphrase()
-            config.profile['deploy'][key] = secret
+            config.profile[key] = secret
         else:
             return None
     return secret

@@ -16,6 +16,8 @@ from whoville.cloudbreak import configuration as cb_config
 
 
 MIN_PYTHON = (3, 6)
+# Param unpacking from Python3.5
+# Secrets for security.py in Python3.6
 if sys.version_info < MIN_PYTHON:
     sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
@@ -31,11 +33,6 @@ logging.basicConfig(level=logging.INFO)
 # --- Default Host URL -----
 # Set Default Host for Cloudbreak
 cb_config.host = 'https://localhost/cb/api'
-
-
-# ---  Project Root ------
-# Is is helpful to have a reference to the root directory of the project
-PROJECT_ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 # --- Task wait delays ------
