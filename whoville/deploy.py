@@ -1098,7 +1098,7 @@ def create_auth_conf(name, host, params=None):
         group_search_base='ou=groups,dc=hadoop,dc=apache,dc=org',
         group_object_class='groupOfNames',
         group_member_attribute='member',
-        group_name_attribute='member',
+        group_name_attribute='cn',
         domain='',
         admin_group=''
     )
