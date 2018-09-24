@@ -56,12 +56,13 @@ def create_boto3_session():
 def get_cloudbreak(s_libc=None, create=True, purge=False):
     if not s_libc:
         s_libc = create_libcloud_session()
+    
     cbd_name = namespace + 'cloudbreak'
     cbd = list_nodes(s_libc, {'name': cbd_name})
     cbd = [x for x in cbd if x.state != 'terminated']
     if cbd:
         if not purge:
-            log.info("CLoudbreak [%s] found, returning instance",
+            log.info("Cloudbreak [%s] found, returning instance",
                      cbd[0].name)
             return cbd[0]
         else:
@@ -89,6 +90,15 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
 
 
 def create_cloudbreak(session, cbd_name):
+    s_boto3 = create_boto3_session()
+    client_cf = s_boto3.client('cloudformation')
+    cf_stacks = client_cf.list_stacks()
+    log.info("Looking for existing Cloud Formation stacks within namespace: " + namespace)
+    for cf_stack in cf_stacks['StackSummaries']:
+        if namespace in cf_stack['StackName']:
+            log.info("Found Cloud Formation "+cf_stack['StackName']+", deleting to avoid collision with Cloudbreak cluster creation...")
+            client_cf.delete_stack(StackName=cf_stack['StackName'])
+    
     public_ip = requests.get('http://icanhazip.com').text.rstrip()
     net_rules = [
         {
