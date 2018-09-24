@@ -44,13 +44,23 @@ valid_source_types = ['url', 'file']
 sep = ':'
 
 # All Stack statuses, taken from cloudbreak/models/StackResponse/status
-responses = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
+# and cloudbreak/model/ClusterResponse/status
+stack_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
              "UPDATE_IN_PROGRESS", "UPDATE_REQUESTED", "UPDATE_FAILED",
              "CREATE_FAILED", "ENABLE_SECURITY_FAILED",
              "PRE_DELETE_IN_PROGRESS", "DELETE_IN_PROGRESS", "DELETE_FAILED",
              "DELETE_COMPLETED", "STOPPED", "STOP_REQUESTED",
              "START_REQUESTED", "STOP_IN_PROGRESS", "START_IN_PROGRESS",
              "START_FAILED", "STOP_FAILED", "WAIT_FOR_SYNC"]
+
+cluster_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
+                "UPDATE_IN_PROGRESS", "UPDATE_REQUESTED", "UPDATE_FAILED",
+                "CREATE_FAILED", "ENABLE_SECURITY_FAILED",
+                "PRE_DELETE_IN_PROGRESS", "DELETE_IN_PROGRESS",
+                "DELETE_FAILED", "DELETE_COMPLETED", "STOPPED",
+                "STOP_REQUESTED", "START_REQUESTED", "STOP_IN_PROGRESS",
+                "START_IN_PROGRESS", "START_FAILED", "STOP_FAILED",
+                "WAIT_FOR_SYNC"]
 
 
 @utils.singleton
