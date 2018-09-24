@@ -34,6 +34,7 @@ RUN apk update && apk upgrade \
     && cd /whoville \
     && pip install --no-cache -r requirements.txt \  
     && apk del .build-deps
+    && touch /profile.yml 
     
 
 WORKDIR /whoville

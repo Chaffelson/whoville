@@ -18,13 +18,12 @@ Quickstart
 ::
 
     docker run
-    -v profile.yml:/profile.yml
+    -v $(pwd)/profile.yml:/profile.yml:ro
     -e PROFILE=/profile.yml
     --name whoville
     chaffelson/whoville:latest
 
-- Make sure to mount your profile.yml, format is ``'-v /LocalPath/File:/DockerPath/File'``
-- Then set PROFILE to the path you have mounted so whoville can find it ``-e PROFILE=/profile.yml``
+- Set your Profile so whoville can find it per the above parameters
 - Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
 - You can optionally set it to run against your local timezone with ``'-e TZ={timezone}'``
 
