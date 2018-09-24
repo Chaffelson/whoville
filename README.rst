@@ -12,11 +12,11 @@ https://www.docker.com/get-started
 
 2. Pull the latest whoville Docker image::
 
-    docker pull Chaffelson/whoville
+    docker pull chaffelson/whoville
 
 3. Customise a profile.yml::
 
-    curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/hdp3cbd/profile.RENAME.yml > profile.yml
+    curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/profile.RENAME.yml > profile.yml
     vi profile.yml
 
 4. Run the Docker
@@ -32,7 +32,7 @@ https://www.docker.com/get-started
     -v profile.yml:/profile.yml
     -e PROFILE=/profile.yml
     --name whoville
-    whoville:latest
+    chaffelson/whoville:latest
 
 Detailed Guide
 --------------

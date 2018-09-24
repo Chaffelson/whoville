@@ -23,7 +23,8 @@ LABEL site="https://github.com/Chaffelson/whoville"
 
 ENV PYTHONUNBUFFERED=0
 ENV TZ=${TZ:-"Europe/London"}
-ENV BRANCH=hdp3cbd
+ENV BRANCH=master
+ENV PROFILE=${PROFILE:-'/profile.yml'}
 
 RUN apk update && apk upgrade \
     && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \

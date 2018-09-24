@@ -200,7 +200,7 @@ def create_cloudbreak(session, cbd_name):
             "export uaa_default_pw=" + security.get_secret('password'),
             "export uaa_default_email=" + config.profile['email'],
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/hdp3cbd/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
         ]
         script = '\n'.join(script_lines)
         cbd = create_node(
