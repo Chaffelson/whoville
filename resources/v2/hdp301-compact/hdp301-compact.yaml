@@ -1,0 +1,27 @@
+purge: true
+priority: 2
+deploywait: 1800
+seq:
+- prepdeps: [hdp301-compact, hdp301]
+- prepspec: [hdp301-compact, hdp301] 
+- deploy: [hdp301]
+- wait: [hdp301-compact, hdp301, event_type, BILLING_STARTED]
+- openport: [tcp, 8080, 8080, '0.0.0.0/0']
+infra:
+  disktypes: [gp2, standard]
+  os: redhat7
+  ambarirepo:
+    version: 2.7.1.0
+    baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.7.1.0
+    gpgKeyUrl: http://public-repo-1.hortonworks.com/ambari/centos7/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
+  stackrepo:
+    ver: 3.0.1.0-187
+    url: http://public-repo-1.hortonworks.com/HDP/centos7/3.x/updates/3.0.1.0/HDP-3.0.1.0-187.xml
+blueprint:
+  name: blueprint.json
+group:
+- name: master
+  recipe: 
+  type: GATEWAY
+  machine: m5.xlarge
+  nodes: 1

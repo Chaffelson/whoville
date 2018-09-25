@@ -1,0 +1,44 @@
+# Known issues:
+# This takes a long time to deploy, sometimes Cloudbreak or Ambari will timeout during startup and throw an error.
+# If you log into Ambari and wait, all services should come up - you can then do a manual resync in cloudbreak to get a green environment
+
+deploywait: 1800
+purge: false
+priority: 
+seq:
+- prepdeps: [cda301-compact, cda301-compact1]
+- prepspec: [cda301-compact, cda301-compact1]
+- deploy: [cda301-compact1]
+- wait: [cda301-compact, cda301-compact1, event_type, BILLING_STARTED]
+- openport: [tcp, 8080, 8080, '0.0.0.0/0']
+input:
+  yarn.vcores: 14
+  yarn.capacity: 26500
+  yarn.max.container: 26500
+  nifi.node.port: 9092
+infra:
+  disktypes: [gp2, standard]
+  os: redhat7
+  ambarirepo:
+    version: 2.7.1.0
+    baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.7.1.0
+    gpgKeyUrl: http://public-repo-1.hortonworks.com/ambari/centos7/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
+  stackrepo:
+    ver: 3.0.1.0-187
+    url: http://public-repo-1.hortonworks.com/HDP/centos7/3.x/updates/3.0.1.0/HDP-3.0.1.0-187.xml
+blueprint:
+  name: blueprint.json
+recipe:
+- name: pre-ambari-start.sh
+  typ: PRE_AMBARI_START
+group:
+- name: master
+  recipe: [pre-ambari-start]
+  type: GATEWAY
+  machine: m5.2xlarge
+  nodes: 1
+mpack:
+- name: hdf320
+  desc: HDF 3.2.0
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.2.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.2.0.0-520.tar.gz
+  purge_on_install: false
