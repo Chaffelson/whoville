@@ -83,5 +83,10 @@ tags:
   StartDate:
   EndDate:
 
+# This parameter sets the version of Cloudbreak to use
+# It is recommended to use the default version provided with this package
+# unless you know what you are doing
+cloudbreak_ver: 2.7.1
+
 # Note 1
 # https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#create-cloudbreak-credential

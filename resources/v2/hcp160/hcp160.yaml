@@ -1,0 +1,110 @@
+priority: 
+seq:
+- prepdeps: [hcp160, hcp160]
+- prepspec: [hcp160, hcp160]
+- deploy: [hcp160]
+- wait: [hcp160, hcp160, event_type, BILLING_STARTED]
+- openport: [tcp, 8080, 8080, '0.0.0.0/0']
+deploywait: 1800
+purge: true
+input:
+  nifi.security.encrypt.configuration.password: StrongPassword1
+  nifi.sensitive.props.key: StrongPassword1
+  nifi.toolkit.tls.token: StrongPassword1
+  nifi.registry.security.encrypt.configuration.password: StrongPassword1
+  nifi.registry.sensitive.props.key: StrongPassword1
+  ranger.kms.password: StrongPassword1
+infra:
+  disktypes: [gp2, standard]
+  os: redhat7
+blueprint:
+  name: blueprint.json
+recipe:
+- name: mysql-client.sh
+  typ: PRE_AMBARI_START
+- name: metron-db-setup.sh
+  typ: POST_AMBARI_START
+- name: nodejs.sh
+  typ: PRE_AMBARI_START
+- name: requests-upgrade.sh
+  typ: PRE_AMBARI_START
+- name: allow-renewable.sh
+  typ: POST_AMBARI_START
+- name: noexec-tmp.sh
+  typ: PRE_AMBARI_START
+group:
+- name: master2
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.2xlarge
+  nodes: 1
+- name: master1
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.2xlarge
+  nodes: 1
+- name: solr
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.xlarge
+  nodes: 1
+- name: ambari
+  recipe: [noexec-tmp, metron-db-setup, mysql-client, requests-upgrade, allow-renewable]
+  type: GATEWAY
+  machine: m5.2xlarge
+  nodes: 1
+- name: worker
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.xlarge
+  nodes: 1
+- name: metron
+  recipe: [noexec-tmp, nodejs, requests-upgrade, mysql-client]
+  type: CORE
+  machine: m5.xlarge
+  nodes: 1
+- name: hbase
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.xlarge
+  nodes: 1
+- name: kafka
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.2xlarge
+  nodes: 1
+- name: streaming
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.xlarge
+  nodes: 1
+- name: zookeeper
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.2xlarge
+  nodes: 1
+- name: master3
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.2xlarge
+  nodes: 1
+- name: nifi
+  recipe: [noexec-tmp]
+  type: CORE
+  machine: m5.xlarge
+  nodes: 1
+mpack:
+- name: hdp-search
+  desc: HDP Search 3.0.0
+  url: http://public-repo-1.hortonworks.com/HDP-SOLR/hdp-solr-ambari-mp/solr-service-mpack-3.0.0.tar.gz
+  purge_on_install: false
+- name: hcp-160
+  desc: HCP 1.6.0
+  url: http://public-repo-1.hortonworks.com/HCP/centos6/1.x/updates/1.6.0.0/tars/metron/hcp-ambari-mpack-1.6.0.0-7.tar.gz
+  purge_on_install: false
+- name: hdf-312
+  desc: HDF 3.1.2
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
+  purge_on_install: false
+krb:
+  mode: test

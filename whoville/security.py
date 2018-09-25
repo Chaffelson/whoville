@@ -143,8 +143,12 @@ def generate_passphrase():
             words = [word.strip() for word in f]
             return '-'.join(secrets.choice(words) for i in range(4))
     except FileNotFoundError:
-        picklist = string.ascii_letters + string.digits
-        return ''.join(secrets.choice(picklist) for i in range(20))
+        return generate_password()
+
+
+def generate_password():
+    picklist = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(picklist) for i in range(20))
 
 
 def get_secret(key='password', create=True):

@@ -165,22 +165,18 @@ def create_cloudbreak(session, cbd_name):
                              "is rather unexpected")
         else:
             network = network[-1]
-            
         subnets = list_subnets(session, {'extra.vpc_id': network.id})
         subnets = sorted(subnets, key=lambda k: k.state)
         ec2_resource = s_boto3.resource('ec2')
         if not subnets:
             raise ValueError("Expecting at least one subnet on a network")
+        subnet = [x for x in subnets
+                  if ec2_resource.Subnet(x.id).map_public_ip_on_launch]
+        if not subnet:
+            raise ValueError("There are no subnets with auto provisioning of public IPs enabled..." 
+                              "enable public IP auto provisioning on at least one subnet in the default VPC")
         else:
-            for net in subnets:
-                is_public_ip_enabled = ec2_resource.Subnet(net.id).map_public_ip_on_launch
-                if is_public_ip_enabled:
-                    subnet = net
-                    break;
-            if not subnet:
-                 raise ValueError("There are no subnets with auto provisioning of public IPs enabled..." 
-                                  "enable public IP auto provisioning on at least one subnet in the default VPC")
-                    
+            subnet = subnet[0]
         sec_group = list_security_groups(session, {'name': namespace})
         if not sec_group:
             _ = session.ex_create_security_group(
@@ -212,13 +208,11 @@ def create_cloudbreak(session, cbd_name):
         else:
             ssh_key = [x for x in ssh_key
                        if x.name == config.profile['sshkey_name']][0]
-        # https://goo.gl/UddnF9 redirects to:
-        # https://raw.githubusercontent.com/Chaffelson/whoville/hdp3cbd/
-        # bootstrap/v2/cbd_bootstrap_centos7.sh
-        # This is just more tidy
+        # This is just a tidy way of specifying a script 
         script_lines = [
             "#!/bin/bash",
             "cd /root",
+            "export cb_ver=" + config.profile.get('cloudbreak_ver'),
             "export uaa_secret=" + security.get_secret('masterkey'),
             "export uaa_default_pw=" + security.get_secret('password'),
             "export uaa_default_email=" + config.profile['email'],
