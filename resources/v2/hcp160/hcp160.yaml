@@ -8,12 +8,12 @@ seq:
 deploywait: 1800
 purge: true
 input:
-  nifi.security.encrypt.configuration.password: StrongPassword1
-  nifi.sensitive.props.key: StrongPassword1
-  nifi.toolkit.tls.token: StrongPassword1
-  nifi.registry.security.encrypt.configuration.password: StrongPassword1
-  nifi.registry.sensitive.props.key: StrongPassword1
-  ranger.kms.password: StrongPassword1
+  nifi.security.encrypt.configuration.password: CALL:security.generate_password
+  nifi.sensitive.props.key: CALL:security.generate_passphrase
+  nifi.toolkit.tls.token: CALL:security.generate_passphrase
+  nifi.registry.security.encrypt.configuration.password: CALL:security.generate_password
+  nifi.registry.sensitive.props.key: CALL:security.generate_passphrase
+  ranger.kms.password: CALL:security.generate_password
 infra:
   disktypes: [gp2, standard]
   os: redhat7

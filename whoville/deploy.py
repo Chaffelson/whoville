@@ -845,8 +845,34 @@ def prep_stack_specs(def_key, name=None):
         }
     )
     horton.specs[fullname].cluster = prep_cluster(def_key, fullname)
+    log.info("Checking Inputs for Blueprint")
     if 'input' in horton.defs[def_key]:
-        horton.specs[fullname].inputs = horton.defs[def_key]['input']
+        horton.specs[fullname].inputs = {}
+        for input_key, input_val in horton.defs[def_key]['input'].items():
+            if isinstance(input_val, six.string_types):
+                if input_val.startswith('CALL:'):
+                    log.info("Input uses Command [%s] for Param [%s]",
+                             input_val, input_key)
+                    input_val = input_val.split(':')[-1]
+                    this_module = sys.modules[__name__]
+                    tgt_module = getattr(
+                        this_module,
+                        input_val.split('.')[0]
+                    )
+                    func = getattr(
+                        tgt_module,
+                        input_val.split('.')[1]
+                    )
+                    input_val = func()
+                elif input_val.startswith('GET:'):
+                    log.info("Input uses Command [%s] for Param [%s]",
+                             input_val, input_key)
+                    input_val = input_val.split(':')[-1]
+                    import whoville
+                    input_val = utils.get_val(whoville, input_val, '.')
+            horton.specs[fullname].inputs[input_key] = input_val
+    else:
+        log.info("No Inputs found, skipping...")
     horton.specs[fullname].instance_groups = prep_instance_groups(
         def_key, fullname
     )

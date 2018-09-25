@@ -95,19 +95,24 @@ def step_2_init_infra():
     )
 
 
-def step_3_sequencing():
+def step_3_sequencing(def_key=None):
     log.info("------------- Establishing Deployment Sequence")
-    for def_key in horton.defs.keys():
-        log.info("Checking Definition [%s]", def_key)
-        priority = horton.find('defs:' + def_key + ':priority')
-        if priority is not None:
-            log.info("Registering [%s] as Priority [%s]",
-                     def_key, str(priority))
-            horton.seq[priority] = horton.find(
-                'defs:' + def_key + ':seq'
-            )
-        else:
-            log.info("Priority not set for [%s], skipping...", def_key)
+    if def_key:
+        horton.seq[1] = horton.find(
+            'defs:' + def_key + ':seq'
+        )
+    else:
+        for def_key in horton.defs.keys():
+            log.info("Checking Definition [%s]", def_key)
+            priority = horton.find('defs:' + def_key + ':priority')
+            if priority is not None:
+                log.info("Registering [%s] as Priority [%s]",
+                         def_key, str(priority))
+                horton.seq[priority] = horton.find(
+                    'defs:' + def_key + ':seq'
+                )
+            else:
+                log.info("Priority not set for [%s], skipping...", def_key)
 
 
 def step_4_build():
@@ -186,10 +191,10 @@ def step_4_build():
                  seq_key, finish_ts, diff_ts.seconds)
 
 
-def autorun():
+def autorun(def_key=None):
     step_1_init_service()
     step_2_init_infra()
-    step_3_sequencing()
+    step_3_sequencing(def_key)
     step_4_build()
 
 

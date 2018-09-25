@@ -137,18 +137,18 @@ def set_service_auth_token(token=None, token_name='tokenAuth', service='cloudbre
     return True
 
 
-def generate_passphrase():
+def generate_passphrase(length=4):
     try:
         with open('/usr/share/dict/words') as f:
             words = [word.strip() for word in f]
-            return '-'.join(secrets.choice(words) for i in range(4))
+            return '-'.join(secrets.choice(words) for i in range(length))
     except FileNotFoundError:
-        return generate_password()
+        return generate_password(length=length*5)
 
 
-def generate_password():
-    picklist = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(picklist) for i in range(20))
+def generate_password(length=20):
+    pick_list = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(pick_list) for i in range(length))
 
 
 def get_secret(key='password', create=True):

@@ -1,21 +1,20 @@
 # Known issues:
-# This takes a long time to deploy, sometimes Cloudbreak or Ambari will timeout during startup and throw an error.
-# If you log into Ambari and wait, all services should come up - you can then do a manual resync in cloudbreak to get a green environment
+# Hive LLAP will not start on small machines
+# NiFi moved to 9092 to avoid a port clash when everything is on one node
 
 deploywait: 1800
 purge: false
 priority: 
 seq:
-- prepdeps: [cda301-compact, cda301-compact1]
-- prepspec: [cda301-compact, cda301-compact1]
-- deploy: [cda301-compact1]
-- wait: [cda301-compact, cda301-compact1, event_type, BILLING_STARTED]
+- prepdeps: [cda301-compact, cda301-c]
+- prepspec: [cda301-compact, cda301-c]
+- deploy: [cda301-c]
+- wait: [cda301-compact, cda301-c, event_type, BILLING_STARTED]
 - openport: [tcp, 8080, 8080, '0.0.0.0/0']
 input:
-  yarn.vcores: 14
-  yarn.capacity: 26500
-  yarn.max.container: 26500
-  nifi.node.port: 9092
+  yarn.vcores: 6
+  yarn.capacity: 24385
+  yarn.max.container: 24385
 infra:
   disktypes: [gp2, standard]
   os: redhat7

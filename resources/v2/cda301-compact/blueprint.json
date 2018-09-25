@@ -47,7 +47,7 @@
       "hive-interactive-env": {
         "enable_hive_interactive": "true",
         "hive_security_authorization": "Ranger",
-        "llap_heap_size": "11264",
+        "llap_heap_size": "15386",
         "hive_heapsize": "2048",
         "num_llap_nodes_for_llap_daemons": "1",
         "num_llap_nodes": "1"
@@ -259,7 +259,8 @@
         "nifi.sensitive.props.key": "{{{ general.password }}}",
         "nifi.security.encrypt.configuration.password": "{{{ general.password }}}",
         "nifi.max_mem": "4g",
-        "nifi.node.protocol.port": "9089"
+        "nifi.node.protocol.port": "9089",
+        "nifi.web.http.port": "9092"
       }
     },
     {
@@ -441,7 +442,7 @@
     }
   ],
   "Blueprints": {
-    "blueprint_name": "connected-platform-singlenode-3.0",
+    "blueprint_name": "HDP301 HDF320 Compact",
     "stack_name": "HDP",
     "stack_version": "3.0"
   }
