@@ -91,17 +91,6 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
 
 def create_cloudbreak(session, cbd_name):
     public_ip = requests.get('http://ipv4.icanhazip.com').text.rstrip()
-    s_boto3 = create_boto3_session()
-    client_cf = s_boto3.client('cloudformation')
-    cf_stacks = client_cf.list_stacks()
-    log.info("Looking for existing Cloud Formation stacks within namespace "
-             "[%s]", namespace)
-    for cf_stack in cf_stacks['StackSummaries']:
-        if namespace in cf_stack['StackName']:
-            log.info("Found Cloud Formation [%s], deleting to avoid collision "
-                     "with Cloudbreak cluster creation...",
-                     cf_stack['StackName'])
-            client_cf.delete_stack(StackName=cf_stack['StackName'])
     net_rules = [
         {
             'protocol': 'tcp',
@@ -129,6 +118,18 @@ def create_cloudbreak(session, cbd_name):
         }
     ]
     if session.type == 'ec2':
+        s_boto3 = create_boto3_session()
+        client_cf = s_boto3.client('cloudformation')
+        cf_stacks = client_cf.list_stacks()
+        log.info("Looking for existing Cloud Formation stacks within namespace "
+                 "[%s]", namespace)
+        for cf_stack in cf_stacks['StackSummaries']:
+            if namespace in cf_stack['StackName']:
+                log.info("Found Cloud Formation [%s], deleting to avoid collision "
+                         "with Cloudbreak cluster creation...",
+                         cf_stack['StackName'])
+                client_cf.delete_stack(StackName=cf_stack['StackName'])
+                
         images = list_images(
             session,
             filters={
@@ -164,12 +165,22 @@ def create_cloudbreak(session, cbd_name):
                              "is rather unexpected")
         else:
             network = network[-1]
+            
         subnets = list_subnets(session, {'extra.vpc_id': network.id})
-        subnet = sorted(subnets, key=lambda k: k.state)
-        if not subnet:
+        subnets = sorted(subnets, key=lambda k: k.state)
+        ec2_resource = s_boto3.resource('ec2')
+        if not subnets:
             raise ValueError("Expecting at least one subnet on a network")
         else:
-            subnet = subnet[0]
+            for net in subnets:
+                is_public_ip_enabled = ec2_resource.Subnet(net.id).map_public_ip_on_launch
+                if is_public_ip_enabled:
+                    subnet = net
+                    break;
+            if not subnet:
+                 raise ValueError("There are no subnets with auto provisioning of public IPs enabled..." 
+                                  "enable public IP auto provisioning on at least one subnet in the default VPC")
+                    
         sec_group = list_security_groups(session, {'name': namespace})
         if not sec_group:
             _ = session.ex_create_security_group(
@@ -243,9 +254,8 @@ def create_cloudbreak(session, cbd_name):
             raise ValueError("Couldn't get a Static IP for Cloudbreak")
         session.ex_associate_address_with_node(cbd, static_ip)
         # Assign Role ARN
-        s_boto3 = create_boto3_session()
-        client = s_boto3.client('ec2')
         infra_arn = config.profile['platform']['infraarn']
+        client = s_boto3.client('ec2')
         client.associate_iam_instance_profile(
             IamInstanceProfile={
                 'Arn': infra_arn,
@@ -404,5 +414,4 @@ def get_aws_node_summary(node_list=None):
         {p: q for p, q in y.items() if p in ['Placement', 'State', 'Tags']})
       for y in x['Instances']] for x in node_list]
     return summary
-
 
