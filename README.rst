@@ -42,11 +42,12 @@ Quickstart
 
 4. If you want to use interactive Deployment please see the Detailed Guide below.
 
-Detailed Guide
---------------
+More Information
+----------------
 
-Please see the Github `Wiki <https://github.com/Chaffelson/whoville/wiki>`_
-
+| Suggested setup for `Interactive Development <https://github.com/Chaffelson/whoville/wiki/Development-Setup>`_ in a local Python environment.
+| Detailed `Definitions Guide <https://github.com/Chaffelson/whoville/wiki/Usage-Guide>`_ for creating more demos and services.
+| `Troubleshooting <https://github.com/Chaffelson/whoville/wiki/Troubleshooting>`_ guide for known issues.
 
 Support
 -------

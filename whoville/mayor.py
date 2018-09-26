@@ -11,16 +11,16 @@ from __future__ import absolute_import
 import logging
 import socket
 from datetime import datetime
-from whoville import config, utils, security, infra, deploy
+from whoville import config, utils, security, infra, deploy, actions
 
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
 
 
 # 'horton' is a shared state function to make deployment more readable
 # to non-python users
 horton = deploy.Horton()
+
 
 def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service")
@@ -62,7 +62,7 @@ def step_2_init_infra():
     )
     log.info("------------- Connecting to Cloudbreak")
     public_dns_name = str(
-        socket.gethostbyaddr(horton.find('cbd:public_ips')[0])[0]
+        socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
     )
     url = 'https://' + public_dns_name + '/cb/api'
     log.info("Setting endpoint to %s", url)
@@ -98,97 +98,55 @@ def step_2_init_infra():
 def step_3_sequencing(def_key=None):
     log.info("------------- Establishing Deployment Sequence")
     if def_key:
-        horton.seq[1] = horton.find(
+        if def_key not in horton.defs.keys():
+            raise ValueError("def_key {0} not found".format(def_key))
+        horton.seq[1] = horton._getr(
             'defs:' + def_key + ':seq'
         )
     else:
         for def_key in horton.defs.keys():
             log.info("Checking Definition [%s]", def_key)
-            priority = horton.find('defs:' + def_key + ':priority')
+            priority = horton._getr('defs:' + def_key + ':priority')
             if priority is not None:
                 log.info("Registering [%s] as Priority [%s]",
                          def_key, str(priority))
-                horton.seq[priority] = horton.find(
+                horton.seq[priority] = horton._getr(
                     'defs:' + def_key + ':seq'
                 )
             else:
                 log.info("Priority not set for [%s], skipping...", def_key)
 
 
-def step_4_build():
-    for seq_key in sorted(horton.seq.keys()):
-        log.info("Running Deployment Priority [%s]", str(seq_key))
-        start_ts = datetime.utcnow()
-        log.info("Started Priority [%s] at [%s]", str(seq_key), start_ts)
-        steps = horton.seq[seq_key]
-        for step in steps:
-            step_ts = datetime.utcnow()
-            for action, args in step.items():
+def step_4_build(def_key=None):
+    valid_actions = [x for x in dir(actions) if not x.startswith('_')]
+    steps = []
+    log.info("------------- Running Build")
+    if not def_key:
+        for seq_key in sorted(horton.seq.keys()):
+            log.info("Loading steps for Sequence Priority [%s]", str(seq_key))
+            steps += horton.seq[seq_key]
+    else:
+        if def_key not in horton.defs.keys():
+            raise ValueError("def_key {0} not found".format(def_key))
+        if 'seq' not in horton.defs[def_key]:
+            raise ValueError("Definition [%s] doesn't have a default Sequence",
+                             def_key)
+        steps += horton.defs[def_key]['seq']
+    start_ts = datetime.utcnow()
+    log.info("Beginning Deployment at [%s] with step sequence: [%s]",
+             start_ts, str(steps))
+    for step in steps:
+        for action, args in step.items():
+            if action in valid_actions:
                 log.info("Executing Action [%s] with Args [%s] at [%s]",
                          action, str(args), datetime.utcnow())
-                if action == 'prepdeps':
-                    def_key = args[0]
-                    shortname = args[1]
-                    deploy.prep_dependencies(def_key, shortname)
-                if action == 'prepspec':
-                    def_key = args[0]
-                    shortname = args[1]
-                    deploy.prep_stack_specs(def_key, shortname)
-                if action == 'deploy':
-                    for spec_key in args:
-                        fullname = horton.namespace + spec_key
-                        deploy.create_stack(
-                            fullname,
-                            purge=False
-                        )
-                if action == 'wait':
-                    def_key = args[0]
-                    spec_key = args[1]
-                    fullname = horton.namespace + spec_key
-                    field = args[2]
-                    state = args[3]
-                    deploy.wait_for_event(
-                        fullname,
-                        field,
-                        state,
-                        step_ts,
-                        horton.defs[def_key]['deploywait']
-                    )
-                if action == 'openport':
-                    protocol = args[0]
-                    start_port = args[1]
-                    end_port = args[2]
-                    cidr = args[3]
-                    deploy.add_security_rule(
-                        protocol=protocol,
-                        start=start_port,
-                        end=end_port,
-                        cidr=cidr
-                    )
-                if action == 'writecache':
-                    spec_key = args[0]
-                    fullname = horton.namespace + spec_key
-                    target = args[1]
-                    cache_key = args[2]
-                    deploy.write_cache(fullname, target, cache_key)
-                if action == 'replace':
-                    def_key = args[0]
-                    res_name = args[1]
-                    cache_key = args[2]
-                    log.info("Replacing string [%s] with [%s] in Resource [%s]"
-                             " in def [%s]",
-                             cache_key, horton.cache[cache_key], res_name,
-                             def_key)
-                    s = horton.resources[def_key][res_name].replace(
-                        cache_key, horton.cache[cache_key]
-                    )
-                    horton.resources[def_key][res_name] = s
+                getattr(actions, action)(args)
                 log.info("Completed Action [%s] with Args [%s] at [%s]",
-                         action, str(args), datetime.utcnow())
-        finish_ts = datetime.utcnow()
-        diff_ts = finish_ts - start_ts
-        log.info("Completed Deployment [%s] at [%s] after [%d] seconds",
-                 seq_key, finish_ts, diff_ts.seconds)
+                     action, str(args), datetime.utcnow())
+    finish_ts = datetime.utcnow()
+    diff_ts = finish_ts - start_ts
+    log.info("Completed Deployment [%s] after [%d] seconds",
+             finish_ts, diff_ts.seconds)
 
 
 def autorun(def_key=None):

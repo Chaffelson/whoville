@@ -1,10 +1,10 @@
 priority: 
 seq:
-- prepdeps: [hcp160, hcp160]
-- prepspec: [hcp160, hcp160]
-- deploy: [hcp160]
-- wait: [hcp160, hcp160, event_type, BILLING_STARTED]
-- openport: [tcp, 8080, 8080, '0.0.0.0/0']
+- prep_deps: [hcp160, hcp160]
+- prep_spec: [hcp160, hcp160]
+- do_builds: [hcp160]
+- wait_event: [hcp160, hcp160, event_type, BILLING_STARTED]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 deploywait: 1800
 purge: true
 input:

@@ -36,6 +36,15 @@
       }
     },
     {
+      "hdfs-site": {
+        "properties_attributes": {},
+        "properties": {
+          "fs.s3a.access.key": "{{{ fs.s3a.access.key }}}",
+          "fs.s3a.secret.key": "{{{ fs.s3a.secret.key }}}"
+        }
+      }
+    },
+    {
       "ranger-hive-audit": {
         "properties_attributes": {},
         "properties": {
@@ -47,26 +56,20 @@
       "hive-interactive-env": {
         "enable_hive_interactive": "true",
         "hive_security_authorization": "Ranger",
-        "llap_heap_size": "15386",
+        "llap_heap_size": "20496",
         "hive_heapsize": "2048",
         "num_llap_nodes_for_llap_daemons": "1",
         "num_llap_nodes": "1"
       }
     },
     {
-      "hive-interactive-site": {
-        "hive.exec.orc.split.strategy": "BI",
-        "hive.stats.fetch.bitvector": "true",
-        "hive.llap.object.cache.enabled": "true",
-        "hive.metastore.rawstore.impl": "org.apache.hadoop.hive.metastore.cache.CachedStore",
-        "hive.llap.daemon.yarn.container.mb": "15486",
-        "hive.llap.io.memory.size": "2048",
-        "hive.llap.io.enabled": "true",
-        "hive.tez.container.size": "2048",
-        "hive.llap.daemon.num.executors": "10",
-        "hive.llap.daemon.task.scheduler.enable.preemption": "true",
-        "hive.llap.daemon.vcpus.per.instance": "10",
-        "hive.llap.io.threadpool.size": "10"
+      "hive-interactive-env": {
+        "enable_hive_interactive": "true",
+        "hive_security_authorization": "Ranger",
+        "llap_heap_size": "11264",
+        "hive_heapsize": "2048",
+        "num_llap_nodes_for_llap_daemons": "1",
+        "num_llap_nodes": "1"
       }
     },
     {
@@ -260,7 +263,7 @@
         "nifi.security.encrypt.configuration.password": "{{{ general.password }}}",
         "nifi.max_mem": "4g",
         "nifi.node.protocol.port": "9089",
-        "nifi.web.http.port": "9092"
+        "nifi.node.port": "9092"
       }
     },
     {

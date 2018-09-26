@@ -64,7 +64,7 @@ cluster_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
 
 
 @utils.singleton
-class Horton:
+class Horton():
     """
     Borg Singleton to share state between the various processes.
     Looks complicated, but it makes the rest of the code more readable for
@@ -85,18 +85,25 @@ class Horton:
         self.namespace = config.profile['namespace']
         self.global_purge = config.profile['globalpurge']
 
-    def find(self, items):
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+    def _getr(self, keys, **kwargs):
         """
         Convenience function to retrieve params in a very readable method
 
         Args:
-            items (str): dot notation string of the key for the value to be
+            keys (str): dot notation string of the key for the value to be
                 retrieved. e.g 'secret.cloudbreak.hostnme'
 
         Returns:
             The value if found, or None if not
         """
-        return utils.get_val(self, items, sep)
+        return utils.get_val(self, keys, sep=':', **kwargs)
+
+    def _setr(self, keys, val, **kwargs):
+        utils.set_val(self, keys, val, sep=':', **kwargs)
 
 
 def list_credentials(**kwargs):
@@ -541,8 +548,8 @@ def find_ambari_group(def_key, name=None):
 def prep_images_dependency(def_key, fullname=None):
     horton = Horton()
     log.info("Prepping valid images for demo spec")
-    cat_name = horton.find('defs:' + def_key + ':catalog')
-    tgt_os = horton.find('defs:' + def_key + ':infra:os')
+    cat_name = horton._getr('defs:' + def_key + ':catalog')
+    tgt_os = horton._getr('defs:' + def_key + ':infra:os')
     bp_content = utils.load(
         horton.deps[fullname]['blueprint'].ambari_blueprint, decode='base64'
     )
@@ -798,7 +805,7 @@ def prep_stack_specs(def_key, name=None):
     horton = Horton()
     fullname = horton.namespace + (name if name else def_key)
     log.info("Preparing Spec for Def [%s] as Name [%s]", def_key, fullname)
-    cat_name = horton.find('defs:' + def_key + ':catalog')
+    cat_name = horton._getr('defs:' + def_key + ':catalog')
     if horton.global_purge or horton.defs[def_key]['purge']:
         stack = [x for x in list_stacks() if x.name == fullname]
         if stack:

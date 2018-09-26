@@ -3,18 +3,20 @@
 # NiFi moved to 9092 to avoid a port clash when everything is on one node
 
 deploywait: 1800
-purge: false
+purge: true
 priority: 
 seq:
-- prepdeps: [cda301-compact, cda301-c]
-- prepspec: [cda301-compact, cda301-c]
-- deploy: [cda301-c]
-- wait: [cda301-compact, cda301-c, event_type, BILLING_STARTED]
-- openport: [tcp, 8080, 8080, '0.0.0.0/0']
+- prep_deps: [cda301-compact, cda301-c]
+- prep_spec: [cda301-compact, cda301-c]
+- do_builds: [cda301-c]
+- wait_event: [cda301-compact, cda301-c, event_type, BILLING_STARTED]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 input:
   yarn.vcores: 6
-  yarn.capacity: 24385
+  yarn.capacity: 24568
   yarn.max.container: 24385
+  fs.s3a.access.key: GET:config.profile.platform.key
+  fs.s3a.secret.key: GET:config.profile.platform.secret
 infra:
   disktypes: [gp2, standard]
   os: redhat7

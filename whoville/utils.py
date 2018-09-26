@@ -237,14 +237,14 @@ def set_endpoint(endpoint_url):
 
 
 # https://stackoverflow.com/a/14692747/4717963
-def get_val(root, items, sep='.'):
+def get_val(root, items, sep='.', **kwargs):
     """
     Swagger client objects don't behave like dicts, so need a custom func
     to step down through keys when defined as string vars etc.
 
     Warnings:
-        If you try to retrieve a key that doens't exist you will get None
-        instead of an Attribute Error. Code defensively.
+        If you try to retrieve a key that doesn't exist you will get None
+        instead of an Attribute Error. Code defensively, or abuse it, whatever.
 
     Args:
         root [dict, client obj]: The dict or Object to recurse through
@@ -262,6 +262,34 @@ def get_val(root, items, sep='.'):
         else:
             root = root.__getattribute__(i)
     return root
+
+
+# https://stackoverflow.com/a/49290758/4717963
+def set_val(root, keys, val, sep='.', create_missing=True):
+    assert isinstance(keys, (list, six.string_types))
+    if isinstance(keys, six.string_types):
+        keys = [keys.split(sep)]
+    last_key = keys.pop() 
+    for key in keys:
+        if key in root:
+            if isinstance(root, dict):
+                root = root.get(key)
+            elif 'swagger_types' in dir(root):
+                root = root.__getattribute__(key)
+            else:
+                raise TypeError("This function only supports nested Dicts and "
+                                "Swagger packages, [%s] is a [%s]",
+                                root.__name__, type(root))
+        elif create_missing:
+            root = root.setdefault(key, {})
+        else:
+            raise KeyError("Target key [%s] not found, and create_missing is "
+                           "False", key)
+    if last_key in root or create_missing:
+        root[last_key] = val
+    else:
+        raise KeyError("Target key [%s] not found, and create_missing is "
+                       "False", keys[-1])
 
 
 def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master',

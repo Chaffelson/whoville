@@ -10,10 +10,20 @@ History
     25 Sept 2018
 
 - Added default definitions:
-    - cda301-compact, HDP301 + HDF320 in single node
-    - hcp160, HCP160 in multi node setup
-    - hdp301-compact, hdp301 in single node quickstart config
+- cda301-compact, HDP301 + HDF320 in single node
+- hcp160, HCP160 in multi node setup
+- hdp301-compact, hdp301 in single node quickstart config
+
 - Added support for GET and CALL in definitions against orchestrator properties and functions
 - Added support to pass a definition key like 'hcp160' to mayor.autorun() to bypass priority settings and just build that key
 - Various bugfixes
 - Added support for passing Cloudbreak deployer a version number in the Profile, e.g. 2.7.1
+
+
+0.0.1-rc3
+    26 Sept 2018
+
+- refactored sequencing primitives to remove name clash and be more readable - please update definitions
+- Moved sequencing primitives into actions.py
+- Refactored borg singleton to support iteraction and basic parameter setting, more to come
+- Documentation updates

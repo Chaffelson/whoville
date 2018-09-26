@@ -2,11 +2,11 @@ purge: false
 priority: 
 deploywait: 1800
 seq:
-- prepdeps: [hdp301-compact, hdp301-c]
-- prepspec: [hdp301-compact, hdp301-c] 
-- deploy: [hdp301-c]
-- wait: [hdp301-compact, hdp301-c, event_type, BILLING_STARTED]
-- openport: [tcp, 8080, 8080, '0.0.0.0/0']
+- prep_deps: [hdp301-compact, hdp301-c]
+- prep_spec: [hdp301-compact, hdp301-c] 
+- do_builds: [hdp301-c]
+- wait_event: [hdp301-compact, hdp301-c, event_type, BILLING_STARTED]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 infra:
   disktypes: [gp2, standard]
   os: redhat7
