@@ -212,7 +212,7 @@ def create_cloudbreak(session, cbd_name):
         script_lines = [
             "#!/bin/bash",
             "cd /root",
-            "export cb_ver=" + config.profile.get('cloudbreak_ver'),
+            "export cb_ver=" + str(config.profile.get('cloudbreak_ver')),
             "export uaa_secret=" + security.get_secret('masterkey'),
             "export uaa_default_pw=" + security.get_secret('password'),
             "export uaa_default_email=" + config.profile['email'],
