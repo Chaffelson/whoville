@@ -96,7 +96,20 @@ def copy_def(args):
     _horton._setr(
         target,
         _horton._getr(source, sep=sep),
-        sep=sep
+        sep=sep,
+        merge=False
+    )
+
+
+def merge_def(args):
+    source = args[0]
+    target = args[1]
+    sep = args[2] if len(args) > 2 else ':'
+    _horton._setr(
+        target,
+        _horton._getr(source, sep=sep),
+        sep=sep,
+        merge=True
     )
 
 

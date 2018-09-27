@@ -24,7 +24,7 @@ __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
            'load_resources_from_files', 'load_resources_from_github']
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 
 def dump(obj, mode='json'):
@@ -236,6 +236,7 @@ def set_endpoint(endpoint_url):
     return False
 
 
+# https://stackoverflow.com/a/36584863/4717963
 # https://stackoverflow.com/a/14692747/4717963
 def get_val(root, items, sep='.', **kwargs):
     """
@@ -256,40 +257,61 @@ def get_val(root, items, sep='.', **kwargs):
 
     """
     assert isinstance(items, (list, six.string_types))
-    for i in items if isinstance(items, list) else items.split(sep):
-        if isinstance(root, dict):
-            root = root.get(i)
+    for key in items if isinstance(items, list) else items.split(sep):
+        if isinstance(root, list):
+            if '|' not in key:
+                raise ValueError("Found list but key {0} does not match list "
+                                 "filter format 'x|y'".format(key))
+            field, value = key.split('|')
+            list_filter = [x for x in root if x.get(field) == value]
+            if list_filter:
+                root = list_filter[0]
+        elif isinstance(root, dict):
+            root = root.get(key)
         else:
-            root = root.__getattribute__(i)
+            root = root.__getattribute__(key)
     return root
 
 
-# https://stackoverflow.com/a/49290758/4717963
-def set_val(root, keys, val, sep='.', create_missing=True):
+# https://stackoverflow.com/a/18394648/4717963
+# This cannot handle nested lists
+def set_val(root, keys, val, sep='.', merge=False):
     assert isinstance(keys, (list, six.string_types))
-    if isinstance(keys, six.string_types):
-        keys = [keys.split(sep)]
-    last_key = keys.pop() 
-    for key in keys:
-        if key in root:
-            if isinstance(root, dict):
-                root = root.get(key)
-            elif 'swagger_types' in dir(root):
-                root = root.__getattribute__(key)
+
+    def merger(catcher, pitcher):
+        for key, val in pitcher.items():
+            log.debug("Updating key [%s] with val [%s], val is type [%s]",
+                      key, val, type(val))
+            if isinstance(val, dict):
+                log.debug("Running recursive update on key [%s]", key)
+                merger(catcher.get(key, {}), val)
+            elif isinstance(val, list):
+                log.debug("Merging list under key [%s]", key)
+                catcher[key] = (catcher.get(key, []) + val)
             else:
-                raise TypeError("This function only supports nested Dicts and "
-                                "Swagger packages, [%s] is a [%s]",
-                                root.__name__, type(root))
-        elif create_missing:
-            root = root.setdefault(key, {})
-        else:
-            raise KeyError("Target key [%s] not found, and create_missing is "
-                           "False", key)
-    if last_key in root or create_missing:
+                log.debug("simple value, updating [%s] with value [%s]",
+                          key, val)
+                catcher[key] = val
+        log.debug("Returning merged object")
+        return catcher
+
+    if isinstance(keys, six.string_types):
+        log.debug("got keys as string, splitting using sep [%s]", sep)
+        keys = keys.split(sep)
+    last_key = keys.pop()
+    log.debug("grabbing last key [%s] off the end", last_key)
+    root = get_val(root, keys, sep)
+    log.debug("Got root from keys [%s]", str(keys))
+    if not merge:
+        log.debug("not merge update, last key is [%s], replacing", last_key)
         root[last_key] = val
     else:
-        raise KeyError("Target key [%s] not found, and create_missing is "
-                       "False", keys[-1])
+        log.debug("running merge update on root [%s] with values [%s]",
+                  str(root), str(val))
+        merged = merger(root[last_key], val)
+        log.debug("replacing original root at [%s] with merged root [%s]",
+                  last_key, str(merged))
+        root[last_key] = merged
 
 
 def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master',

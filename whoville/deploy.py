@@ -89,7 +89,7 @@ class Horton():
         for attr, value in self.__dict__.items():
             yield attr, value
 
-    def _getr(self, keys, **kwargs):
+    def _getr(self, keys, sep=':', **kwargs):
         """
         Convenience function to retrieve params in a very readable method
 
@@ -100,10 +100,10 @@ class Horton():
         Returns:
             The value if found, or None if not
         """
-        return utils.get_val(self, keys, sep=':', **kwargs)
+        return utils.get_val(self, keys, sep, **kwargs)
 
-    def _setr(self, keys, val, **kwargs):
-        utils.set_val(self, keys, val, sep=':', **kwargs)
+    def _setr(self, keys, val, sep=':', merge=False):
+        utils.set_val(self, keys, val, sep, merge)
 
 
 def list_credentials(**kwargs):
