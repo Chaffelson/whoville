@@ -190,6 +190,11 @@ def print_intro():
 
 def user_menu():
     while True:
+        print("\nPlease enter a Definition Name to deploy it: ")
+        print("e.g.")
+        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+        print("\nAlternately type 'help' to see the Definitions again, or "
+              "'exit' to exit gracefully")
         selected = str(input(">> "))
         if selected in ['list', 'help']:
             print_intro()
@@ -202,9 +207,7 @@ def user_menu():
                   .format(create_wait))
             _sleep(create_wait)
         else:
-            print("Sorry, that is not recognised, please try again or type "
-                  "'list' to see the list of available Definitions, or 'exit'"
-                  " to exit gracefully")
+            print("Sorry, that is not recognised, please try again")
 
 
 def autorun(def_key=None):
