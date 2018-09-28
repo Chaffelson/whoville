@@ -111,3 +111,7 @@ whoville/__pycache__/
 whoville/cloudbreak/__pycache__/
 whoville/cloudbreak/apis/__pycache__/
 whoville/cloudbreak/models/__pycache__/
+/.DS_Store
+/.profile.yml
+/.project
+/.pydevproject
