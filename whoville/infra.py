@@ -14,6 +14,7 @@ import socket
 from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
+from libcloud.common.types import InvalidCredsError
 import boto3
 from whoville import config, utils, security
 
@@ -238,8 +239,11 @@ def create_cloudbreak(session, cbd_name):
         session.wait_until_running(nodes=[cbd])
         log.info("Cloudbreak Infra Booted at [%s]", cbd)
         log.info("Assigning Static IP to Cloudbreak")
-        static_ips = [x for x in session.ex_describe_all_addresses()
-                      if x.instance_id is None]
+        try:
+            static_ips = [x for x in session.ex_describe_all_addresses()
+                          if x.instance_id is None]
+        except InvalidCredsError:
+            static_ips = None
         if not static_ips:
             static_ip = session.ex_allocate_address()
         else:
