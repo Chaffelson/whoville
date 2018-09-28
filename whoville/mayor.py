@@ -33,7 +33,18 @@ def step_1_init_service():
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
     log.info("------------- Loading Default Resources")
-    horton.resources.update(utils.load_resources_from_files('resources/v2'))
+    try:
+        horton.resources.update(utils.load_resources_from_files(
+            '/whoville/resources/v2')
+        )
+    except:
+        pass
+    try:
+        horton.resources.update(utils.load_resources_from_files(
+            'resources/v2')
+        )
+    except:
+        pass
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
         for res_def in config.profile['resources']:
@@ -165,33 +176,32 @@ def step_4_build(def_key=None):
     log.info("Completed Deployment Sequence at [%s] after [%d] seconds",
              finish_ts, diff_ts.seconds)
 
+def print_intro():
+    print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
+    print("\nCloudbreak is available at (browser): " + url)
+    print("Currently Deployed Stacks: " + str(
+        [x.name for x in deploy.list_stacks()])
+          )
+    print("\nThe following Definitions are available for Deployment to "
+          "Cloudbreak:")
+    for def_key in horton.defs.keys():
+        print('\033[1m' + "\n  " + def_key + '\033[0m')
+        print("        " + horton.defs[def_key].get('desc'))
+    print("\nPlease enter a Definition Name to deploy it: ")
+    print("e.g.")
+    print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+
+create_wait = 5
+step_1_init_service()
+step_2_init_infra(create_wait=create_wait)
+public_dns_name = str(
+    _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
+)
+url = 'https://' + public_dns_name + '/sl'
+print_intro()
+
 
 def user_menu():
-
-    def print_intro():
-        print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
-        print("\nCloudbreak is available at (browser): " + url)
-        print("Currently Deployed Stacks: " + str(
-            [x.name for x in deploy.list_stacks()])
-              )
-        print("\nThe following Definitions are available for Deployment to "
-              "Cloudbreak:")
-        for def_key in horton.defs.keys():
-            print('\033[1m' + "\n  " + def_key + '\033[0m')
-            print("        " + horton.defs[def_key].get('desc'))
-        print("\nPlease enter a Definition Name to deploy it: ")
-        print("e.g.")
-        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
-
-    create_wait = 5
-    step_1_init_service()
-    step_2_init_infra(create_wait=create_wait)
-    public_dns_name = str(
-        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
-    )
-    url = 'https://' + public_dns_name + '/sl'
-    print_intro()
-
     while True:
         selected = str(input(">> "))
         if selected in ['list', 'help']:
