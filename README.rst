@@ -26,11 +26,11 @@ Quickstart
 
 2. Install / Start a recent version of `Docker <https://www.docker.com/get-started>`_
 
-3. Run the Automated Tooling
+3. Run the Automated Tooling (in a single line)
 
 ::
 
-    docker run
+    docker run -ti
     -v $(pwd)/profile.yml:/profile.yml:ro
     -e PROFILE=/profile.yml
     --name whoville

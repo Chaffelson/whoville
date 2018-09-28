@@ -167,17 +167,7 @@ def step_4_build(def_key=None):
              finish_ts, diff_ts.seconds)
 
 
-def autorun(def_key=None):
-    # Check output of last step of staging process
-    if not horton.defs:
-        step_1_init_service()
-    if not horton.cred:
-        step_2_init_infra()
-    step_3_sequencing(def_key=def_key)
-    step_4_build()
-
-
-if __name__ == '__main__':
+def user_menu():
     create_wait = 5
     step_1_init_service()
     step_2_init_infra(create_wait=create_wait)
@@ -190,6 +180,9 @@ if __name__ == '__main__':
     while True:
         print(_bc.BOLD + "Welcome to Whoville!" + _bc.ENDC)
         print("\nCloudbreak is available at (browser): " + url)
+        print("Currently Deployed Stacks: " + str(
+            [x.name for x in deploy.list_stacks()])
+              )
         print("\nThe following Definitions are available for Deployment to "
               "Cloudbreak:")
         for def_key in valid_defs:
@@ -206,3 +199,18 @@ if __name__ == '__main__':
             print("\n    Deployment Completed!\n Menu reload in {0} seconds"
                   .format(create_wait))
             _sleep(create_wait)
+
+
+def autorun(def_key=None):
+    # Check output of last step of staging process
+    if not horton.defs:
+        step_1_init_service()
+    if not horton.cred:
+        step_2_init_infra()
+    step_3_sequencing(def_key=def_key)
+    step_4_build()
+
+
+if __name__ == '__main__':
+    log.info("Name is [%s] running user_menu", __name__)
+    user_menu()

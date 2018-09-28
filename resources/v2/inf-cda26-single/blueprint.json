@@ -120,26 +120,6 @@
         "nifi.registry.sensitive.props.key": "{{{ general.password }}}",
         "nifi.registry.db.password": "{{{ general.password }}}"
       }
-    },
-    {
-      "registry-common": {
-        "properties_attributes": {},
-        "properties": {
-          "jar.storage.type": "local",
-          "database_name": "registry",
-          "registry.storage.query.timeout": "30",
-          "registry.schema.cache.expiry.interval": "3600",
-          "registry.storage.connector.connectURI": "jdbc:mysql://localhost:3306/registry",
-          "jar.storage": "/hdf/registry",
-          "registry.storage.connector.user": "registry",
-          "registry.storage.connector.password": "registry",
-          "jar.storage.hdfs.url": "hdfs://localhost:9090",
-          "port": "7788",
-          "adminPort": "7789",
-          "registry.schema.cache.size": "10000",
-          "registry.storage.type": "mysql"
-        }
-      }
     }
   ],
   "host_groups": [
