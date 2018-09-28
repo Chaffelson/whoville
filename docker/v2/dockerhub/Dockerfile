@@ -32,7 +32,7 @@ RUN apk update && apk upgrade \
     && git clone --depth 1 https://github.com/Chaffelson/whoville.git /whoville \
     && cd /whoville \
     && pip install --no-cache -r requirements.txt \  
-    && apk del .build-deps
+    && apk del .build-deps \
     && touch /profile.yml 
     
 
