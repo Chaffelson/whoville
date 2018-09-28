@@ -1,7 +1,7 @@
 Whoville
 ========
-Hortonworks Platform deployments from 0-60 (minutes).
-
+Cloudy Hortonworks Platforms in under 60 minutes
+    A set of demos in a small Docker Image with Orchestration for AWS deployment from a simple Profile
 
 Requirements
 ------------
@@ -31,7 +31,7 @@ Quickstart
     docker run -ti -v ${PROFILE}:/profile.yml:ro chaffelson/whoville:latest
 
 - Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
-- If you want to use interactive Deployment please append '-i' to the 'docker run' command, or see the Detailed Guide below.
+- If you want to use interactive Deployment please append '-i' to the 'docker run' command, or see the Detailed Guide below
 
 More Information
 ----------------

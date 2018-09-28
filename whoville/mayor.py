@@ -33,18 +33,9 @@ def step_1_init_service():
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
     log.info("------------- Loading Default Resources")
-    try:
-        horton.resources.update(utils.load_resources_from_files(
-            '/whoville/resources/v2')
-        )
-    except:
-        pass
-    try:
-        horton.resources.update(utils.load_resources_from_files(
-            'resources/v2')
-        )
-    except:
-        pass
+    horton.resources.update(
+        utils.load_resources_from_files('resources/v2')
+    )
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
         for res_def in config.profile['resources']:
@@ -66,10 +57,10 @@ def step_1_init_service():
             else:
                 raise ValueError("Resource Location [%s] Unsupported",
                                  res_def['loc'])
-        for k, v in horton.resources.items():
-            horton.defs[k] = v[k + '.yaml']
     else:
         log.warning("Found no additional Resources to load!")
+    for k, v in horton.resources.items():
+        horton.defs[k] = v[k + '.yaml']
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Service Init at [%s] after [%d] seconds",
