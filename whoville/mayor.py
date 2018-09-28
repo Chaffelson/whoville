@@ -58,7 +58,7 @@ def step_1_init_service():
         for k, v in horton.resources.items():
             horton.defs[k] = v[k + '.yaml']
     else:
-        log.warning("Found no Resources to load!")
+        log.warning("Found no additional Resources to load!")
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Service Init at [%s] after [%d] seconds",
@@ -176,7 +176,7 @@ def user_menu():
               )
         print("\nThe following Definitions are available for Deployment to "
               "Cloudbreak:")
-        for def_key in valid_defs:
+        for def_key in horton.defs.keys():
             print('\033[1m' + "\n  " + def_key + '\033[0m')
             print("        " + horton.defs[def_key].get('desc'))
         print("\nPlease enter a Definition Name to deploy it: ")
@@ -186,7 +186,6 @@ def user_menu():
     create_wait = 5
     step_1_init_service()
     step_2_init_infra(create_wait=create_wait)
-    valid_defs = horton.defs.keys()
     public_dns_name = str(
         _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
     )
