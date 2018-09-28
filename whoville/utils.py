@@ -337,14 +337,13 @@ def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master'
         contents = g_repo.get_dir_contents(r_tgt, r_ref)
         out = {}
         for obj in contents:
+            log.info("loading " + os.sep.join([r_tgt, r_ref, obj.name]))
             if obj.type == 'dir':
                 out[obj.name] = _recurse_github_dir(g_repo, obj.path, r_ref)
             elif obj.type == 'file':
                 if obj.name.rsplit('.')[1] not in ['yaml', 'json']:
                     out[obj.name] = obj.decoded_content
                 else:
-                    # Valid yaml can't have tabs, only spaces
-                    # proactively replacing tabs as some tools do it wrong
                     out[obj.name] = load(obj.decoded_content)
         return out
 
@@ -353,7 +352,7 @@ def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master'
     if not recurse:
         listing = g_repo.get_dir_contents(tgt_dir, ref)
         return listing
-    return {'resources': _recurse_github_dir(g_repo, tgt_dir, ref) }
+    return _recurse_github_dir(g_repo, tgt_dir, ref)
 
 
 def load_resources_from_files(file_path):
