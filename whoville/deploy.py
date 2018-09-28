@@ -895,6 +895,7 @@ def create_stack(name, wait=False, purge=False, **kwargs):
         body=horton.specs[name],
         **kwargs
     )
+    horton.stacks[name] = resp
     if wait:
         utils.wait_to_complete(
             monitor_event_stream,

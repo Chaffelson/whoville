@@ -28,5 +28,4 @@ mpack:
 - name: hdf312
   desc: HDF 3.1.2
   url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
-
   purge_on_install: false

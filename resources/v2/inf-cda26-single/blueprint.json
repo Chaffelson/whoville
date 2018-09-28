@@ -256,7 +256,7 @@
           "name": "ZOOKEEPER_CLIENT"
         },
         {
-          "name": "REGISTRY_SERVER"
+          "name": "REGISTRY"
         },
         {
           "name": "NIFI_REGISTRY_MASTER"
