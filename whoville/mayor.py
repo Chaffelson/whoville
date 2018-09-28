@@ -176,7 +176,12 @@ def step_4_build(def_key=None):
     log.info("Completed Deployment Sequence at [%s] after [%d] seconds",
              finish_ts, diff_ts.seconds)
 
+
 def print_intro():
+    public_dns_name = str(
+        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
+    )
+    url = 'https://' + public_dns_name + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
     print("\nCloudbreak is available at (browser): " + url)
     print("Currently Deployed Stacks: " + str(
@@ -190,15 +195,6 @@ def print_intro():
     print("\nPlease enter a Definition Name to deploy it: ")
     print("e.g.")
     print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
-
-create_wait = 5
-step_1_init_service()
-step_2_init_infra(create_wait=create_wait)
-public_dns_name = str(
-    _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
-)
-url = 'https://' + public_dns_name + '/sl'
-print_intro()
 
 
 def user_menu():
@@ -232,4 +228,8 @@ def autorun(def_key=None):
 
 if __name__ == '__main__':
     log.info("Name is [%s] running user_menu", __name__)
+    create_wait = 5
+    step_1_init_service()
+    step_2_init_infra(create_wait=create_wait)
+    print_intro()
     user_menu()

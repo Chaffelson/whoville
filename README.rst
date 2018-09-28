@@ -1,6 +1,6 @@
 Whoville
 ========
-An opinionated deployment Orchestrator for the Hortonworks Platform using Cloudbreak
+Hortonworks Platform deployments from 0-60 (minutes).
 
 
 Requirements
@@ -44,3 +44,5 @@ Support
 -------
 | This software is supplied as-is with no support guarantee under the Apache 2.0 license
 | Please raise any Issues on `Github <https://github.com/Chaffelson/whoville/issues/new>`_
+
+You can link to this page from http://bit.ly/HwxQuickstart
