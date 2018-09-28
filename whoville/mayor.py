@@ -13,7 +13,6 @@ import socket as _socket
 from time import sleep as _sleep
 from datetime import datetime as _dt
 from whoville import config, utils, security, infra, deploy, actions
-from utils import bcolors as _bc
 
 
 log = logging.getLogger(__name__)
@@ -168,6 +167,22 @@ def step_4_build(def_key=None):
 
 
 def user_menu():
+
+    def print_intro():
+        print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
+        print("\nCloudbreak is available at (browser): " + url)
+        print("Currently Deployed Stacks: " + str(
+            [x.name for x in deploy.list_stacks()])
+              )
+        print("\nThe following Definitions are available for Deployment to "
+              "Cloudbreak:")
+        for def_key in valid_defs:
+            print('\033[1m' + "\n  " + def_key + '\033[0m')
+            print("        " + horton.defs[def_key].get('desc'))
+        print("\nPlease enter a Definition Name to deploy it: ")
+        print("e.g.")
+        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+
     create_wait = 5
     step_1_init_service()
     step_2_init_infra(create_wait=create_wait)
@@ -176,29 +191,24 @@ def user_menu():
         _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
     )
     url = 'https://' + public_dns_name + '/sl'
+    print_intro()
 
     while True:
-        print(_bc.BOLD + "Welcome to Whoville!" + _bc.ENDC)
-        print("\nCloudbreak is available at (browser): " + url)
-        print("Currently Deployed Stacks: " + str(
-            [x.name for x in deploy.list_stacks()])
-              )
-        print("\nThe following Definitions are available for Deployment to "
-              "Cloudbreak:")
-        for def_key in valid_defs:
-            print(_bc.BOLD + "\n  " + def_key + _bc.ENDC)
-            print("        " + horton.defs[def_key].get('desc'))
-        print("\nPlease enter a Definition Name to deploy it: ")
-        print("e.g.")
-        print(_bc.BOLD + "  inf-cda30-single\n" + _bc.ENDC)
         selected = str(input(">> "))
-        if selected not in horton.defs.keys():
-            print("Sorry, that is not recognised, please try again")
-        else:
+        if selected in ['list', 'help']:
+            print_intro()
+        elif selected in ['exit', 'quit']:
+            print('\033[1m' + "Exiting Whoville!" + '\033[0m')
+            exit(0)
+        elif selected in horton.defs.keys():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in {0} seconds"
                   .format(create_wait))
             _sleep(create_wait)
+        else:
+            print("Sorry, that is not recognised, please try again or type "
+                  "'list' to see the list of available Definitions, or 'exit'"
+                  " to exit gracefully")
 
 
 def autorun(def_key=None):
