@@ -15,6 +15,7 @@ from whoville import config, utils, security, infra, deploy, actions
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
 
 
 # 'horton' is a shared state function to make deployment more readable
@@ -23,11 +24,15 @@ horton = deploy.Horton()
 
 
 def step_1_init_service():
-    log.info("------------- Initialising Whoville Deployment Service")
+    init_start_ts = datetime.utcnow()
+    log.info("------------- Initialising Whoville Deployment Service at [%s]",
+             init_start_ts)
     log.info("------------- Validating Profile")
     if not config.profile:
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
+    log.info("------------- Loading Default Resources")
+    horton.resources.update(utils.load_resources_from_files('resources/v2'))
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
         for res_def in config.profile['resources']:
@@ -53,12 +58,19 @@ def step_1_init_service():
             horton.defs[k] = v[k + '.yaml']
     else:
         log.warning("Found no Resources to load!")
+    init_finish_ts = datetime.utcnow()
+    diff_ts = init_finish_ts - init_start_ts
+    log.info("Completed Service Init at [%s] after [%d] seconds",
+             init_finish_ts, diff_ts.seconds)
 
 
-def step_2_init_infra():
-    log.info("------------- Getting Cloudbreak Environment")
+def step_2_init_infra(create_wait=0):
+    init_start_ts = datetime.utcnow()
+    log.info("------------- Getting Cloudbreak Environment at [%s]",
+             init_start_ts)
     horton.cbd = infra.get_cloudbreak(
-        purge=horton.global_purge
+        purge=horton.global_purge,
+        create_wait=create_wait
     )
     log.info("------------- Connecting to Cloudbreak")
     public_dns_name = str(
@@ -85,7 +97,7 @@ def step_2_init_infra():
         deploy.list_blueprints,
         bool_response=True,
         whoville_delay=5,
-        whoville_max_wait=60
+        whoville_max_wait=120
     )
     log.info("------------- Setting Deployment Credential")
     horton.cred = deploy.get_credential(
@@ -93,6 +105,10 @@ def step_2_init_infra():
         create=True,
         purge=horton.global_purge
     )
+    init_finish_ts = datetime.utcnow()
+    diff_ts = init_finish_ts - init_start_ts
+    log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
+             init_finish_ts, diff_ts.seconds)
 
 
 def step_3_sequencing(def_key=None):
@@ -138,10 +154,10 @@ def step_4_build(def_key=None):
     for step in steps:
         for action, args in step.items():
             if action in valid_actions:
-                log.info("Executing Action [%s] with Args [%s] at [%s]",
+                log.info("----- Executing Action [%s] with Args [%s] at [%s]",
                          action, str(args), datetime.utcnow())
                 getattr(actions, action)(args)
-                log.info("Completed Action [%s] with Args [%s] at [%s]",
+                log.info("----- Completed Action [%s] with Args [%s] at [%s]",
                      action, str(args), datetime.utcnow())
     finish_ts = datetime.utcnow()
     diff_ts = finish_ts - start_ts
@@ -150,12 +166,29 @@ def step_4_build(def_key=None):
 
 
 def autorun(def_key=None):
-    step_1_init_service()
-    step_2_init_infra()
-    step_3_sequencing(def_key)
+    # Check output of last step of staging process
+    if not horton.defs:
+        step_1_init_service()
+    if not horton.cred:
+        step_2_init_infra()
+    step_3_sequencing(def_key=def_key)
     step_4_build()
 
 
 if __name__ == '__main__':
-    autorun()
-    exit(0)
+    step_1_init_service()
+    step_2_init_infra(create_wait=5)
+    valid_defs = horton.defs.keys()
+
+    while True:
+        print("\nThe following Definitions are available: ")
+        for def_key in valid_defs:
+            print("\n> " + def_key)
+            print("\nDesc: " + horton.defs[def_key].get('desc'))
+        print("\nPlease enter a Definition Name to deploy it: "
+              "\n e.g.\n\tinf-cda30-single\n")
+        selected = str(input(">> "))
+        if selected not in horton.defs.keys():
+            print("Sorry, that is not recognised, please try again")
+        else:
+            autorun(def_key=selected)

@@ -1,0 +1,32 @@
+desc: Single node cluster including HDP-2.6 & HDF-3.1
+deploywait: 1800
+purge: true
+seq:
+- prep_deps: [inf-cda26-single, cda26-s]
+- prep_spec: [inf-cda26-single, cda26-s] 
+- do_builds: [cda26-s]
+- wait_event: [inf-cda26-single, cda26-s, event_type, BILLING_STARTED]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
+infra:
+  disktypes: [gp2, standard]
+  os: redhat7
+blueprint:
+  name: blueprint.json
+input:
+  yarn.vcores: 6
+  yarn.capacity: 14336
+recipe:
+- name: prepare-metastores-26.sh
+  typ: POST_AMBARI_START
+group:
+  master:
+    recipe: [prepare-metastores-26]
+    type: GATEWAY
+    machine: m5.xlarge
+    nodes: 1
+mpack:
+- name: hdf312
+  desc: HDF 3.1.2
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
+
+  purge_on_install: false

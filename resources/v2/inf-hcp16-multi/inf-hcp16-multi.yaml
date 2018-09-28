@@ -1,9 +1,9 @@
-priority: 
+desc: Multi node cluster including all HCP-1.6 components in independently scalable groups
 seq:
-- prep_deps: [hcp160, hcp160]
-- prep_spec: [hcp160, hcp160]
-- do_builds: [hcp160]
-- wait_event: [hcp160, hcp160, event_type, BILLING_STARTED]
+- prep_deps: [inf-hcp16-multi, hcp16-m]
+- prep_spec: [inf-hcp16-multi, hcp16-m]
+- do_builds: [hcp16-m]
+- wait_event: [inf-hcp16-multi, hcp16-m, event_type, BILLING_STARTED]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 deploywait: 1800
 purge: true
@@ -33,66 +33,66 @@ recipe:
 - name: noexec-tmp.sh
   typ: PRE_AMBARI_START
 group:
-- name: master2
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.2xlarge
-  nodes: 1
-- name: master1
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.2xlarge
-  nodes: 1
-- name: solr
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.xlarge
-  nodes: 1
-- name: ambari
-  recipe: [noexec-tmp, metron-db-setup, mysql-client, requests-upgrade, allow-renewable]
-  type: GATEWAY
-  machine: m5.2xlarge
-  nodes: 1
-- name: worker
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.xlarge
-  nodes: 1
-- name: metron
-  recipe: [noexec-tmp, nodejs, requests-upgrade, mysql-client]
-  type: CORE
-  machine: m5.xlarge
-  nodes: 1
-- name: hbase
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.xlarge
-  nodes: 1
-- name: kafka
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.2xlarge
-  nodes: 1
-- name: streaming
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.xlarge
-  nodes: 1
-- name: zookeeper
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.2xlarge
-  nodes: 1
-- name: master3
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.2xlarge
-  nodes: 1
-- name: nifi
-  recipe: [noexec-tmp]
-  type: CORE
-  machine: m5.xlarge
-  nodes: 1
+  master2:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.2xlarge
+    nodes: 1
+  master1:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.2xlarge
+    nodes: 1
+  solr:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.xlarge
+    nodes: 1
+  ambari:
+    recipe: [noexec-tmp, metron-db-setup, mysql-client, requests-upgrade, allow-renewable]
+    type: GATEWAY
+    machine: m5.2xlarge
+    nodes: 1
+  worker:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.xlarge
+    nodes: 1
+  metron:
+    recipe: [noexec-tmp, nodejs, requests-upgrade, mysql-client]
+    type: CORE
+    machine: m5.xlarge
+    nodes: 1
+  hbase:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.xlarge
+    nodes: 1
+  kafka:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.2xlarge
+    nodes: 1
+  streaming:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.xlarge
+    nodes: 1
+  zookeeper:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.2xlarge
+    nodes: 1
+  master3:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.2xlarge
+    nodes: 1
+  nifi:
+    recipe: [noexec-tmp]
+    type: CORE
+    machine: m5.xlarge
+    nodes: 1
 mpack:
 - name: hdp-search
   desc: HDP Search 3.0.0

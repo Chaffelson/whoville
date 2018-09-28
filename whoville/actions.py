@@ -90,26 +90,46 @@ def replace_str(args):
 
 
 def copy_def(args):
-    source = args[0]
-    target = args[1]
     sep = args[2] if len(args) > 2 else ':'
-    _horton._setr(
-        target,
-        _horton._getr(source, sep=sep),
-        sep=sep,
-        merge=False
-    )
+    s = args[0]
+    t = args[1]
+    for d in ['defs', 'resources']:
+        log.info("-- Running copy_def on [%s] component", d)
+        _horton._setr(
+            sep.join([d, t]),
+            _horton._getr(sep.join([d, s]), sep=sep),
+            sep=sep,
+            merge=False
+        )
+    s_def = args[0] + '.yaml'
+    t_def = args[1] + '.yaml'
+    log.debug("source [%s] target [%s]", s_def, t_def)
+    _horton.resources[t][t_def] = _horton.resources[s].pop(s_def)
 
 
 def merge_def(args):
-    source = args[0]
-    target = args[1]
     sep = args[2] if len(args) > 2 else ':'
+    s = args[0]
+    t = args[1]
+    source = sep.join(['defs', s])
+    target = sep.join(['defs', t])
+    log.info("-- Running merge_def on defs")
     _horton._setr(
         target,
         _horton._getr(source, sep=sep),
         sep=sep,
-        merge=True
+        merge=True,
+        squash_keys=['seq']
+    )
+    source = sep.join(['resources', s])
+    target = sep.join(['resources', t])
+    log.info("-- Running merge_def on resources")
+    _horton._setr(
+        target,
+        _horton._getr(source, sep=sep),
+        sep=sep,
+        merge=True,
+        max_depth=1
     )
 
 

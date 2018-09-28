@@ -1,8 +1,13 @@
+# ------------ REQUIRED ---------------
+
 # This section provides the bootstrap service with information to create
 # a Cloudbreak instance on your specified Hosting Provider
+
 # The instructions on setting up CLoudbreak role permissions for AWS are in 
-# Note 1 at the bottom of this file
+# https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#create-cloudbreak-credential
+
 # NOTE that the indentiation is deliberate to construct a dictionary
+
 platform:
     provider: EC2
     key: CHANGEME
@@ -11,11 +16,49 @@ platform:
     infraarn: arn:aws:iam::CHANGEME:instance-profile/CHANGEME
     credarn: arn:aws:iam::CHANGEME:role/CHANGEME
 
-# The namespace is prefixed to each object created to allow later deletion and 
-# other reuse of already deployed objects.
-# You have have multiple namespaces concurrently as a useful way to test changes
-# on long-running deployment jobs
-namespace: hwx-wv-
+
+# Please set a unique Namespace for yourself, your initials followed by a - are fine
+namespace: user-
+
+
+# Name to be looked for in the list of SSH Keys at your Platform provider.
+# If a key is uploaded, it will be created under this name.
+sshkey_name: CHANGEME
+
+
+# Public key information for your SSH key. If the key is already loaded this is
+# not necessary, however if you are skipping around Platform regions, then having
+# it available to set up your key is highly convenient
+sshkey_pub: ssh-rsa CHANGEME
+
+
+
+# ------------ DEFAULTS ---------------
+
+# URIs for additional resources to be loaded and processed by the orchestrator.
+# Loc's can be either local or github
+# URI should point to the folder root of the resources
+# NOTE that this is a list of entries, prefixed by -, e.g.
+#- loc: local
+#  uri: resources/v2
+resources:
+
+# It is good practice to tag your services in order to distinguish projects
+# and users and environments
+# Empty tags will be autopopulated with useful defaults
+tags:
+  Owner: user@company.com
+  Service: Whoville Ephemeral Cluster
+  BusinessUnit: DevOps
+  StartDate:
+  EndDate:
+
+
+# The base name of your objectsore bucket if using objectstore definitions, 
+# Cloudbreak will construct the rest of the URI from it
+# Your infraarn will be reused to access it
+bucket: whoville
+
 
 # If globalpurge is true, the orchestrator will recreate anything it finds in 
 # the namespace every time it is run. Useful for doing full tests or if you 
@@ -32,17 +75,9 @@ username: admin
 # Password used for all services requiring such. If not set one will be generated.
 password: admin-password1
 
-# Masterkey used for all services requiring such. If not set one will be generated.
+# Masterkey used for all services requiring such. 
+#  If not set one will be generated and stored in the cache.
 masterkey: 
-
-# Name to be looked for in the list of SSH Keys at your Platform provider.
-# If a key is uploaded, it will be created under this name.
-sshkey_name: CHANGEME
-
-# Public key information for your SSH key. If the key is already loaded this is
-# not necessary, however if you are skipping around Platform regions, then having
-# it available to set up your key is highly convenient
-sshkey_pub: ssh-rsa CHANGEME
 
 # If loading resources from Github, then your username is required just in
 # case the repo is private
@@ -51,42 +86,3 @@ githubuser:
 # Access token for your Github account, if githubuser is set
 # https://blog.github.com/2013-05-16-personal-api-tokens/
 githubtoken:
-
-# URIs for resources to be loaded and processed by the orchestrator.
-# Loc's can be either local or github
-# URI should point to the folder root of the resources, where each subfolder
-# is named for the resource to be loaded and the yaml definition file within
-# .e.g /v1  ; /v1/hdp3  ;  /v1/hdp3/hdp3.yaml  ; /v1/hp3/<other files>
-# NOTE that this is a list of entries, prefixed by the -
-resources:
-- loc: local
-  uri: resources/v2
-
-# If a cloud objectstore is defined in your blueprints, then provide the information
-# here to allow Cloudbreak to use it
-objectstore: s3
-
-# The base name of your bucket, Cloudbreak will construct the rest of the URI
-bucket: whoville
-
-# The AWS Role providing access to the bucket above
-# See the guide in Note1 about setting up Cloudbreak roles
-bucketrole: arn:aws:iam::CHANGEME:instance-profile/CHANGEME
-
-# It is good practice to tag your services in order to distinguish projects
-# and users and environments
-# Empty tags will be autopopulated with useful defaults
-tags:
-  Owner: user@company.com
-  Service: Whoville Ephemeral Cluster
-  BusinessUnit: DevOps
-  StartDate:
-  EndDate:
-
-# This parameter sets the version of Cloudbreak to use
-# It is recommended to use the default version provided with this package
-# unless you know what you are doing
-cloudbreak_ver: 2.7.1
-
-# Note 1
-# https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#create-cloudbreak-credential

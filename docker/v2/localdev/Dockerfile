@@ -40,7 +40,7 @@ WORKDIR /whoville
 ENV PYTHONPATH=/whoville
 
 ENTRYPOINT ["python3"]
-#CMD ["./whoville/mayor.py"]
+CMD ["whoville/mayor.py"]
 
 
 # Build & Run Example from project root /whoville
