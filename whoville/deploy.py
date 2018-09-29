@@ -239,22 +239,24 @@ def get_blueprint(identifier, identifier_type='name', **kwargs):
 def create_recipe(name, desc, recipe_type, recipe, purge=False, **kwargs):
     log.info("Creating recipe [%s] with description [%s] of type [%s] with "
              "recipe like [%s] and purge:[%s]",
-             name, desc, recipe_type, json.dumps(recipe)[:50], purge)
+             name, desc, recipe_type, str(recipe)[:50], purge)
     if purge:
         target = [x.id for x in list_recipes() if x.name == name]
         if target:
             delete_recipe(target[0])
+    if isinstance(recipe, bytes):
+        submit = (base64.b64encode(recipe)).decode('utf-8')
+    elif isinstance(recipe, six.string_types):
+        submit = (base64.b64encode(bytes(recipe, 'utf-8'))).decode('utf-8')
+    else:
+        raise ValueError("Recipe Var Type not supported")
     return cb.V1recipesApi().post_private_recipe(
         # blueprint has to be a base64 encoded string for file upload
         body=cb.RecipeRequest(
             name=name,
             description=desc,
             recipe_type=recipe_type.upper(),
-            content=(
-                base64.b64encode(
-                    bytes(recipe, 'utf-8')
-                )
-            ).decode('utf-8')
+            content=submit
         ),
         **kwargs
     )
