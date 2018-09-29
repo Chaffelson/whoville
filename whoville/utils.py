@@ -342,7 +342,7 @@ def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master'
                 out[obj.name] = _recurse_github_dir(g_repo, obj.path, r_ref)
             elif obj.type == 'file':
                 if obj.name.rsplit('.')[1] not in ['yaml', 'json']:
-                    out[obj.name] = obj.decoded_content
+                    out[obj.name] = obj.decoded_content.decode('utf-8')
                 else:
                     out[obj.name] = load(obj.decoded_content)
         return out
