@@ -10,6 +10,9 @@ seq:
 infra:
   disktypes: [gp2, standard]
   os: redhat7
+  stackrepo:
+    ver: 2.6.3.0-235
+    url: http://public-repo-1.hortonworks.com/HDP/centos7/2.x/updates/2.6.3.0/HDP-2.6.3.0-235.xml
 blueprint:
   name: blueprint.json
 input:
@@ -24,8 +27,3 @@ group:
     type: GATEWAY
     machine: m5.xlarge
     nodes: 1
-mpack:
-- name: hdf312
-  desc: HDF 3.1.2
-  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
-  purge_on_install: false

@@ -1,6 +1,6 @@
 {
   "Blueprints": {
-    "blueprint_name": "HDP265 HDF312 Single Node",
+    "blueprint_name": "HDP263 HDF312 Single Node",
     "stack_name": "HDP",
     "stack_version": "2.6"
   },
@@ -84,41 +84,6 @@
           "ranger-atlas-plugin-enabled": "Yes",
           "ranger-knox-plugin-enabled": "Yes"
         }
-      }
-    },
-    {
-      "kafka-broker": {
-        "properties_attributes": {},
-        "properties": {
-          "default.replication.factor": "1",
-          "offsets.topic.replication.factor": "1"
-        }
-      }
-    },
-    {
-      "nifi-ambari-config": {
-        "nifi.sensitive.props.key": "{{{ general.password }}}",
-        "nifi.security.encrypt.configuration.password": "{{{ general.password }}}",
-        "nifi.max_mem": "4g",
-        "nifi.node.protocol.port": "9089",
-        "nifi.node.port": "9092"
-      }
-    },
-    {
-      "nifi-properties": {
-        "nifi.sensitive.props.key": "{{{ general.password }}}",
-        "nifi.security.user.login.identity.provider": ""
-      }
-    },
-    {
-      "nifi-registry-ambari-config": {
-        "nifi.registry.security.encrypt.configuration.password": "{{{ general.password }}}"
-      }
-    },
-    {
-      "nifi-registry-properties": {
-        "nifi.registry.sensitive.props.key": "{{{ general.password }}}",
-        "nifi.registry.db.password": "{{{ general.password }}}"
       }
     }
   ],
@@ -234,15 +199,6 @@
         },
         {
           "name": "ZOOKEEPER_CLIENT"
-        },
-        {
-          "name": "NIFI_REGISTRY_MASTER"
-        },
-        {
-          "name": "NIFI_CA"
-        },
-        {
-          "name": "NIFI_MASTER"
         }
       ]
     }
