@@ -1,13 +1,13 @@
 Whoville
 ========
-An opinionated auto-deployer for the Hortonworks Platform
-
+Cloudy Hortonworks Platforms in under 60 minutes
+    A set of demos in a small Docker Image with Orchestration for AWS deployment from a simple Profile
 
 Requirements
 ------------
 Hosting Platform
     | You will need an AWS account with rights to deploy machines, assume roles, etc.
-    | Please see the Cloudbreak `Requirements <https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#prerequisites>`_
+    | Please see the Cloudbreak `Requirements <https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#prerequisites>`_ for creating AWS Roles.
 
 Docker Deployment
     Everything is included if you use the provided Docker Image for development or deployment
@@ -21,26 +21,17 @@ Quickstart
 
 1. Customise a profile.yml::
 
-    curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/profile.RENAME.yml > profile.yml
-    vi profile.yml
+    curl -sSL http://bit.ly/WhovilleProfile > profile.yml && vi profile.yml
 
 2. Install / Start a recent version of `Docker <https://www.docker.com/get-started>`_
 
-3. Run the Automated Tooling
+3. Export your profile path and run the Docker Image::
 
-::
+    export PROFILE=/path/to/my/profile.yml
+    docker run -ti -v ${PROFILE}:/profile.yml:ro chaffelson/whoville:latest
 
-    docker run
-    -v $(pwd)/profile.yml:/profile.yml:ro
-    -e PROFILE=/profile.yml
-    --name whoville
-    chaffelson/whoville:latest
-
-- Set your Profile so whoville can find it per the above parameters
 - Make sure to mount any addition resource volumes specified in your Profile e.g. ``'-v /MyDemos/:/MyDemos/'``
-- You can optionally set it to run against your local timezone with ``'-e TZ={timezone}'``
-
-4. If you want to use interactive Deployment please see the Detailed Guide below.
+- If you want to use interactive Deployment please append '-i' to the 'docker run' command, or see the Detailed Guide below
 
 More Information
 ----------------
@@ -53,3 +44,5 @@ Support
 -------
 | This software is supplied as-is with no support guarantee under the Apache 2.0 license
 | Please raise any Issues on `Github <https://github.com/Chaffelson/whoville/issues/new>`_
+
+You can link to this page from http://bit.ly/HwxQuickstart

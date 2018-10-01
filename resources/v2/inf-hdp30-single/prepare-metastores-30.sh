@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-#remount tmpfs to ensure NOEXEC is disabled
-mount -o remount,size=10G /tmp
-mount -o remount,exec /tmp
-
 # Intialize MetaStores
 
 yum install -y https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-redhat96-9.6-3.noarch.rpm
@@ -130,11 +126,3 @@ mysql --execute="GRANT ALL PRIVILEGES ON *.* TO 'streamsmsgmgr'@'%' WITH GRANT O
 mysql --execute="GRANT ALL PRIVILEGES ON streamline.* TO 'streamline'@'%' WITH GRANT OPTION"
 mysql --execute="FLUSH PRIVILEGES"
 mysql --execute="COMMIT"
-
-
-# Install Phoenix client
-wget http://nexus-private.hortonworks.com/nexus/content/groups/public/org/apache/phoenix/phoenix-client/5.0.0.3.0.1.0-187/phoenix-client-5.0.0.3.0.1.0-187.jar
-mkdir -p /usr/hdf/current/phoenix
-chmod -R 755 /usr/hdf
-cp phoenix-client-5.0.0.3.0.1.0-187.jar /usr/hdf/current/phoenix
-chmod -R 777 /usr/hdf/current/phoenix

@@ -9,6 +9,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import json
 import time
+import copy
 import base64
 import six
 from six.moves import reduce
@@ -24,7 +25,7 @@ __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
            'load_resources_from_files', 'load_resources_from_github']
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+# log.setLevel(logging.DEBUG)
 
 
 def dump(obj, mode='json'):
@@ -273,45 +274,60 @@ def get_val(root, items, sep='.', **kwargs):
     return root
 
 
-# https://stackoverflow.com/a/18394648/4717963
-# This cannot handle nested lists
-def set_val(root, keys, val, sep='.', merge=False):
+def set_val(root, keys, val, sep='.', merge=False, ignore_keys=None,
+            squash_keys=None, max_depth=50):
     assert isinstance(keys, (list, six.string_types))
-
-    def merger(catcher, pitcher):
-        for key, val in pitcher.items():
-            log.debug("Updating key [%s] with val [%s], val is type [%s]",
-                      key, val, type(val))
-            if isinstance(val, dict):
-                log.debug("Running recursive update on key [%s]", key)
-                merger(catcher.get(key, {}), val)
-            elif isinstance(val, list):
-                log.debug("Merging list under key [%s]", key)
-                catcher[key] = (catcher.get(key, []) + val)
-            else:
-                log.debug("simple value, updating [%s] with value [%s]",
-                          key, val)
-                catcher[key] = val
-        log.debug("Returning merged object")
-        return catcher
-
     if isinstance(keys, six.string_types):
         log.debug("got keys as string, splitting using sep [%s]", sep)
         keys = keys.split(sep)
+    log.debug("keys are [%s]", str(keys))
     last_key = keys.pop()
     log.debug("grabbing last key [%s] off the end", last_key)
     root = get_val(root, keys, sep)
     log.debug("Got root from keys [%s]", str(keys))
     if not merge:
         log.debug("not merge update, last key is [%s], replacing", last_key)
-        root[last_key] = val
+        root[last_key] = copy.deepcopy(val)
     else:
-        log.debug("running merge update on root [%s] with values [%s]",
-                  str(root), str(val))
-        merged = merger(root[last_key], val)
-        log.debug("replacing original root at [%s] with merged root [%s]",
-                  last_key, str(merged))
+        log.debug("running merge update on root like [%s] with value like [%s]",
+                  str(root)[:100], str(val)[:100])
+        merged = deep_merge(
+            target=root[last_key], source=copy.deepcopy(val),
+            ignore_keys=ignore_keys, squash_keys=squash_keys,
+            max_depth=max_depth)
+        log.debug("replacing original root at [%s] with merged root like [%s]",
+                  last_key, str(merged)[:100])
         root[last_key] = merged
+
+
+# https://stackoverflow.com/a/18394648/4717963
+# This cannot handle nested lists
+def deep_merge(target, source, ignore_keys=None, squash_keys=None, depth=0,
+               max_depth=50):
+    for k, v in source.items():
+        if ignore_keys and k in ignore_keys:
+            log.debug("k [%s] is on ignore list, skipping", k)
+        elif depth == max_depth:
+            log.debug("hit max merge depth, squashing k [%s] with new v like "
+                      "[%s]", k, str(v)[:100])
+            target[k] = v
+        elif squash_keys and k in squash_keys:
+            log.debug("squashing k [%s] with new v like [%s]", k, str(v)[:100])
+            target[k] = v
+        elif isinstance(v, dict) and v:
+            log.debug("Running recursive update on k [%s]", k)
+            target[k] = deep_merge(
+                target=target.get(k, {}), source=v, ignore_keys=ignore_keys, 
+                squash_keys=squash_keys, depth=depth+1, max_depth=max_depth)
+        elif isinstance(v, list):
+            log.debug("Merging list under k [%s]", k)
+            target[k] = (target.get(k, []) + v)
+        else:
+            log.debug("simple value, updating [%s] with value like [%s]",
+                      k, str(v)[:100])
+            target[k] = v
+    log.debug("Returning merged object")
+    return target
 
 
 def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master',
@@ -321,14 +337,13 @@ def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master'
         contents = g_repo.get_dir_contents(r_tgt, r_ref)
         out = {}
         for obj in contents:
+            log.info("loading " + os.sep.join([r_tgt, r_ref, obj.name]))
             if obj.type == 'dir':
                 out[obj.name] = _recurse_github_dir(g_repo, obj.path, r_ref)
             elif obj.type == 'file':
                 if obj.name.rsplit('.')[1] not in ['yaml', 'json']:
-                    out[obj.name] = obj.decoded_content
+                    out[obj.name] = obj.decoded_content.decode('utf-8')
                 else:
-                    # Valid yaml can't have tabs, only spaces
-                    # proactively replacing tabs as some tools do it wrong
                     out[obj.name] = load(obj.decoded_content)
         return out
 
@@ -337,7 +352,7 @@ def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master'
     if not recurse:
         listing = g_repo.get_dir_contents(tgt_dir, ref)
         return listing
-    return {'resources': _recurse_github_dir(g_repo, tgt_dir, ref) }
+    return _recurse_github_dir(g_repo, tgt_dir, ref)
 
 
 def load_resources_from_files(file_path):

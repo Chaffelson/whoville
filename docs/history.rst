@@ -27,3 +27,12 @@ History
 - Moved sequencing primitives into actions.py
 - Refactored borg singleton to support iteraction and basic parameter setting, more to come
 - Documentation updates
+
+
+0.0.1-rc4
+    28 Sept 2018
+
+- refactored naming to be clearer
+- Added copy_def and merge_def primitives for future demo script usage
+- Added cmdline menu for Quickstart and Docker consumption
+- Tidied up exemplar definitions

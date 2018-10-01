@@ -1,0 +1,29 @@
+desc: Single node cluster including HDP-2.6 & HDF-3.1
+deploywait: 1800
+purge: true
+seq:
+- prep_deps: [inf-cda26-single, cda26-s]
+- prep_spec: [inf-cda26-single, cda26-s] 
+- do_builds: [cda26-s]
+- wait_event: [inf-cda26-single, cda26-s, event_type, BILLING_STARTED]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
+infra:
+  disktypes: [gp2, standard]
+  os: redhat7
+  stackrepo:
+    ver: 2.6.3.0-235
+    url: http://public-repo-1.hortonworks.com/HDP/centos7/2.x/updates/2.6.3.0/HDP-2.6.3.0-235.xml
+blueprint:
+  name: blueprint.json
+input:
+  yarn.vcores: 6
+  yarn.capacity: 14336
+recipe:
+- name: prepare-metastores-26.sh
+  typ: POST_AMBARI_START
+group:
+  master:
+    recipe: [prepare-metastores-26]
+    type: GATEWAY
+    machine: m5.xlarge
+    nodes: 1

@@ -7,14 +7,16 @@ Warnings:
     Experimental
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import as _abs_imp
 import logging
-import socket
-from datetime import datetime
+import socket as _socket
+from time import sleep as _sleep
+from datetime import datetime as _dt
 from whoville import config, utils, security, infra, deploy, actions
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
 
 
 # 'horton' is a shared state function to make deployment more readable
@@ -23,11 +25,17 @@ horton = deploy.Horton()
 
 
 def step_1_init_service():
-    log.info("------------- Initialising Whoville Deployment Service")
+    init_start_ts = _dt.utcnow()
+    log.info("------------- Initialising Whoville Deployment Service at [%s]",
+             init_start_ts)
     log.info("------------- Validating Profile")
     if not config.profile:
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
+    log.info("------------- Loading Default Resources")
+    horton.resources.update(
+        utils.load_resources_from_files('resources/v2')
+    )
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
         for res_def in config.profile['resources']:
@@ -49,20 +57,27 @@ def step_1_init_service():
             else:
                 raise ValueError("Resource Location [%s] Unsupported",
                                  res_def['loc'])
-        for k, v in horton.resources.items():
-            horton.defs[k] = v[k + '.yaml']
     else:
-        log.warning("Found no Resources to load!")
+        log.warning("Found no additional Resources to load!")
+    for k, v in horton.resources.items():
+        horton.defs[k] = v[k + '.yaml']
+    init_finish_ts = _dt.utcnow()
+    diff_ts = init_finish_ts - init_start_ts
+    log.info("Completed Service Init at [%s] after [%d] seconds",
+             init_finish_ts, diff_ts.seconds)
 
 
-def step_2_init_infra():
-    log.info("------------- Getting Cloudbreak Environment")
+def step_2_init_infra(create_wait=0):
+    init_start_ts = _dt.utcnow()
+    log.info("------------- Getting Cloudbreak Environment at [%s]",
+             init_start_ts)
     horton.cbd = infra.get_cloudbreak(
-        purge=horton.global_purge
+        purge=horton.global_purge,
+        create_wait=create_wait
     )
     log.info("------------- Connecting to Cloudbreak")
     public_dns_name = str(
-        socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
+        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
     )
     url = 'https://' + public_dns_name + '/cb/api'
     log.info("Setting endpoint to %s", url)
@@ -85,7 +100,7 @@ def step_2_init_infra():
         deploy.list_blueprints,
         bool_response=True,
         whoville_delay=5,
-        whoville_max_wait=60
+        whoville_max_wait=120
     )
     log.info("------------- Setting Deployment Credential")
     horton.cred = deploy.get_credential(
@@ -93,6 +108,10 @@ def step_2_init_infra():
         create=True,
         purge=horton.global_purge
     )
+    init_finish_ts = _dt.utcnow()
+    diff_ts = init_finish_ts - init_start_ts
+    log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
+             init_finish_ts, diff_ts.seconds)
 
 
 def step_3_sequencing(def_key=None):
@@ -132,30 +151,79 @@ def step_4_build(def_key=None):
             raise ValueError("Definition [%s] doesn't have a default Sequence",
                              def_key)
         steps += horton.defs[def_key]['seq']
-    start_ts = datetime.utcnow()
+    start_ts = _dt.utcnow()
     log.info("Beginning Deployment at [%s] with step sequence: [%s]",
              start_ts, str(steps))
     for step in steps:
         for action, args in step.items():
             if action in valid_actions:
-                log.info("Executing Action [%s] with Args [%s] at [%s]",
-                         action, str(args), datetime.utcnow())
+                log.info("----- Executing Action [%s] with Args [%s] at [%s]",
+                         action, str(args), _dt.utcnow())
                 getattr(actions, action)(args)
-                log.info("Completed Action [%s] with Args [%s] at [%s]",
-                     action, str(args), datetime.utcnow())
-    finish_ts = datetime.utcnow()
+                log.info("----- Completed Action [%s] with Args [%s] at [%s]",
+                     action, str(args), _dt.utcnow())
+    finish_ts = _dt.utcnow()
     diff_ts = finish_ts - start_ts
-    log.info("Completed Deployment [%s] after [%d] seconds",
+    log.info("Completed Deployment Sequence at [%s] after [%d] seconds",
              finish_ts, diff_ts.seconds)
 
 
+def print_intro():
+    public_dns_name = str(
+        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
+    )
+    url = 'https://' + public_dns_name + '/sl'
+    print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
+    print("\nCloudbreak is available at (browser): " + url)
+    print("Currently Deployed Stacks: " + str(
+        [x.name for x in deploy.list_stacks()])
+          )
+    print("\nThe following Definitions are available for Deployment to "
+          "Cloudbreak:")
+    for def_key in horton.defs.keys():
+        print('\033[1m' + "\n  " + def_key + '\033[0m')
+        print("        " + horton.defs[def_key].get('desc'))
+    print("\nPlease enter a Definition Name to deploy it: ")
+    print("e.g.")
+    print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+
+
+def user_menu():
+    while True:
+        print("\nPlease enter a Definition Name to deploy it: ")
+        print("e.g.")
+        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+        print("\nAlternately type 'help' to see the Definitions again, or "
+              "'exit' to exit gracefully")
+        selected = str(input(">> "))
+        if selected in ['list', 'help']:
+            print_intro()
+        elif selected in ['exit', 'quit']:
+            print('\033[1m' + "Exiting Whoville!" + '\033[0m')
+            exit(0)
+        elif selected in horton.defs.keys():
+            autorun(def_key=selected)
+            print("\n    Deployment Completed!\n Menu reload in {0} seconds"
+                  .format(create_wait))
+            _sleep(create_wait)
+        else:
+            print("Sorry, that is not recognised, please try again")
+
+
 def autorun(def_key=None):
-    step_1_init_service()
-    step_2_init_infra()
-    step_3_sequencing(def_key)
+    # Check output of last step of staging process
+    if not horton.defs:
+        step_1_init_service()
+    if not horton.cred:
+        step_2_init_infra()
+    step_3_sequencing(def_key=def_key)
     step_4_build()
 
 
 if __name__ == '__main__':
-    autorun()
-    exit(0)
+    log.info("Name is [%s] running user_menu", __name__)
+    create_wait = 5
+    step_1_init_service()
+    step_2_init_infra(create_wait=create_wait)
+    print_intro()
+    user_menu()

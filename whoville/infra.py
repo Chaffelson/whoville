@@ -10,6 +10,7 @@ Warnings:
 from __future__ import absolute_import
 import logging
 import requests
+from time import sleep
 import socket
 from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
@@ -29,6 +30,7 @@ log.setLevel(logging.INFO)
 
 namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
+preferred_cb_ver = '2.7.1'
 
 
 def create_libcloud_session(provider='EC2'):
@@ -54,10 +56,10 @@ def create_boto3_session():
         raise ValueError("EC2 infra access keys not defined in Profile")
 
 
-def get_cloudbreak(s_libc=None, create=True, purge=False):
+def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
         s_libc = create_libcloud_session()
-    
+
     cbd_name = namespace + 'cloudbreak'
     cbd = list_nodes(s_libc, {'name': cbd_name})
     cbd = [x for x in cbd if x.state != 'terminated']
@@ -78,6 +80,10 @@ def get_cloudbreak(s_libc=None, create=True, purge=False):
         else:
             log.info("Cloudbreak is None, Create is True - deploying new "
                      "Cloudbreak [%s]", cbd_name)
+            if create_wait:
+                log.warning("About to create a Cloudbreak Instance! waiting "
+                            "[%s] seconds for abort", create_wait)
+                sleep(create_wait)
             cbd = create_cloudbreak(s_libc, cbd_name)
             log.info("Waiting for Cloudbreak Deployment to Complete")
             public_dns_name = str(socket.gethostbyaddr(cbd.public_ips[0])[0])
@@ -196,6 +202,15 @@ def create_cloudbreak(session, cbd_name):
                 'to_port': 0
             }
         )
+        # security group loopback doesn't work well on AWS, need to use subnet
+        net_rules.append(
+            {
+                'protocol': -1,
+                'cidr_ips': [subnet.extra['cidr_block']],
+                'from_port': 0,
+                'to_port': 0
+            }
+        )
         for rule in net_rules:
             add_sec_rule_to_ec2_group(session, rule, sec_group.id)
         ssh_key = list_keypairs(
@@ -209,11 +224,13 @@ def create_cloudbreak(session, cbd_name):
         else:
             ssh_key = [x for x in ssh_key
                        if x.name == config.profile['sshkey_name']][0]
-        # This is just a tidy way of specifying a script 
+        # This is just a tidy way of specifying a script
+        cb_ver = config.profile.get('cloudbreak_ver')
+        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
         script_lines = [
             "#!/bin/bash",
             "cd /root",
-            "export cb_ver=" + str(config.profile.get('cloudbreak_ver')),
+            "export cb_ver=" + cb_ver,
             "export uaa_secret=" + security.get_secret('masterkey'),
             "export uaa_default_pw=" + security.get_secret('password'),
             "export uaa_default_email=" + config.profile['email'],

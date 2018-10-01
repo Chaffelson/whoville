@@ -1,23 +1,28 @@
 {
+  "Blueprints": {
+    "blueprint_name": "HDP301 HDF320 Single Node",
+    "stack_name": "HDP",
+    "stack_version": "3.0"
+  },
   "configurations": [
     {
       "yarn-site": {
         "properties": {
           "yarn.nodemanager.resource.cpu-vcores": "{{{ yarn.vcores }}}",
           "yarn.nodemanager.resource.memory-mb": "{{{ yarn.capacity }}}",
-          "yarn.scheduler.maximum-allocation-mb": "{{{ yarn.max.container }}}"
+          "yarn.scheduler.maximum-allocation-mb": "{{{ yarn.capacity }}}",
+          "yarn.timeline-service.reader.webapp.address": " ",
+          "yarn.timeline-service.reader.webapp.https.address": " "
         }
       }
     },
     {
       "capacity-scheduler": {
         "properties": {
-          "yarn.scheduler.capacity.root.queues": "default,llap",
+          "yarn.scheduler.capacity.root.queues": "default",
           "yarn.scheduler.capacity.root.capacity": "100",
-          "yarn.scheduler.capacity.root.default.capacity": "50",
+          "yarn.scheduler.capacity.root.default.capacity": "100",
           "yarn.scheduler.capacity.root.default.maximum-capacity": "100",
-          "yarn.scheduler.capacity.root.llap.maximum-capacity": "100",
-          "yarn.scheduler.capacity.root.llap.capacity": "50",
           "yarn.scheduler.capacity.maximum-am-resource-percent": "0.4"
         }
       }
@@ -26,7 +31,7 @@
       "spark2-defaults": {
         "properties_attributes": {},
         "properties": {
-          "spark.sql.hive.hiveserver2.jdbc.url": "jdbc:hive2://%HOSTGROUP::master%:2181/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2-interactive",
+          "spark.sql.hive.hiveserver2.jdbc.url": "jdbc:hive2://%HOSTGROUP::master%:2181/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2",
           "spark.sql.hive.hiveserver2.jdbc.url.principal": "hive/_HOST@EC2.INTERNAL",
           "spark.datasource.hive.warehouse.metastoreUri": "thrift://%HOSTGROUP::master%:9083",
           "spark.datasource.hive.warehouse.load.staging.dir": "/tmp",
@@ -50,26 +55,6 @@
         "properties": {
           "xasecure.audit.destination.hdfs.file.rollover.sec": "600"
         }
-      }
-    },
-    {
-      "hive-interactive-env": {
-        "enable_hive_interactive": "true",
-        "hive_security_authorization": "Ranger",
-        "llap_heap_size": "20496",
-        "hive_heapsize": "2048",
-        "num_llap_nodes_for_llap_daemons": "1",
-        "num_llap_nodes": "1"
-      }
-    },
-    {
-      "hive-interactive-env": {
-        "enable_hive_interactive": "true",
-        "hive_security_authorization": "Ranger",
-        "llap_heap_size": "11264",
-        "hive_heapsize": "2048",
-        "num_llap_nodes_for_llap_daemons": "1",
-        "num_llap_nodes": "1"
       }
     },
     {
@@ -331,9 +316,6 @@
           "name": "HIVE_SERVER"
         },
         {
-          "name": "HIVE_SERVER_INTERACTIVE"
-        },
-        {
           "name": "HIVE_METASTORE"
         },
         {
@@ -443,10 +425,5 @@
         }
       ]
     }
-  ],
-  "Blueprints": {
-    "blueprint_name": "HDP301 HDF320 Compact",
-    "stack_name": "HDP",
-    "stack_version": "3.0"
-  }
+  ]
 }

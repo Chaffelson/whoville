@@ -23,17 +23,17 @@ LABEL site="https://github.com/Chaffelson/whoville"
 
 ENV PYTHONUNBUFFERED=0
 ENV TZ=${TZ:-"Europe/London"}
-ENV BRANCH=master
 ENV PROFILE=${PROFILE:-'/profile.yml'}
 
 RUN apk update && apk upgrade \
     && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \
     libressl-dev ca-certificates python3-dev linux-headers tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
-    && git clone --depth 1 -b ${BRANCH} https://github.com/Chaffelson/whoville.git /whoville \
+    && git clone --depth 1 https://github.com/Chaffelson/whoville.git /whoville \
     && cd /whoville \
     && pip install --no-cache -r requirements.txt \  
-    && apk del .build-deps
+    && apk del .build-deps \
+    && apk add --no-cache bash \
     && touch /profile.yml 
     
 
@@ -41,4 +41,4 @@ WORKDIR /whoville
 ENV PYTHONPATH=/whoville
 
 ENTRYPOINT ["python3"]
-CMD ["./whoville/mayor.py"]
+CMD ["whoville/mayor.py"]

@@ -103,8 +103,8 @@ class Horton():
         """
         return utils.get_val(self, keys, sep, **kwargs)
 
-    def _setr(self, keys, val, sep=':', merge=False):
-        utils.set_val(self, keys, val, sep, merge)
+    def _setr(self, keys, val, sep=':', **kwargs):
+        utils.set_val(self, keys, val, sep, **kwargs)
 
 
 def list_credentials(**kwargs):
@@ -240,22 +240,24 @@ def get_blueprint(identifier, identifier_type='name', **kwargs):
 def create_recipe(name, desc, recipe_type, recipe, purge=False, **kwargs):
     log.info("Creating recipe [%s] with description [%s] of type [%s] with "
              "recipe like [%s] and purge:[%s]",
-             name, desc, recipe_type, json.dumps(recipe)[:50], purge)
+             name, desc, recipe_type, str(recipe)[:50], purge)
     if purge:
         target = [x.id for x in list_recipes() if x.name == name]
         if target:
             delete_recipe(target[0])
+    if isinstance(recipe, bytes):
+        submit = (base64.b64encode(recipe)).decode('utf-8')
+    elif isinstance(recipe, six.string_types):
+        submit = (base64.b64encode(bytes(recipe, 'utf-8'))).decode('utf-8')
+    else:
+        raise ValueError("Recipe Var Type not supported")
     return cb.V1recipesApi().post_private_recipe(
         # blueprint has to be a base64 encoded string for file upload
         body=cb.RecipeRequest(
             name=name,
             description=desc,
             recipe_type=recipe_type.upper(),
-            content=(
-                base64.b64encode(
-                    bytes(recipe, 'utf-8')
-                )
-            ).decode('utf-8')
+            content=submit
         ),
         **kwargs
     )
@@ -427,10 +429,14 @@ def prep_dependencies(def_key, shortname=None):
                 break
             log.info("checking Resource type [%s]", res_type)
             if 'name' in res and res['name']:
-                res_name = '-'.join([fullname, res['name']])
+                if res_type not in ['blueprint']:
+                    res_name = '-'.join([fullname, res['name']])
+                else:
+                    res_name = fullname
                 res_name = res_name.rsplit('.')[0]
-                log.info("Resource has default Name [%s], using ResName [%s]",
-                         res['name'], res_name)
+                log.info("Resource type [%s] has default Name [%s], using "
+                         "ResName [%s]",
+                         res_type, res['name'], res_name)
             else:
                 # res has name field but not populated
                 log.info("Resource name field present but empty, "
@@ -555,36 +561,13 @@ def prep_dependencies(def_key, shortname=None):
                     log.info("Rds resource is requested in def but no DPS is available, skipping...")
     horton.deps[fullname] = deps
     prep_images_dependency(def_key, fullname)
-    horton.deps[fullname]['gateway'] = find_ambari_group(def_key, fullname)
-
-
-def find_ambari_group(def_key, name=None):
-    horton = Horton()
-    name = horton.namespace + (name if name else def_key)
-    # If only one group, it must be the gateway
-    if 'group' in horton.defs[def_key]:
-        if len(horton.defs[def_key]['group']) == 1:
-            return horton.defs[def_key]['group'][0]['name']
-        else:
-            test = [x['name'] for x in horton.defs[def_key]['group']
-                    if x['type'] == 'GATEWAY']
-            if test:
-                # If the demo has a gateway defined, use it
-                return test[0]
-            else:
-                # Else raise an error for bad group config
-                raise ValueError("No GATEWAY specified in Group config")
-    else:
-        # Try finding it in the Blueprint
-        bp_content = utils.load(
-            horton.deps[name]['blueprint'].ambari_blueprint,
-            decode='base64'
-        )
-        for host_group in bp_content['host_groups']:
-            for component in host_group['components']:
-                if component['name'] == 'AMBARI_SERVER':
-                    return host_group['name']
-    raise ValueError("Couldn't find Gateway or Ambari Server in definitions")
+    gateway_group_name = [
+        x for x, y in horton.defs[def_key]['group'].items()
+        if y['type'] == 'GATEWAY'
+    ]
+    if not gateway_group_name:
+        raise ValueError("Could not determine GATEWAY Group")
+    horton.deps[fullname]['gateway'] = gateway_group_name[0]
 
 
 def prep_images_dependency(def_key, fullname=None):
@@ -666,32 +649,27 @@ def prep_cluster(def_key, fullname=None):
     stack_version = bp_content['Blueprints']['stack_version']
 
     # Cloud Storage
-    object_store = config.profile['objectstore']
-    if object_store:
-        if 'cloudstor' in horton.defs[def_key]['infra']:
-            if object_store == 's3':
-                bucket = config.profile['bucket']
-                cloud_stor = cb.CloudStorageRequest(
-                    s3=cb.S3CloudStorageParameters(
-                        instance_profile=config.profile['bucketrole']
-                    ),
-                    locations=[]
-                )
-                for loc in horton.defs[def_key]['infra']['cloudstor']:
-                    cloud_stor.locations.append({
-                        "value": "s3a://" + bucket + loc['value'],
-                        "propertyFile": loc['propfile'],
-                        "propertyName": loc['propname']
-                    })
-            else:
-                raise ValueError("Object Store [%s] not supported",
-                                 object_store)
+    if 'cloudstor' in horton.defs[def_key]['infra']:
+        if horton.cred.cloud_platform == 'AWS':
+            bucket = config.profile['bucket']
+            cloud_stor = cb.CloudStorageRequest(
+                s3=cb.S3CloudStorageParameters(
+                    instance_profile=config.profile['platform']['infraarn']
+                ),
+                locations=[]
+            )
+            for loc in horton.defs[def_key]['infra']['cloudstor']:
+                cloud_stor.locations.append({
+                    "value": "s3a://" + bucket + loc['value'],
+                    "propertyFile": loc['propfile'],
+                    "propertyName": loc['propname']
+                })
         else:
-            log.info("cloudstorage not defined in demo, skipping...")
-            cloud_stor = None
+            raise ValueError("Cloud Storage on Platform {0} not supported"
+                             .format(horton.cred.cloud_platform))
     else:
+        log.info("cloudstorage not defined in demo, skipping...")
         cloud_stor = None
-
     log.info("using mpack [%s]", str(mpacks))
 
     cluster_req = cb.ClusterV2Request(
@@ -791,11 +769,9 @@ def prep_instance_groups(def_key, fullname):
     for group in recs.recommendations.keys():
         log.info("handling group [%s]", group)
         rec = recs.recommendations[group]
-        group_def = [x for x in horton.defs[def_key]['group'] if x['name'] == group]
+        group_def = horton.defs[def_key]['group'].get(group)
         if group_def:
-            group_def = group_def[0]
-            log.info("Group [%s] found in demo def, proceeding...",
-                     group)
+            log.info("Group [%s] found in demo def, proceeding...", group)
         else:
             log.info("Group [%s] not in demo def, using defaults...", group)
             group_def = {}
@@ -970,6 +946,7 @@ def create_stack(name, wait=False, purge=False, **kwargs):
         body=horton.specs[name],
         **kwargs
     )
+    horton.stacks[name] = resp
     if wait:
         utils.wait_to_complete(
             monitor_event_stream,
@@ -1022,8 +999,9 @@ def monitor_event_stream(start_ts, identity, target_event, valid_events,
     log.info("Found event set [%s] for target event [%s]",
              str(event_set), target_event[0])
     if not event_set:
-        log.warning("No Events received in the last interval, please check"
-                    "the identity and target event against Cloudbreak")
+        log.warning("No Events received in the last interval, if this "
+                    "persists please check the identity and target event "
+                    "against Cloudbreak")
     if target_event[1] in event_set:
         return True
     valid_test = [x for x in event_set if x not in valid_events]
@@ -1171,6 +1149,11 @@ def purge_cloudbreak(for_reals, namespace=''):
     [delete_mpack(x.name)
      for x in list_mpacks()
      if namespace in x.name]
+    # Auths
+    log.info("Purging Auths")
+    [delete_auth_conf(x.name)
+     for x in list_auth_confs()
+     if namespace in x.name]
 
 
 def list_auth_confs():
@@ -1292,14 +1275,24 @@ def write_cache(name, item, cache_key):
     if item in ['public_ip']:
         stack = [x for x in list_stacks()
                  if x.name == name][0]
-        group = [x for x in stack.instance_groups
+        if stack:
+            group = [x for x in stack.instance_groups
                   if x.type == 'GATEWAY'][0]
-        instance = [x for x in group.metadata
+            if group:
+                instance = [x for x in group.metadata
                     if x.ambari_server == True][0]
+<<<<<<< HEAD
         horton.cache[cache_key] = instance.__getattribute__(item)
     else:
         #write literal value to cache
         horton.cache[cache_key] = item     
+=======
+                if instance:
+                    horton.cache[cache_key] = instance.__getattribute__(item)
+        else:
+            raise ValueError("Could not fetch item [%s] to write to Cache",
+                             item)
+>>>>>>> refs/remotes/origin/master
 
 
 def replace_string_in_resource(name, target, cache_key):
