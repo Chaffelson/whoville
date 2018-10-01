@@ -1176,8 +1176,7 @@ def create_auth_conf(name, host, params=None):
         bind_dn='uid=admin,ou=people,dc=hadoop,dc=apache,dc=org',
         bind_password=security.get_secret('password'),
         user_search_base='ou=people,dc=hadoop,dc=apache,dc=org',
-        user_dn_pattern='uid={0}',
-        #user_dn_pattern='uid={0},ou=people,dc=hadoop,dc=apache,dc=org',
+        user_dn_pattern='uid={0},ou=people,dc=hadoop,dc=apache,dc=org',
         user_object_class='person',
         user_name_attribute='uid',
         group_search_base='ou=groups,dc=hadoop,dc=apache,dc=org',
@@ -1281,18 +1280,15 @@ def write_cache(name, item, cache_key):
             if group:
                 instance = [x for x in group.metadata
                     if x.ambari_server == True][0]
-<<<<<<< HEAD
         horton.cache[cache_key] = instance.__getattribute__(item)
     else:
         #write literal value to cache
-        horton.cache[cache_key] = item     
-=======
-                if instance:
+        horton.cache[cache_key] = item
+        if instance:
                     horton.cache[cache_key] = instance.__getattribute__(item)
         else:
             raise ValueError("Could not fetch item [%s] to write to Cache",
                              item)
->>>>>>> refs/remotes/origin/master
 
 
 def replace_string_in_resource(name, target, cache_key):
