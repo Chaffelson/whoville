@@ -520,7 +520,12 @@ def prep_dependencies(def_key, shortname=None):
                     for config in current[res_type]:
                         key = config.__getattribute__("name")
                         auth_configs[key] = config
-                    if auth_configs[auth_name]:
+                    try:
+                        if auth_configs[auth_name]:
+                            authExists = True  
+                    except KeyError:
+                        authExists = False
+                    if authExists:
                         deps[res_type].append(auth_configs[auth_name])
                     else:
                         if 'params' in res:
@@ -539,24 +544,26 @@ def prep_dependencies(def_key, shortname=None):
             if res_type == 'rds':
                 if horton.cache['RDSPUBLICIP']:
                     rds_configs = dict()
-                    for config in current[res_type]:
-                        key = config.__getattribute__("type")
-                        rds_configs[key] = config
-                    for rds_service in res['service']:
-                        if res['service'][rds_service]:
+                    if len(current[res_type]) > 0:
+                        for config in current[res_type]:
+                            key = config.__getattribute__("type")
+                            rds_configs[key] = config
+                    if len(res['service']) > 0:
+                        for rds_service in res['service']:                              
+                            try: 
                                 if rds_configs[rds_service]:
                                     deps[res_type].append(rds_configs[rds_service])
-                                else:    
-                                    deps[res_type].append(
-                                        create_rds_conf(
+                            except KeyError:
+                                deps[res_type].append(
+                                    create_rds_conf(
                                             name=namespace+res['name']+rds_service,
                                             host=horton.cache['RDSPUBLICIP'],
                                             port=horton.cache['RDSPORT'],
                                             rds_type=rds_service,
                                             user_name=rds_service,
                                             password=rds_service
-                                        )
                                     )
+                                )
                 else:
                     log.info("Rds resource is requested in def but no DPS is available, skipping...")
     horton.deps[fullname] = deps
@@ -1284,12 +1291,10 @@ def write_cache(name, item, cache_key):
     else:
         #write literal value to cache
         horton.cache[cache_key] = item
-        if instance:
-                    horton.cache[cache_key] = instance.__getattribute__(item)
-        else:
-            raise ValueError("Could not fetch item [%s] to write to Cache",
-                             item)
-
+        #if instance:
+        #            horton.cache[cache_key] = instance.__getattribute__(item)
+        #else:
+        #    raise ValueError("Could not fetch item [%s] to write to Cache",item)
 
 def replace_string_in_resource(name, target, cache_key):
     horton = Horton()
