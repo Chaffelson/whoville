@@ -661,7 +661,7 @@ def prep_cluster(def_key, fullname=None):
             bucket = config.profile['bucket']
             cloud_stor = cb.CloudStorageRequest(
                 s3=cb.S3CloudStorageParameters(
-                    instance_profile=config.profile['platform']['infraarn']
+                    instance_profile=config.profile['bucketrole']
                 ),
                 locations=[]
             )
