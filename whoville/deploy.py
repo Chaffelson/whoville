@@ -707,7 +707,8 @@ def prep_cluster(def_key, fullname=None):
         if len(horton.deps[fullname]['rds']) > 0:
             rds_config_names = []
             for rds_config in horton.deps[fullname]['rds']:
-                rds_config_names.append(rds_config.__getattribute__("name"))    
+                if horton.defs[def_key]['rds']['service'][rds_config.__getattribute__("type")]:
+                    rds_config_names.append(rds_config.__getattribute__("name"))    
             cluster_req.rds_config_names = rds_config_names
     if 'proxy' in horton.defs[def_key] and horton.defs[def_key]['proxy']:
         cluster_req.ambari.gateway = cb.GatewayJson(
@@ -1061,11 +1062,11 @@ def purge_resource(res_name, res_type):
              res_name, res_type)
     # check for compatibility
     res_types = ['recipe', 'mpack', 'stack', 'blueprint', 'credential',
-                 'recipe', 'catalog', 'auth']
+                 'recipe', 'catalog', 'auth', 'rds']
     if res_type in res_types:
         # Set the param to identify the target resource
 
-        if res_type in ['catalog', 'mpack', 'auth']:
+        if res_type in ['catalog', 'mpack', 'auth', 'rds']:
             del_arg = 'name'
         else:
             del_arg = 'id'
@@ -1075,6 +1076,8 @@ def purge_resource(res_name, res_type):
             res_type = 'image_catalog'
         if res_type == 'auth':
             res_type = 'auth_conf'
+        if res_type == 'rds':
+            res_type = 'rds_conf'    
 
         # set extra kwargs for submission
         if res_type == 'stack':
