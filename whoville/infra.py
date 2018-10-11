@@ -16,8 +16,14 @@ from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
+from libcloud.compute.base import NodeLocation
+from libcloud.compute.base import NodeAuthSSHKey
+from libcloud.compute.drivers.azure_arm import AzureNodeDriver
 import boto3
+#from azure.common.credentials import ServicePrincipalCredentials
+#from azure.mgmt.compute import ComputeManagementClient
 from whoville import config, utils, security
+from encodings.base64_codec import base64_encode
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
@@ -32,17 +38,25 @@ namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
 preferred_cb_ver = '2.7.1'
 
-
-def create_libcloud_session(provider='EC2'):
+def create_libcloud_session():
+    provider = config.profile.get('platform')['provider']
     cls = get_driver(getattr(Provider, provider))
     params = config.profile.get('platform')
     if not params:
         raise ValueError("Profile not configured with Platform Parameters")
-    return cls(
-        **{x: y for x, y in params.items()
-           if x in ['key', 'secret', 'region']}
-    )
-
+    
+    if provider == 'EC2':
+        return cls(
+                **{x: y for x, y in params.items()
+                if x in ['key', 'secret', 'region']}
+            )
+    elif provider == 'AZURE_ARM':
+        return cls(tenant_id=params['tenant'],
+                   subscription_id=params['subscription'], 
+                   key=params['application'],
+                   secret=params['secret'],
+                   region=params['region']
+            )
 
 def create_boto3_session():
     platform = config.profile.get('platform')
@@ -55,6 +69,44 @@ def create_boto3_session():
     else:
         raise ValueError("EC2 infra access keys not defined in Profile")
 
+def create_azure_compute_session():
+    platform = config.profile.get('platform')
+    if platform['provider'] == 'AZURE':
+        subscription_id = platform['subscription']
+        credentials = ServicePrincipalCredentials(
+            client_id=platform['application'],
+            secret=platform['secret'],
+            tenant=platform['tenant']
+        )
+        return ComputeManagementClient(credentials), subscription_id
+    else:
+        raise ValueError("Azure infra access keys not defined in Profile")
+
+def create_azure_network_session():
+    platform = config.profile.get('platform')
+    if platform['provider'] == 'AZURE':
+        subscription_id = platform['subscription']
+        credentials = ServicePrincipalCredentials(
+            client_id=platform['application'],
+            secret=platform['secret'],
+            tenant=platform['tenant']
+        )
+        return NetworkManagementClient(credentials), subscription_id
+    else:
+        raise ValueError("Azure infra access keys not defined in Profile")
+
+def create_azure_resource_session():
+    platform = config.profile.get('platform')
+    if platform['provider'] == 'AZURE':
+        subscription_id = platform['subscription']
+        credentials = ServicePrincipalCredentials(
+            client_id=platform['application'],
+            secret=platform['secret'],
+            tenant=platform['tenant']
+        )
+        return ResourceManagementClient(credentials), subscription_id
+    else:
+        raise ValueError("Azure infra access keys not defined in Profile")
 
 def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
@@ -285,9 +337,92 @@ def create_cloudbreak(session, cbd_name):
             return cbd[0]
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
+    if session.type == 'azure_arm':
+        #create_azure_resource_session()
+        ssh_key = NodeAuthSSHKey(config.profile['sshkey_pub'])
+        resource_group = namespace+'cloudbreak-group' #need to create
+        storage_account_name = 'storagewasb' #need to create storage account and container called 'vhds'
+        network_name = namespace+'cloudbreak-network' #need to create
+        public_ip_name = namespace+'cloudbreak-ip'
+        nic_name = namespace+'cloudbreak-nic'
+        
+        image = session.list_images(ex_publisher='OpenLogic',ex_offer='CentOS-CI',ex_sku='7-CI')
+        if not image:
+            raise ValueError("Couldn't find a valid Centos7 Image")
+        else:
+            image = image[-1]
+        
+        machines = list_sizes_azure(
+            session, cpu_min=4, cpu_max=4, mem_min=16384, mem_max=20480
+        )
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[0]
+            
+        networks = list_networks(session, {'name': network_name})
+        #network = sorted(networks, key=lambda k: k.['is_default'])
+        network = networks
+        if not network:
+            raise ValueError("There should be at least one network, this "
+                             "is rather unexpected")
+        else:
+            network = network[-1]
+            subnet = session.ex_list_subnets(network)[0]
+            
+            
+            if len(session.ex_list_public_ips(resource_group)) == 0:
+                public_ip = session.ex_create_public_ip(public_ip_name, resource_group, public_ip_allocation_method='Static')
+            else:
+                public_ip = session.ex_list_public_ips(resource_group)[0]
+            
+            if len(session.ex_list_nics(resource_group)) == 0:
+                nic = session.ex_create_network_interface(nic_name, subnet, resource_group, public_ip=public_ip)
+            else:
+                nic = session.ex_list_nics(resource_group)[0]
+                nic.public_ip = public_ip
+        
+        cb_ver = config.profile.get('cloudbreak_ver')
+        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
+        script_lines = [
+            "#!/bin/bash",
+            "cd /root",
+            "export cb_ver=" + cb_ver,
+            "export uaa_secret=" + security.get_secret('masterkey'),
+            "export uaa_default_pw=" + security.get_secret('password'),
+            "export uaa_default_email=" + config.profile['email'],
+            "export public_ip=" + public_ip.extra['ipAddress'],
+            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+        ]
+        script = '\n'.join(script_lines)
+    
+        cbd = create_node(
+            session=session,
+            name=cbd_name,
+            image=image,
+            machine=machine,
+            params={
+                'auth': ssh_key,
+                'location': session.default_location,
+                'ex_storage_account': storage_account_name,
+                'ex_resource_group': resource_group,
+                'ex_nic': nic
+                #'ex_customdata': script
+            }
+        )
+        
+        log.info("Waiting for Cloudbreak Instance to be Available...")
+        session.wait_until_running(nodes=[cbd])
+        
+        cbd = list_nodes(session, {'name': cbd_name})
+        cbd = [x for x in cbd if x.state == 'running']
+        if cbd:
+            return cbd[0]
+        else:
+            raise ValueError("Failed to create new Cloubreak Instance")
     else:
-        raise ValueError("Cloudbreak AutoDeploy only supported on EC2")
-
+        raise ValueError("Cloudbreak AutoDeploy only supported on EC2 and AzureVM")
+ 
 
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
     try:
@@ -340,6 +475,17 @@ def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
     ]
     return machines
 
+
+def list_sizes_azure(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
+               disk_min=0, disk_max=10475520):
+    sizes = session.list_sizes()
+    machines = [
+        x for x in sizes
+        if mem_min <= x.ram <= mem_max
+        and cpu_min <= x.extra['numberOfCores'] <= cpu_max
+        and disk_min <= x.disk <= disk_max
+    ]
+    return machines
 
 def list_networks(session, filters=None):
     networks = session.ex_list_networks()

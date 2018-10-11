@@ -34,7 +34,7 @@ def step_1_init_service():
                          "deployment controls, cannot proceed")
     log.info("------------- Loading Default Resources")
     horton.resources.update(
-        utils.load_resources_from_files('resources/v2')
+        utils.load_resources_from_files('/Users/vvaks/git/whoville/resources/v2')
     )
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
@@ -76,10 +76,10 @@ def step_2_init_infra(create_wait=0):
         create_wait=create_wait
     )
     log.info("------------- Connecting to Cloudbreak")
-    public_dns_name = str(
-        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
-    )
-    url = 'https://' + public_dns_name + '/cb/api'
+    cbd_public_ip = horton.cbd.public_ips[0]
+    #public_dns_name = str(_socket.gethostbyaddr(cbd_public_ip)[0])
+    #url = 'https://' + public_dns_name + '/cb/api'
+    url = 'https://' + cbd_public_ip + '/cb/api'
     log.info("Setting endpoint to %s", url)
     utils.set_endpoint(url)
     log.info("------------- Authenticating to Cloudbreak")
@@ -169,10 +169,11 @@ def step_4_build(def_key=None):
 
 
 def print_intro():
-    public_dns_name = str(
-        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
-    )
-    url = 'https://' + public_dns_name + '/sl'
+    #public_dns_name = str(_socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0])     
+    #url = 'https://' + public_dns_name + '/sl'
+    print("")
+    cbd_public_ip = horton.cbd.public_ips[0]
+    url = 'https://' + cbd_public_ip + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
     print("\nCloudbreak is available at (browser): " + url)
     print("Currently Deployed Stacks: " + str(
