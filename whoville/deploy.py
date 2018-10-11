@@ -132,6 +132,18 @@ def create_credential(from_profile=False, platform='EC2', name=None,
                 }
             else:
                 raise ValueError("Could not determine Credential Type")
+        elif platform['provider'] == 'AZURE_ARM':
+            service = 'AZURE'
+            if 'application' in platform:
+                sub_params = {
+                    'subscriptionId': platform['subscription'],
+                    'tenantId': platform['tenant'],
+                    'accessKey': platform['application'],
+                    'secretKey': platform['secret'],
+                    'selector': 'app-based'
+                }
+            else:
+                raise ValueError("Could not determine Credential Type")
         else:
             raise ValueError("Platform [%s] unsupported", platform)
     else:
