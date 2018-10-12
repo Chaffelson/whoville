@@ -65,7 +65,7 @@ cluster_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
 
 
 @utils.singleton
-class Horton():
+class Horton:
     """
     Borg Singleton to share state between the various processes.
     Looks complicated, but it makes the rest of the code more readable for
@@ -513,59 +513,59 @@ def prep_dependencies(def_key, shortname=None):
                             purge_on_install=purge_on_install
                         )
                     )
-            if res_type == 'auth':
-                if horton.cache['LDAPPUBLICIP']:
-                    auth_name = namespace+res['name']
-                    auth_configs = dict()
-                    for config in current[res_type]:
-                        key = config.__getattribute__("name")
-                        auth_configs[key] = config
-                    try:
-                        if auth_configs[auth_name]:
-                            authExists = True  
-                    except KeyError:
-                        authExists = False
-                    if authExists:
-                        deps[res_type].append(auth_configs[auth_name])
-                    else:
-                        if 'params' in res:
-                            params = res['params']
-                        else:
-                            params = None
-                        deps[res_type].append(
-                            create_auth_conf(
-                                name=auth_name,
-                                host=horton.cache['LDAPPUBLICIP'],
-                                params=params
-                            )
-                        )
-                else:
-                    log.info("Auth resource is requested in def but no DPS is available, skipping...")
-            if res_type == 'rds':
-                if horton.cache['RDSPUBLICIP']:
-                    rds_configs = dict()
-                    if len(current[res_type]) > 0:
-                        for config in current[res_type]:
-                            key = config.__getattribute__("type")
-                            rds_configs[key] = config
-                    if len(res['service']) > 0:
-                        for rds_service in res['service']:                              
-                            try: 
-                                if rds_configs[rds_service]:
-                                    deps[res_type].append(rds_configs[rds_service])
-                            except KeyError:
-                                deps[res_type].append(
-                                    create_rds_conf(
-                                            name=namespace+res['name']+rds_service,
-                                            host=horton.cache['RDSPUBLICIP'],
-                                            port=horton.cache['RDSPORT'],
-                                            rds_type=rds_service,
-                                            user_name=rds_service,
-                                            password=rds_service
-                                    )
-                                )
-                else:
-                    log.info("Rds resource is requested in def but no DPS is available, skipping...")
+            # if res_type == 'auth':
+            #     if horton.cache['LDAPPUBLICIP']:
+            #         auth_name = namespace+res['name']
+            #         auth_configs = dict()
+            #         for config in current[res_type]:
+            #             key = config.__getattribute__("name")
+            #             auth_configs[key] = config
+            #         try:
+            #             if auth_configs[auth_name]:
+            #                 authExists = True  
+            #         except KeyError:
+            #             authExists = False
+            #         if authExists:
+            #             deps[res_type].append(auth_configs[auth_name])
+            #         else:
+            #             if 'params' in res:
+            #                 params = res['params']
+            #             else:
+            #                 params = None
+            #             deps[res_type].append(
+            #                 create_auth_conf(
+            #                     name=auth_name,
+            #                     host=horton.cache['LDAPPUBLICIP'],
+            #                     params=params
+            #                 )
+            #             )
+            #     else:
+            #         log.info("Auth resource is requested in def but no DPS is available, skipping...")
+            # if res_type == 'rds':
+            #     if horton.cache['RDSPUBLICIP']:
+            #         rds_configs = dict()
+            #         if len(current[res_type]) > 0:
+            #             for config in current[res_type]:
+            #                 key = config.__getattribute__("type")
+            #                 rds_configs[key] = config
+            #         if len(res['service']) > 0:
+            #             for rds_service in res['service']:                              
+            #                 try: 
+            #                     if rds_configs[rds_service]:
+            #                         deps[res_type].append(rds_configs[rds_service])
+            #                 except KeyError:
+            #                     deps[res_type].append(
+            #                         create_rds_conf(
+            #                                 name=namespace+res['name']+rds_service,
+            #                                 host=horton.cache['RDSPUBLICIP'],
+            #                                 port=horton.cache['RDSPORT'],
+            #                                 rds_type=rds_service,
+            #                                 user_name=rds_service,
+            #                                 password=rds_service
+            #                         )
+            #                     )
+            #     else:
+            #         log.info("Rds resource is requested in def but no DPS is available, skipping...")
     horton.deps[fullname] = deps
     prep_images_dependency(def_key, fullname)
     gateway_group_name = [

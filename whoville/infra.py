@@ -86,6 +86,8 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
                 sleep(create_wait)
             cbd = create_cloudbreak(s_libc, cbd_name)
             log.info("Waiting for Cloudbreak Deployment to Complete")
+            # Might end up with IP instead of FQDN? KPaul issue
+            sleep(20)
             public_dns_name = str(socket.gethostbyaddr(cbd.public_ips[0])[0])
             utils.wait_to_complete(
                 utils.is_endpoint_up,
@@ -136,7 +138,6 @@ def create_cloudbreak(session, cbd_name):
                          "with Cloudbreak cluster creation...",
                          cf_stack['StackName'])
                 client_cf.delete_stack(StackName=cf_stack['StackName'])
-                
         images = list_images(
             session,
             filters={
