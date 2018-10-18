@@ -102,6 +102,7 @@ mysql --execute="CREATE USER 'streamsmsgmgr'@'localhost' IDENTIFIED BY 'streamsm
 mysql --execute="CREATE USER 'streamsmsgmgr'@'%' IDENTIFIED BY 'streamsmsgmgr'"
 mysql --execute="CREATE USER 'druid'@'%' IDENTIFIED BY 'druid'"
 mysql --execute="CREATE USER 'streamline'@'%' IDENTIFIED BY 'streamline'"
+mysql --execute="CREATE USER 'streamline'@'localhost' IDENTIFIED BY 'streamline'"
 mysql --execute="GRANT ALL PRIVILEGES ON *.* TO 'das'@'localhost'"
 mysql --execute="GRANT ALL PRIVILEGES ON *.* TO 'das'@'%'"
 mysql --execute="GRANT ALL PRIVILEGES ON *.* TO 'das'@'localhost' WITH GRANT OPTION"

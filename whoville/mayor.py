@@ -10,6 +10,7 @@ Warnings:
 from __future__ import absolute_import as _abs_imp
 import logging
 import socket as _socket
+import re as _re
 from time import sleep as _sleep
 from datetime import datetime as _dt
 from whoville import config, utils, security, infra, deploy, actions
@@ -32,6 +33,10 @@ def step_1_init_service():
     if not config.profile:
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
+    ns_test = _re.compile(r'[a-z0-9-]')
+    if not bool(ns_test.match(horton.namespace)):
+        raise ValueError("Namespace must only contain 0-9 a-z -")
+    # TODO: Read in the profile template, check it has all matching keys
     log.info("------------- Loading Default Resources")
     horton.resources.update(
         utils.load_resources_from_files('resources/v2')
@@ -59,8 +64,12 @@ def step_1_init_service():
                                  res_def['loc'])
     else:
         log.warning("Found no additional Resources to load!")
-    for k, v in horton.resources.items():
-        horton.defs[k] = v[k + '.yaml']
+    key_test = _re.compile(r'[a-z0-9-.]')
+    for def_key, res_list in horton.resources.items():
+        for res_filename, res_content in res_list.items():
+            if not bool(key_test.match(res_filename)):
+                raise ValueError("Resource Name must only contain 0-9 a-z - .")
+        horton.defs[def_key] = res_list[def_key + '.yaml']
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Service Init at [%s] after [%d] seconds",
@@ -183,9 +192,6 @@ def print_intro():
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
         print("        " + horton.defs[def_key].get('desc'))
-    print("\nPlease enter a Definition Name to deploy it: ")
-    print("e.g.")
-    print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
 
 
 def user_menu():
@@ -203,9 +209,8 @@ def user_menu():
             exit(0)
         elif selected in horton.defs.keys():
             autorun(def_key=selected)
-            print("\n    Deployment Completed!\n Menu reload in {0} seconds"
-                  .format(create_wait))
-            _sleep(create_wait)
+            print("\n    Deployment Completed!\n Menu reload in 5 seconds")
+            _sleep(5)
         else:
             print("Sorry, that is not recognised, please try again")
 
@@ -222,8 +227,7 @@ def autorun(def_key=None):
 
 if __name__ == '__main__':
     log.info("Name is [%s] running user_menu", __name__)
-    create_wait = 5
     step_1_init_service()
-    step_2_init_infra(create_wait=create_wait)
+    step_2_init_infra(create_wait=5)
     print_intro()
     user_menu()

@@ -19,6 +19,7 @@ import six
 from whoville import config, utils, infra, security
 from whoville import cloudbreak as cb
 from whoville.cloudbreak.rest import ApiException
+from whoville.infra import namespace
 
 
 __all__ = [
@@ -64,7 +65,7 @@ cluster_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
 
 
 @utils.singleton
-class Horton():
+class Horton:
     """
     Borg Singleton to share state between the various processes.
     Looks complicated, but it makes the rest of the code more readable for
@@ -392,13 +393,14 @@ def prep_dependencies(def_key, shortname=None):
     log.info("---- Preparing Dependencies for Definition [%s] with Name "
              "override [%s]", def_key, shortname)
     horton = Horton()
-    supported_resouces = ['recipe', 'blueprint', 'catalog', 'mpack', 'auth']
+    supported_resouces = ['recipe', 'blueprint', 'catalog', 'mpack', 'auth', 'rds']
     current = {
         'blueprint': list_blueprints(),
         'recipe': list_recipes(),
         'catalog': list_image_catalogs(),
         'mpack': list_mpacks(),
-        'auth': list_auth_confs()
+        'auth': list_auth_confs(),
+        'rds': list_rds_confs()
     }
 
     if horton.global_purge:
@@ -450,11 +452,19 @@ def prep_dependencies(def_key, shortname=None):
             else:
                 purge_resource(res_name, res_type)
             desc = res['desc'] if 'desc' in res else ''
-            list_res_types = ['recipe', 'mpack', 'auth']
+            list_res_types = ['recipe', 'mpack', 'auth', 'rds']
             if res_type not in deps and res_type in list_res_types:
                 # Treat everything as a list for simplicity
                 deps[res_type] = []
             if res_type == 'blueprint':
+                try:
+                    isDatalake = res['datalake']
+                except KeyError:
+                    isDatalake = False
+                if isDatalake:
+                    tags={'shared_services_ready': True}
+                else:
+                    tags=None   
                 if dep:
                     deps[res_type] = dep[0]
                 else:
@@ -462,7 +472,8 @@ def prep_dependencies(def_key, shortname=None):
                         create_blueprint(
                             desc=desc,
                             name=res_name,
-                            blueprint=horton.resources[def_key][res['name']]
+                            blueprint=horton.resources[def_key][res['name']],
+                            tags=tags
                         )
             if res_type == 'catalog':
                 if dep:
@@ -503,20 +514,58 @@ def prep_dependencies(def_key, shortname=None):
                         )
                     )
             if res_type == 'auth':
-                if dep:
-                    deps[res_type].append(dep[0])
-                else:
-                    if 'params' in res:
-                        params = res['params']
+                if horton.cache['LDAPPUBLICIP']:
+                    auth_name = namespace+res['name']
+                    auth_configs = dict()
+                    for config in current[res_type]:
+                        key = config.__getattribute__("name")
+                        auth_configs[key] = config
+                    try:
+                        if auth_configs[auth_name]:
+                            authExists = True
+                    except KeyError:
+                        authExists = False
+                    if authExists:
+                        deps[res_type].append(auth_configs[auth_name])
                     else:
-                        params = None
-                    deps[res_type].append(
-                        create_auth_conf(
-                            name=res_name,
-                            host=res['host'],
-                            params=params
+                        if 'params' in res:
+                            params = res['params']
+                        else:
+                            params = None
+                        deps[res_type].append(
+                            create_auth_conf(
+                                name=auth_name,
+                                host=horton.cache['LDAPPUBLICIP'],
+                                params=params
+                            )
                         )
-                    )
+                else:
+                    log.info("Auth resource is requested in def but no DPS is available, skipping...")
+            if res_type == 'rds':
+                if horton.cache['RDSPUBLICIP']:
+                    rds_configs = dict()
+                    if len(current[res_type]) > 0:
+                        for config in current[res_type]:
+                            key = config.__getattribute__("type")
+                            rds_configs[key] = config
+                    if len(res['service']) > 0:
+                        for rds_service in res['service']:
+                            try: 
+                                if rds_configs[rds_service]:
+                                    deps[res_type].append(rds_configs[rds_service])
+                            except KeyError:
+                                deps[res_type].append(
+                                    create_rds_conf(
+                                            name=namespace+res['name']+rds_service,
+                                            host=horton.cache['RDSPUBLICIP'],
+                                            port=horton.cache['RDSPORT'],
+                                            rds_type=rds_service,
+                                            user_name=rds_service,
+                                            password=rds_service
+                                    )
+                                )
+                else:
+                    log.info("Rds resource is requested in def but no DPS is available, skipping...")
     horton.deps[fullname] = deps
     prep_images_dependency(def_key, fullname)
     gateway_group_name = [
@@ -610,9 +659,13 @@ def prep_cluster(def_key, fullname=None):
     if 'cloudstor' in horton.defs[def_key]['infra']:
         if horton.cred.cloud_platform == 'AWS':
             bucket = config.profile['bucket']
+            if 'bucketrole' in config.profile:
+                arn = config.profile['bucketrole']
+            else:
+                arn = config.profile['platform']['infraarn']
             cloud_stor = cb.CloudStorageRequest(
                 s3=cb.S3CloudStorageParameters(
-                    instance_profile=config.profile['platform']['infraarn']
+                    instance_profile=arn
                 ),
                 locations=[]
             )
@@ -651,8 +704,16 @@ def prep_cluster(def_key, fullname=None):
                 cloud_storage=cloud_stor
             )
     if 'auth' in horton.defs[def_key] and 'name' in horton.defs[def_key]['auth']:
-        cluster_req.ldap_config_name = '-'.join([fullname, horton.defs[def_key]['auth']['name']])
+        #cluster_req.ldap_config_name = '-'.join([fullname, horton.defs[def_key]['auth']['name']])
+        cluster_req.ldap_config_name = namespace+"auth"
         cluster_req.proxy_name = None
+    if 'rds' in horton.defs[def_key]:
+        if len(horton.deps[fullname]['rds']) > 0:
+            rds_config_names = []
+            for rds_config in horton.deps[fullname]['rds']:
+                if horton.defs[def_key]['rds']['service'][rds_config.__getattribute__("type")]:
+                    rds_config_names.append(rds_config.__getattribute__("name"))
+            cluster_req.rds_config_names = rds_config_names
     if 'proxy' in horton.defs[def_key] and horton.defs[def_key]['proxy']:
         cluster_req.ambari.gateway = cb.GatewayJson(
             enable_gateway=True,
@@ -1005,11 +1066,11 @@ def purge_resource(res_name, res_type):
              res_name, res_type)
     # check for compatibility
     res_types = ['recipe', 'mpack', 'stack', 'blueprint', 'credential',
-                 'recipe', 'catalog', 'auth']
+                 'recipe', 'catalog', 'auth', 'rds']
     if res_type in res_types:
         # Set the param to identify the target resource
 
-        if res_type in ['catalog', 'mpack', 'auth']:
+        if res_type in ['catalog', 'mpack', 'auth', 'rds']:
             del_arg = 'name'
         else:
             del_arg = 'id'
@@ -1019,6 +1080,8 @@ def purge_resource(res_name, res_type):
             res_type = 'image_catalog'
         if res_type == 'auth':
             res_type = 'auth_conf'
+        if res_type == 'rds':
+            res_type = 'rds_conf'    
 
         # set extra kwargs for submission
         if res_type == 'stack':
@@ -1127,7 +1190,7 @@ def create_auth_conf(name, host, params=None):
         bind_dn='uid=admin,ou=people,dc=hadoop,dc=apache,dc=org',
         bind_password=security.get_secret('password'),
         user_search_base='ou=people,dc=hadoop,dc=apache,dc=org',
-        user_dn_pattern='cn={0}',
+        user_dn_pattern='uid={0},ou=people,dc=hadoop,dc=apache,dc=org',
         user_object_class='person',
         user_name_attribute='uid',
         group_search_base='ou=groups,dc=hadoop,dc=apache,dc=org',
@@ -1144,6 +1207,24 @@ def create_auth_conf(name, host, params=None):
         body=obj
     )
 
+def list_rds_confs():
+    return cb.V1rdsconfigsApi().get_privates_rds()
+
+def delete_rds_conf(rds_name):
+    return cb.V1rdsconfigsApi().delete_private_rds(rds_name)
+
+def create_rds_conf(name, host, port, rds_type, user_name, password):
+    obj = cb.RdsConfig(
+        name=name,
+        connection_url="jdbc:postgresql://"+host+":"+str(port)+"/"+rds_type, 
+        type=rds_type, 
+        connection_user_name=user_name, 
+        connection_password=password
+    )
+
+    return cb.V1rdsconfigsApi().post_private_rds(
+        body=obj
+    )
 
 def wait_for_event(name, field, state, start_ts, wait):
     log.info("Waiting against state [%s] for Stack [%s]",
@@ -1213,12 +1294,14 @@ def write_cache(name, item, cache_key):
             if group:
                 instance = [x for x in group.metadata
                     if x.ambari_server == True][0]
-                if instance:
-                    horton.cache[cache_key] = instance.__getattribute__(item)
-        else:
-            raise ValueError("Could not fetch item [%s] to write to Cache",
-                             item)
-
+        horton.cache[cache_key] = instance.__getattribute__(item)
+    else:
+        #write literal value to cache
+        horton.cache[cache_key] = item
+        #if instance:
+        #            horton.cache[cache_key] = instance.__getattribute__(item)
+        #else:
+        #    raise ValueError("Could not fetch item [%s] to write to Cache",item)
 
 def replace_string_in_resource(name, target, cache_key):
     horton = Horton()
