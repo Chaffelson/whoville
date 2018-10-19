@@ -947,7 +947,7 @@ def create_stack(name, wait=False, purge=False, **kwargs):
                 target_event=('stack_status', 'DELETE_COMPLETED'),
                 valid_events=['DELETE_IN_PROGRESS'],
                 whoville_delay=15,
-                whoville_max_wait=wait
+                whoville_max_wait=config.long_max_wait
             )
         else:
             log.info("Stack [%s] Exists in State [%s] and Purge is False,"

@@ -30,7 +30,7 @@ log.setLevel(logging.INFO)
 
 namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
-preferred_cb_ver = '2.7.1'
+preferred_cb_ver = '2.7.2'
 
 
 def create_libcloud_session(provider='EC2'):
@@ -62,7 +62,7 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
 
     cbd_name = namespace + 'cloudbreak'
     cbd = list_nodes(s_libc, {'name': cbd_name})
-    cbd = [x for x in cbd if x.state != 'terminated']
+    cbd = [x for x in cbd if x.state == 'running']
     if cbd:
         if not purge:
             log.info("Cloudbreak [%s] found, returning instance",
