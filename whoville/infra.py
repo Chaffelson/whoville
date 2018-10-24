@@ -24,6 +24,7 @@ import boto3
 from whoville import config, utils, security
 from encodings.base64_codec import base64_encode
 from test.test_os import resource
+import base64
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
@@ -589,6 +590,10 @@ def create_cloudbreak(session, cbd_name):
         script_lines = [
             "#!/bin/bash",
             "cd /root",
+            "yum install -y wget",
+            "wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64",
+            "chmod +x ./jq",
+            "cp jq /usr/bin",
             "export cb_ver=" + cb_ver,
             "export uaa_secret=" + security.get_secret('masterkey'),
             "export uaa_default_pw=" + security.get_secret('password'),
@@ -597,7 +602,8 @@ def create_cloudbreak(session, cbd_name):
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
         ]
         script = '\n'.join(script_lines)
-    
+        script = script.encode()
+        script = str(base64.urlsafe_b64encode(script)).replace("b'","").replace("'","")
         #cbd = create_node(
         #    session=session,
         #    name=cbd_name,
@@ -615,6 +621,7 @@ def create_cloudbreak(session, cbd_name):
         #)
         
         log.info("Creating Virtual Machine...")
+        log.info("with custom_data string: " + script)
         azure_compute_client = create_azure_compute_session()
         cbd = azure_compute_client.virtual_machines.create_or_update(
             resource_group,
@@ -633,7 +640,7 @@ def create_cloudbreak(session, cbd_name):
                             }]
                         }
                     }, 
-                    'custom-data':  base64.b64encode(script)
+                    'custom_data': script
                 },
                 'hardware_profile': {
                     'vm_size': 'Standard_DS3_v2'
