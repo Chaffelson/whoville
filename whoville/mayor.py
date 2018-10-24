@@ -171,7 +171,6 @@ def step_4_build(def_key=None):
 def print_intro():
     #public_dns_name = str(_socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0])     
     #url = 'https://' + public_dns_name + '/sl'
-    print("")
     cbd_public_ip = horton.cbd.public_ips[0]
     url = 'https://' + cbd_public_ip + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
