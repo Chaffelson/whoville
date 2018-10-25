@@ -661,20 +661,26 @@ def prep_cluster(def_key, fullname=None):
             bucket = config.profile['bucket']
             if 'bucketrole' in config.profile:
                 arn = config.profile['bucketrole']
-            else:
+            elif 'infraarn' in config.profile['platform']:
                 arn = config.profile['platform']['infraarn']
-            cloud_stor = cb.CloudStorageRequest(
-                s3=cb.S3CloudStorageParameters(
-                    instance_profile=arn
-                ),
-                locations=[]
-            )
-            for loc in horton.defs[def_key]['infra']['cloudstor']:
-                cloud_stor.locations.append({
-                    "value": "s3a://" + bucket + loc['value'],
-                    "propertyFile": loc['propfile'],
-                    "propertyName": loc['propname']
-                })
+            else:
+                arn = None
+            if arn:
+                cloud_stor = cb.CloudStorageRequest(
+                    s3=cb.S3CloudStorageParameters(
+                        instance_profile=arn
+                    ),
+                    locations=[]
+                )
+                for loc in horton.defs[def_key]['infra']['cloudstor']:
+                    cloud_stor.locations.append({
+                        "value": "s3a://" + bucket + loc['value'],
+                        "propertyFile": loc['propfile'],
+                        "propertyName": loc['propname']
+                    })
+            else:
+                log.info("AWS Cloudstor defined in Demo but no AWS Role found")
+                cloud_stor = None
         else:
             raise ValueError("Cloud Storage on Platform {0} not supported"
                              .format(horton.cred.cloud_platform))

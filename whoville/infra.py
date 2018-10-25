@@ -275,6 +275,7 @@ def create_cloudbreak(session, cbd_name):
         )
         # Assign Role ARN
         if 'infraarn' in config.profile['platform']:
+            log.info("Found infraarn in Profile, associating with Cloudbreak")
             infra_arn = config.profile['platform']['infraarn']
             client.associate_iam_instance_profile(
                 IamInstanceProfile={
