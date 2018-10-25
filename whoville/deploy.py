@@ -599,6 +599,8 @@ def prep_images_dependency(def_key, fullname=None):
     )
     stack_name = bp_content['Blueprints']['stack_name']
     stack_version = bp_content['Blueprints']['stack_version']
+    ambari_version = horton._getr('defs:' + def_key + ':infra:ambarirepo:ver')
+    stack_version_detail = horton._getr('defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
     log.info("fetching stack matrix for name:version [%s]:[%s]",
              stack_name, stack_version)
     stack_matrix = get_stack_matrix()
@@ -617,18 +619,23 @@ def prep_images_dependency(def_key, fullname=None):
 
     images_by_type = [
         x for x in
-        images.base_images + images.__getattribute__(
+        images.__getattribute__(
             stack_name.lower() + '_images'
-        )
+        ) if x.version == ambari_version and x.stack_details.version == stack_version_detail
     ]
-    if tgt_os:
-        images_by_os = [x for x in images_by_type if x.os == tgt_os]
-    else:
-        images_by_os = images_by_type
-    log.info("Filtered images by OS [%s] and found [%d]", tgt_os,
-             len(images_by_os))
+    if len(images_by_type) == 0:
+        if horton.cred.cloud_platform == 'AWS':
+            images_by_type = [ x for x in images.base_images if x.os == 'redhat7']
+        else:
+            images_by_type = [ x for x in images.base_images if x.default_image]
+    #if tgt_os:
+    #    images_by_os = [x for x in images_by_type if x.os == tgt_os]
+    #else:
+    #    images_by_os = images_by_type
+    #log.info("Filtered images by OS [%s] and found [%d]", tgt_os,
+    #         len(images_by_os))
     valid_images = []
-    for image in images_by_os:
+    for image in images_by_type:
         if type(image) == cb.BaseImageResponse:
             ver_check = [
                 x.version for x in image.__getattribute__(
@@ -774,7 +781,10 @@ def prep_instance_groups(def_key, fullname):
         )
     )
     log.info("Handling Security Rules")
-    sec_group = horton.cbd.extra['groups'][0]['group_id']
+    if horton.cred.cloud_platform == 'AWS':
+        sec_group = horton.cbd.extra['groups'][0]['group_id']
+    elif horton.cred.cloud_platform == 'AZURE':
+        sec_group = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')[0].id   
     if sec_group:
         # Predefined Security Group
         sec_group = cb.SecurityGroupResponse(
@@ -796,7 +806,26 @@ def prep_instance_groups(def_key, fullname):
             log.info("Group [%s] not in demo def, using defaults...", group)
             group_def = {}
         nodes = group_def['nodes'] if 'nodes' in group_def else 1
+        
         machine = group_def['machine'] if 'machine' in group_def else None
+        machine_range = machine.split('-')
+        machine_min = machine_range[0]
+        machine_max = machine_range[1]
+        min_cpu = int(machine_min.split('x')[0]) 
+        max_cpu = int(machine_max.split('x')[0])
+        min_mem = float(machine_min.split('x')[1])
+        max_mem = float(machine_max.split('x')[1])
+        sizes = recs.virtual_machines
+        machines = [
+        x for x in sizes
+        if  min_cpu <= int(x.vm_type_meta_json.properties['Cpu']) <= max_cpu
+        and min_mem <= float(x.vm_type_meta_json.properties['Memory']) <= max_mem
+        ]
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[0].value
+        
         if 'recipe' in group_def and group_def['recipe'] is not None:
             recipes = ['-'.join([fullname, x]) for x in group_def['recipe']]
         else:
@@ -808,9 +837,14 @@ def prep_instance_groups(def_key, fullname):
         else:
             typ = 'CORE'
         disk_types = [x.name for x in recs.disk_responses]
-        vol_type = sorted([
+        vol_type = None
+        vol_types = sorted([
             x for x in disk_types
-            if x in horton.defs[def_key]['infra']['disktypes']])[0]
+            if x in horton.defs[def_key]['infra']['disktypes']])
+        if len(vol_types) == 0:
+            vol_type = disk_types[0]
+        else:
+            vol_type = vol_types[0]
         log.info("selected disk type [%s] from preferred list [%s] out of "
                  "available types [%s]",
                  vol_type, str(horton.defs[def_key]['infra']['disktypes']),
@@ -873,10 +907,6 @@ def prep_stack_specs(def_key, name=None):
             tags['Service'] = 'EphemeralHortonworksCluster'
         horton.specs[fullname].tags = {'userDefinedTags': tags}
 
-    horton.specs[fullname].stack_authentication = \
-        cb.StackAuthenticationResponse(
-                public_key_id=config.profile['sshkey_name']
-            )
     horton.specs[fullname].general = cb.GeneralSettings(
             credential_name=horton.cred.name,
             name=fullname
@@ -886,16 +916,41 @@ def prep_stack_specs(def_key, name=None):
             image_catalog=cat_name,
             image_id=horton.deps[fullname]['images'][0].uuid
         )
-    horton.specs[fullname].placement = cb.PlacementSettings(
+    if horton.cred.cloud_platform == 'AWS':    
+        horton.specs[fullname].stack_authentication = \
+        cb.StackAuthenticationResponse(
+                public_key_id=config.profile['sshkey_name']
+        )
+        horton.specs[fullname].placement = cb.PlacementSettings(
             region=horton.cbd.extra['availability'][:-1],
             availability_zone=horton.cbd.extra['availability']
         )
-    horton.specs[fullname].network = cb.NetworkV2Request(
-        parameters={
-            'subnetId': horton.cbd.extra['subnet_id'],
-            'vpcId': horton.cbd.extra['vpc_id']
-        }
-    )
+        horton.specs[fullname].network = cb.NetworkV2Request(
+            parameters={
+                'subnetId': horton.cbd.extra['subnet_id'],
+                'vpcId': horton.cbd.extra['vpc_id']
+            }
+        )
+    elif horton.cred.cloud_platform == 'AZURE':
+        s_libc = infra.create_libcloud_session()
+        cb_nic = s_libc.ex_list_nics(resource_group=namespace + 'cloudbreak-group')[0]
+        #horton.cbd.extra['location']
+        horton.specs[fullname].stack_authentication = \
+        cb.StackAuthenticationResponse(
+                public_key=config.profile['sshkey_pub']
+        )
+        horton.specs[fullname].placement = cb.PlacementSettings(
+            region='East US',
+            availability_zone='East US'
+        )
+        horton.specs[fullname].network = cb.NetworkV2Request(
+            parameters={
+                'subnetId': namespace + 'cloudbreak-subnet',
+                'networkId': namespace + 'cloudbreak-network',
+                'resourceGroupName': namespace + 'cloudbreak-group'
+            }
+        )
+        
     horton.specs[fullname].cluster = prep_cluster(def_key, fullname)
     log.info("Checking Inputs for Blueprint")
     if 'input' in horton.defs[def_key]:
@@ -1285,6 +1340,27 @@ def add_security_rule(cidr, start, end, protocol):
             },
             sec_group_id=horton.cbd.extra['groups'][0]['group_id']
         )
+    if horton.cred.cloud_platform == 'AZURE':
+        import random
+        priority = random.randint(150,1000)
+        rule = {
+            'location': config.profile.get('platform')['region'],
+            'security_rules': [
+                {
+                    'name': str(start)+'-'+str(end)+'_rule',
+                    'protocol': protocol,
+                    'source_port_range': '*',
+                    'destination_port_range': str(start)+'-'+str(end),
+                    'source_address_prefix': [cidr],
+                    'destination_address_prefix': '*',
+                    'access': 'Allow',
+                    'priority': priority,
+                    'direction': 'Inbound'
+                }
+            ]
+        }
+        sec_group_name = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')[0].name
+        infra.add_create_sec_rule_azure(session=infra.create_azure_security_session(), rule=rule, sec_group_name=sec_group_name)
     else:
         raise ValueError("Cloud Platform not Supported")
 
