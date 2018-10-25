@@ -184,7 +184,7 @@ def print_intro():
     url = 'https://' + public_dns_name + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
     print("\nCloudbreak is available at (browser): " + url)
-    print("Currently Deployed Stacks: " + str(
+    print("Currently Deployed Environments: " + str(
         [x.name for x in deploy.list_stacks()])
           )
     print("\nThe following Definitions are available for Deployment to "
@@ -199,14 +199,17 @@ def user_menu():
         print("\nPlease enter a Definition Name to deploy it: ")
         print("e.g.")
         print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
-        print("\nAlternately type 'help' to see the Definitions again, or "
-              "'exit' to exit gracefully")
+        print("\nAlternately type 'help' to see the Definitions again, 'purge'"
+              " to remove all deployed environments, or 'exit' to exit "
+              "gracefully")
         selected = str(input(">> "))
         if selected in ['list', 'help']:
             print_intro()
         elif selected in ['exit', 'quit']:
             print('\033[1m' + "Exiting Whoville!" + '\033[0m')
             exit(0)
+        elif selected in ['purge']:
+            deploy.purge_cloudbreak(for_reals=True, namespace=horton.namespace)
         elif selected in horton.defs.keys():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")

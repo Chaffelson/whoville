@@ -16,6 +16,7 @@ from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
+from botocore.exceptions import ClientError
 import boto3
 from whoville import config, utils, security
 
@@ -30,7 +31,7 @@ log.setLevel(logging.INFO)
 
 namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
-preferred_cb_ver = '2.7.1'
+preferred_cb_ver = '2.7.2'
 
 
 def create_libcloud_session(provider='EC2'):
@@ -62,7 +63,7 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
 
     cbd_name = namespace + 'cloudbreak'
     cbd = list_nodes(s_libc, {'name': cbd_name})
-    cbd = [x for x in cbd if x.state != 'terminated']
+    cbd = [x for x in cbd if x.state == 'running']
     if cbd:
         if not purge:
             log.info("Cloudbreak [%s] found, returning instance",
@@ -257,27 +258,30 @@ def create_cloudbreak(session, cbd_name):
         session.wait_until_running(nodes=[cbd])
         log.info("Cloudbreak Infra Booted at [%s]", cbd)
         log.info("Assigning Static IP to Cloudbreak")
-        try:
-            static_ips = [x for x in session.ex_describe_all_addresses()
-                          if x.instance_id is None]
-        except InvalidCredsError:
-            static_ips = None
+        client = s_boto3.client('ec2')
+        log.info("Getting list of Unassociated Static Ips")
+        static_ips = [x for x in client.describe_addresses()['Addresses']
+                      if 'AssociationId' not in x.keys()]
         if not static_ips:
-            static_ip = session.ex_allocate_address()
+            static_ip = client.allocate_address()
         else:
             static_ip = static_ips[0]
         if not static_ip:
             raise ValueError("Couldn't get a Static IP for Cloudbreak")
-        session.ex_associate_address_with_node(cbd, static_ip)
-        # Assign Role ARN
-        infra_arn = config.profile['platform']['infraarn']
-        client = s_boto3.client('ec2')
-        client.associate_iam_instance_profile(
-            IamInstanceProfile={
-                'Arn': infra_arn,
-                'Name': infra_arn.rsplit('/')[-1]
-            },
+        log.info("Associating IP %s with Cloudbreak", static_ip['AllocationId'])
+        _ = client.associate_address(
+            AllocationId=static_ip['AllocationId'],
             InstanceId=cbd.id
+        )
+        # Assign Role ARN
+        if 'infraarn' in config.profile['platform']:
+            infra_arn = config.profile['platform']['infraarn']
+            client.associate_iam_instance_profile(
+                IamInstanceProfile={
+                    'Arn': infra_arn,
+                    'Name': infra_arn.rsplit('/')[-1]
+                },
+                InstanceId=cbd.id
         )
         # get updated node information
         cbd = list_nodes(session, {'name': cbd_name})
@@ -427,7 +431,34 @@ def get_aws_node_summary(node_list=None):
     summary = []
     node_list = node_list if node_list else list_all_aws_nodes()
     [[summary.append(
-        {p: q for p, q in y.items() if p in ['Placement', 'State', 'Tags']})
+        {p: q for p, q in y.items() if p in ['InstanceId', 'Placement', 'State', 'Tags']})
       for y in x['Instances']] for x in node_list]
     return summary
 
+
+def remove_aws_termination_protection(key_match, node_summary=None, also_terminate=False):
+    ns = node_summary if node_summary else get_aws_node_summary()
+    tagged = [x for x in ns if 'Tags' in x.keys()]
+    matching = [x for x in tagged if key_match in str(x['Tags'][0])]
+    b3 = create_boto3_session()
+    for instance in matching:
+        i = instance['InstanceId']
+        if instance['State']['Name'] in ['running', 'pending', 'stopping', 'stopped']:
+            log.info("Handling Instance %s", i)
+            try:
+                ec2 = b3.client('ec2', instance['Placement']['AvailabilityZone'][:-1])
+                log.info("Removing Termination Protection on %s", i)
+                ec2.modify_instance_attribute(
+                    InstanceId=i,
+                    DisableApiTermination={'Value': False}
+                )
+            except ClientError as e:
+                raise e
+            if also_terminate:
+                try:
+                    log.info("Attempting termination of %s", i)
+                    ec2.terminate_instances(InstanceIds=[i])
+                except ClientError as e:
+                    log.info("Couldn't terminate %s", i)
+        else:
+            log.info("Instance %s already killed", i)
