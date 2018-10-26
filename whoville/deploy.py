@@ -12,6 +12,7 @@ import logging
 import base64
 import re
 import sys
+import random
 from datetime import datetime, timedelta
 from calendar import timegm
 import json
@@ -592,6 +593,7 @@ def prep_dependencies(def_key, shortname=None):
 def prep_images_dependency(def_key, fullname=None):
     horton = Horton()
     log.info("Prepping valid images for demo spec")
+    stack_defined = True
     cat_name = horton._getr('defs:' + def_key + ':catalog')
     tgt_os = horton._getr('defs:' + def_key + ':infra:os')
     bp_content = utils.load(
@@ -599,8 +601,13 @@ def prep_images_dependency(def_key, fullname=None):
     )
     stack_name = bp_content['Blueprints']['stack_name']
     stack_version = bp_content['Blueprints']['stack_version']
-    ambari_version = horton._getr('defs:' + def_key + ':infra:ambarirepo:ver')
-    stack_version_detail = horton._getr('defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
+    try:
+        ambari_version = horton._getr('defs:' + def_key + ':infra:ambarirepo:version')
+        stack_version_detail = horton._getr('defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
+    except AttributeError:
+        stack_defined = False
+        log.info("Custom repo data not provided, will attempt to use, prewarmed image")
+           
     log.info("fetching stack matrix for name:version [%s]:[%s]",
              stack_name, stack_version)
     stack_matrix = get_stack_matrix()
@@ -616,18 +623,32 @@ def prep_images_dependency(def_key, fullname=None):
     log.info("Fetched images from Cloudbreak [%s]",
              str(images.attribute_map)[:100]
              )
-
-    images_by_type = [
-        x for x in
-        images.__getattribute__(
-            stack_name.lower() + '_images'
-        ) if x.version == ambari_version and x.stack_details.version == stack_version_detail
-    ]
-    if len(images_by_type) == 0:
+    
+    if stack_defined:
+        images_by_type = [
+            x for x in
+            images.__getattribute__(
+                stack_name.lower() + '_images'
+            ) if x.version == ambari_version and x.stack_details.version == stack_version_detail
+        ]
+    else:
+        images_by_type = [
+            x for x in
+            images.__getattribute__(
+                stack_name.lower() + '_images'
+            ) if x.stack_details.version[:3] == stack_version
+        ]
+           
+    if len(images_by_type) == 0 and stack_defined:
+        log.info("No matching prewarmed images found but custom repos are defined, using base image...")
         if horton.cred.cloud_platform == 'AWS':
             images_by_type = [ x for x in images.base_images if x.os == 'redhat7']
         else:
             images_by_type = [ x for x in images.base_images if x.default_image]
+    elif len(images_by_type) > 0:
+        log.info("Custom repos are not defined but prewarmed image matching blueprint is available...")
+    else:
+        raise ValueError("Cloud not find prewarmed image matching blueprint and no custom repos defined...")
     #if tgt_os:
     #    images_by_os = [x for x in images_by_type if x.os == tgt_os]
     #else:
@@ -687,6 +708,21 @@ def prep_cluster(def_key, fullname=None):
             for loc in horton.defs[def_key]['infra']['cloudstor']:
                 cloud_stor.locations.append({
                     "value": "s3a://" + bucket + loc['value'],
+                    "propertyFile": loc['propfile'],
+                    "propertyName": loc['propname']
+                })
+        elif horton.cred.cloud_platform == 'AZURE':
+            bucket = config.profile['bucket']
+            cloud_stor = cb.CloudStorageRequest(
+                wasb=cb.WasbCloudStorageParameters(
+                    account_key=config.profile['bucketkey'],
+                    account_name=bucket
+                ),
+                locations=[]
+            )
+            for loc in horton.defs[def_key]['infra']['cloudstor']:
+                cloud_stor.locations.append({
+                    "value": "wasb://" + bucket + loc['value'],
                     "propertyFile": loc['propfile'],
                     "propertyName": loc['propname']
                 })
@@ -824,8 +860,23 @@ def prep_instance_groups(def_key, fullname):
         if not machines:
             raise ValueError("Couldn't find a VM of the right size")
         else:
-            machine = machines[0].value
-        
+            if horton.cred.cloud_platform == 'AZURE':
+                machines = [
+                x for x in machines
+                if ('Standard_D' in x.value or 'Standard_DS' in x.value)
+                and 'v2' in x.value
+                and not 'Promo' in x.value
+                ]
+                machine = machines[0].value
+            elif horton.cred.cloud_platform == 'AWS':
+                machines = [
+                x for x in machines
+                if ('m' in x.value or 't' in x.value)
+                and not 'm3' in x.value
+                ]
+            else:
+                machine = machines[0].value
+                        
         if 'recipe' in group_def and group_def['recipe'] is not None:
             recipes = ['-'.join([fullname, x]) for x in group_def['recipe']]
         else:
@@ -840,7 +891,9 @@ def prep_instance_groups(def_key, fullname):
         vol_type = None
         vol_types = sorted([
             x for x in disk_types
-            if x in horton.defs[def_key]['infra']['disktypes']])
+            if ('standard' in x.lower() or 'gp2' in x.lower()) 
+            and not 'GRS' in x ] #in horton.defs[def_key]['infra']['disktypes']]
+        )
         if len(vol_types) == 0:
             vol_type = disk_types[0]
         else:
@@ -932,16 +985,15 @@ def prep_stack_specs(def_key, name=None):
             }
         )
     elif horton.cred.cloud_platform == 'AZURE':
-        s_libc = infra.create_libcloud_session()
-        cb_nic = s_libc.ex_list_nics(resource_group=namespace + 'cloudbreak-group')[0]
-        #horton.cbd.extra['location']
+        cb_nic = infra.create_libcloud_session().ex_list_nics(resource_group=namespace + 'cloudbreak-group')[0]
+        
         horton.specs[fullname].stack_authentication = \
         cb.StackAuthenticationResponse(
                 public_key=config.profile['sshkey_pub']
         )
         horton.specs[fullname].placement = cb.PlacementSettings(
-            region='East US',
-            availability_zone='East US'
+            region=config.profile['platform']['region'],
+            availability_zone=config.profile['platform']['region']
         )
         horton.specs[fullname].network = cb.NetworkV2Request(
             parameters={
@@ -1340,27 +1392,27 @@ def add_security_rule(cidr, start, end, protocol):
             },
             sec_group_id=horton.cbd.extra['groups'][0]['group_id']
         )
-    if horton.cred.cloud_platform == 'AZURE':
-        import random
+    elif horton.cred.cloud_platform == 'AZURE':
         priority = random.randint(150,1000)
+        security_rule_name = str(start)+'-'+str(end)+'_rule'
         rule = {
-            'location': config.profile.get('platform')['region'],
-            'security_rules': [
-                {
-                    'name': str(start)+'-'+str(end)+'_rule',
-                    'protocol': protocol,
+                    'protocol': 'Tcp',
                     'source_port_range': '*',
                     'destination_port_range': str(start)+'-'+str(end),
-                    'source_address_prefix': [cidr],
+                    'source_address_prefix': cidr,
                     'destination_address_prefix': '*',
                     'access': 'Allow',
                     'priority': priority,
                     'direction': 'Inbound'
-                }
-            ]
         }
-        sec_group_name = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')[0].name
-        infra.add_create_sec_rule_azure(session=infra.create_azure_security_session(), rule=rule, sec_group_name=sec_group_name)
+        sec_group = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')
+        sec_group_name = sec_group[0].name
+        infra.add_sec_rule_azure(session=infra.create_azure_network_session(),
+                                        resource_group=namespace+'cloudbreak-group',
+                                        sec_group_name=sec_group_name,
+                                        security_rule_name=security_rule_name,
+                                        security_rule_parameters=rule
+                                        )
     else:
         raise ValueError("Cloud Platform not Supported")
 

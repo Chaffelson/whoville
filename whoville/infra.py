@@ -690,13 +690,14 @@ def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
         else:
             raise e
 
-def add_create_sec_rule_azure(session, rule, sec_group_name):
-    sec_group = azure_network_client.network_security_groups.create_or_update(
+def add_sec_rule_azure(session, resource_group, sec_group_name, security_rule_name, security_rule_parameters):
+    sec_rule = session.security_rules.create_or_update(
                 resource_group,
                 sec_group_name,
-                rule
+                security_rule_name,
+                security_rule_parameters
             )
-    return sec_group.result()
+    return sec_rule.result()
 
 # noinspection PyCompatibility
 def deploy_node(session, name, image, machine, deploy, params=None):
