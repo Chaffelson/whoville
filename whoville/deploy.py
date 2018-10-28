@@ -511,6 +511,11 @@ def prep_dependencies(def_key, shortname=None):
                         )
                     )
             if res_type == 'mpack':
+                bp_content = utils.load(
+                    horton.deps[fullname]['blueprint'].ambari_blueprint, decode='base64'
+                )
+                stack_version = bp_content['Blueprints']['stack_version']
+                
                 if dep:
                     deps[res_type].append(dep[0])
                 else:
@@ -518,6 +523,10 @@ def prep_dependencies(def_key, shortname=None):
                         purge_on_install = res['purge_on_install']
                     else:
                         purge_on_install = False
+                    
+                    if horton.cred.cloud_platform == 'AWS' and stack_version == '2.6':
+                        print('')
+                        
                     deps[res_type].append(
                         create_mpack(
                             name=res_name,
