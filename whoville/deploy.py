@@ -524,6 +524,11 @@ def prep_dependencies(def_key, shortname=None):
                         )
                     )
             if res_type == 'mpack':
+                bp_content = utils.load(
+                    deps['blueprint'].ambari_blueprint, decode='base64'
+                )
+                stack_version = bp_content['Blueprints']['stack_version']
+                
                 if dep:
                     deps[res_type].append(dep[0])
                 else:
@@ -531,6 +536,12 @@ def prep_dependencies(def_key, shortname=None):
                         purge_on_install = res['purge_on_install']
                     else:
                         purge_on_install = False
+                    
+                    if horton.cred.cloud_platform == 'AWS' and stack_version == '2.6':
+                        res['url'].replace('centos7','centos6')
+                        res['name'].replace('centos7','centos6')
+                        res['desc'].replace('Centos 7','Centos 6')
+                    
                     deps[res_type].append(
                         create_mpack(
                             name=res_name,
@@ -725,7 +736,9 @@ def prep_cluster(def_key, fullname=None):
                     "propertyName": loc['propname']
                 })
         elif horton.cred.cloud_platform == 'AZURE':
-            bucket = config.profile['bucket']
+            wasb_suffix = '.blob.core.windows.net'
+            bucket = config.profile['bucket'].split('@')[1]
+            container = config.profile['bucket'].split('@')[0]
             cloud_stor = cb.CloudStorageRequest(
                 wasb=cb.WasbCloudStorageParameters(
                     account_key=config.profile['bucketkey'],
@@ -735,7 +748,7 @@ def prep_cluster(def_key, fullname=None):
             )
             for loc in horton.defs[def_key]['infra']['cloudstor']:
                 cloud_stor.locations.append({
-                    "value": "wasb://" + bucket + loc['value'],
+                    "value": "wasb://" + container + '@' + bucket + wasb_suffix + loc['value'],
                     "propertyFile": loc['propfile'],
                     "propertyName": loc['propname']
                 })
