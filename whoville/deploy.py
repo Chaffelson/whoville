@@ -145,6 +145,19 @@ def create_credential(from_profile=False, platform='EC2', name=None,
                 }
             else:
                 raise ValueError("Could not determine Credential Type")
+        elif platform['provider'] == 'GCE':
+            service = 'GCP'
+            if 'apikeypath' in platform:
+                apikey = open(platform['apikeypath'], "r")
+                apikey_encoded = apikey.read().encode()
+                apikey_encoded_base64 = base64.urlsafe_b64encode(apikey_encoded)
+                apikey_encoded_base64_str = str(apikey_encoded_base64).replace("b'","").replace("'","")
+                sub_params = {
+                    'credentialJson': apikey_encoded_base64_str,
+                    'selector': 'credential-json'
+                }
+            else:
+                raise ValueError("Could not determine Credential Type")   
         else:
             raise ValueError("Platform [%s] unsupported", platform)
     else:

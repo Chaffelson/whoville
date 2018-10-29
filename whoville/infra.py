@@ -12,10 +12,12 @@ import logging
 import requests
 from time import sleep
 import socket
+import Crypto
 from libcloud.compute.types import Provider
 from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
+from libcloud.common.google import ResourceNotFoundError
 from libcloud.compute.base import NodeLocation
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.drivers.azure_arm import AzureNodeDriver
@@ -57,6 +59,11 @@ def create_libcloud_session():
                    key=params['application'],
                    secret=params['secret'],
                    region=params['region']
+            )
+    elif provider == 'GCE':
+        return cls(params['serviceaccount'], 
+                   params['apikeypath'], 
+                   project=params['project']
             )
 
 def create_libcloud_storge_session():
@@ -562,27 +569,6 @@ def create_cloudbreak(session, cbd_name):
             )
             nic = nic.result()
         
-        #if len(session.ex_list_public_ips(resource_group)) == 0:
-        #    public_ip = session.ex_create_public_ip(public_ip_name, resource_group, public_ip_allocation_method='Static')
-        #else:
-        #    public_ip = session.ex_list_public_ips(resource_group)[0]
-            
-        #if len(session.ex_list_nics(resource_group)) == 0:
-        #    nic = session.ex_create_network_interface(nic_name, subnet, resource_group, public_ip=public_ip)
-        #else:
-        #    nic = session.ex_list_nics(resource_group)[0]
-        #    nic.public_ip = public_ip
-        
-        #sec_group = session.ex_list_network_security_groups(resource_group)
-        #if not sec_group:
-        #    _ = session.ex_create_network_security_group(
-        #        name=sec_group_name,
-        #        resource_group=resource_group,
-        #   )
-        #    sec_group = session.ex_list_network_security_groups(resource_group)[-1]
-        #else:
-        #    sec_group = sec_group[-1]
-        
         public_ip = public_ip.ip_address
         
         cb_ver = config.profile.get('cloudbreak_ver')
@@ -604,22 +590,7 @@ def create_cloudbreak(session, cbd_name):
         script = '\n'.join(script_lines)
         script = script.encode()
         script = str(base64.urlsafe_b64encode(script)).replace("b'","").replace("'","")
-        #cbd = create_node(
-        #    session=session,
-        #    name=cbd_name,
-        #    image=image,
-        #    machine=machine,
-        #    params={
-        #        'auth': ssh_key,
-        #        'location': session.default_location,
-        #        'ex_storage_account': storage_account_name,
-        #        'ex_resource_group': resource_group,
-        #        'ex_nic': nic,
-        #        'ex_use_managed_disks': True
-        #       #'ex_customdata': script
-        #    }
-        #)
-        
+
         log.info("Creating Virtual Machine...")
         log.info("with custom_data string: " + script)
         azure_compute_client = create_azure_compute_session()
@@ -666,8 +637,145 @@ def create_cloudbreak(session, cbd_name):
         
         log.info("Waiting for Cloudbreak Instance to be Available...")
         cbd.wait()
-        #session.wait_until_running(nodes=[cbd])
+
+        cbd = list_nodes(session, {'name': cbd_name})
+        cbd = [x for x in cbd if x.state == 'running']
+        if cbd:
+            return cbd[0]
+        else:
+            raise ValueError("Failed to create new Cloubreak Instance")
+    elif session.type == 'gce': 
+        project = config.profile['project']
+        region = config.profile['region']
+        namespace = config.profile['namespace']
+        cbd_name = namespace+'cloudbreak'
+        public_ip_name = namespace+'cloudbreak-public-ip'
+        subnet_name = namespace+'cloudbreak-subnet'
+        firewall_name = namespace+'cloudbreak-secgroup'
+        ssh_key = config.profile['sshkey_pub']
         
+        log.info("Looking for existing network...")
+        networks = session.ex_list_networks()
+        network = [
+            x for x in networks
+            if x.mode == 'auto' 
+            ]
+        if not network:
+            raise ValueError("There should be at least one network, this "
+                 "is rather unexpected")
+        else:
+            network = network[-1]
+            log.info("Found network: " + network.name)
+        
+        log.info("Looking for existing subnets...")
+        subnets = session.ex_list_subnetworks(region=region)
+        subnet = [
+            x for x in subnets
+            if x.name == 'default'
+            ]
+        if not subnet:
+            session.ex_create_subnetwork(name=subnet_name,region=region,network=network)
+        else:
+            subnet = subnet[-1]
+            subnet_name = subnet.name
+            log.info("Found existing subnet called: " + subnet_name)
+        
+        log.info("Getting Public IP...")
+        public_ip = session.ex_get_address(name=public_ip_name,region=region)
+        if not public_ip:
+            public_ip = session.ex_create_address(name=public_ip_name, region=region)
+        else:
+             log.info("Found existing Public IP matching name: " + public_ip_name)   
+        
+        images = session.list_images()
+        image = [
+            x for x in images 
+            if x.extra['family'] == 'centos-7' 
+            and 'centos-7' in x.name 
+            ]
+        
+        zones = session.ex_list_zones()
+        zone = [
+            x for x in zones
+            if region in x.name
+            and x.status == 'UP'
+            ]
+        if not zone:
+            raise ValueError("Couldn't find a zone for the requested region...")
+        else:
+            zone = zone[-1]
+        
+        if not image:
+            raise ValueError("Couldn't find a valid Centos7 Image")
+        else:
+            image = image[-1]
+        
+        machines = list_sizes_gce(
+            session, location=region, cpu_min=4, cpu_max=4, mem_min=13000, mem_max=20000
+        )
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[-1]
+        
+        log.info("Creating Security Group...")
+        try:
+            firewall = session.ex_get_firewall(name=firewall_name)
+            log.info("Found existing firewall definition called: " + firewall_name)
+        except ResourceNotFoundError:
+            log.info("Creating new firewall definition called: " + firewall_name)
+            net_rules = [
+                            {'IPProtocol': 'tcp',
+                             'ports': ['22','443','9443']
+                            }
+                        ]
+            firewall = session.ex_create_firewall(name=firewall_name,                                        
+                                               network=network,  
+                                               allowed=net_rules,
+                                               target_tags=[cbd_name]
+                                            )
+        
+        cb_ver = config.profile.get('cloudbreak_ver')
+        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
+        script_lines = [
+                    "#!/bin/bash",
+                    "cd /root",
+                    "export cb_ver=" + cb_ver,
+                    "export uaa_secret=" + security.get_secret('masterkey'),
+                    "export uaa_default_pw=" + security.get_secret('password'),
+                    "export uaa_default_email=" + config.profile['email'],
+                    "export public_ip=" + public_ip.address,
+                    "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+                    "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+                ]
+        script = '\n'.join(script_lines)
+        
+        metadata =  {
+                        'items': [
+                            {
+                                'key': 'startup-script',
+                                'value': script
+                            },
+                            {
+                                'key': 'ssh-keys',
+                                'value': 'centos:' + ssh_key
+                            }
+                        ]
+                    }   
+        
+        log.info("Creating Cloudbreak instance...")
+        cbd = session.create_node(name=cbd_name, 
+                    size=machine, 
+                    image=image, 
+                    location=zone, 
+                    ex_network=network,
+                    external_ip=public_ip, 
+                    ex_metadata=metadata,
+                    ex_tags=[cbd_name]
+                )
+        
+        log.info("Waiting for Cloudbreak Instance to be Available...")
+        session.wait_until_running(nodes=[cbd])
         cbd = list_nodes(session, {'name': cbd_name})
         cbd = [x for x in cbd if x.state == 'running']
         if cbd:
@@ -675,7 +783,7 @@ def create_cloudbreak(session, cbd_name):
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
     else:
-        raise ValueError("Cloudbreak AutoDeploy only supported on EC2 and AzureVM")
+        raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, and GCE")
  
 
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
@@ -699,6 +807,11 @@ def add_sec_rule_azure(session, resource_group, sec_group_name, security_rule_na
             )
     return sec_rule.result()
 
+def add_sec_rule_gce(session, sec_group_name, security_rule):
+    firewall = session.ex_get_firewall(name=sec_group_name)
+    firewall.allowed.append(security_rule)
+    session.ex_update_firewall(firewall)
+    
 # noinspection PyCompatibility
 def deploy_node(session, name, image, machine, deploy, params=None):
     obj = {
@@ -746,6 +859,17 @@ def list_sizes_azure(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768
         if mem_min <= x.ram <= mem_max
         and cpu_min <= x.extra['numberOfCores'] <= cpu_max
         and disk_min <= x.disk <= disk_max
+    ]
+    return machines
+
+def list_sizes_gce(session, location=None, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
+               disk_min=0, disk_max=10475520):
+    sizes = session.list_sizes(location=location)
+    machines = [
+        x for x in sizes
+        if mem_min <= x.ram <= mem_max
+        and cpu_min <= x.extra['guestCpus'] <= cpu_max
+        and location in x.extra['zone'].extra['description'] 
     ]
     return machines
 

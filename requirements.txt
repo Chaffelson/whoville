@@ -12,3 +12,5 @@ azure-mgmt-network>=1.0.0
 azure-mgmt-compute>=2.0.0
 azure-mgmt-storage>=2.0.0
 azure-mgmt-consumption>=1.0.0
+google-api-python-client>=1.7
+pycrypto>=0.1
