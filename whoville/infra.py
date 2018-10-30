@@ -645,8 +645,8 @@ def create_cloudbreak(session, cbd_name):
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
     elif session.type == 'gce': 
-        project = config.profile['project']
-        region = config.profile['region']
+        project = config.profile['platform']['project']
+        region = config.profile['platform']['region']
         namespace = config.profile['namespace']
         cbd_name = namespace+'cloudbreak'
         public_ip_name = namespace+'cloudbreak-public-ip'
@@ -681,12 +681,13 @@ def create_cloudbreak(session, cbd_name):
             log.info("Found existing subnet called: " + subnet_name)
         
         log.info("Getting Public IP...")
-        public_ip = session.ex_get_address(name=public_ip_name,region=region)
-        if not public_ip:
+        try:
+            public_ip = session.ex_get_address(name=public_ip_name,region=region)
+            log.info("Found existing Public IP matching name: " + public_ip_name)
+        except ResourceNotFoundError:
             public_ip = session.ex_create_address(name=public_ip_name, region=region)
-        else:
-             log.info("Found existing Public IP matching name: " + public_ip_name)   
-        
+            log.info("Creating new Public IP with name: " + public_ip_name)
+            
         images = session.list_images()
         image = [
             x for x in images 
