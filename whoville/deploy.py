@@ -524,11 +524,6 @@ def prep_dependencies(def_key, shortname=None):
                         )
                     )
             if res_type == 'mpack':
-                bp_content = utils.load(
-                    deps['blueprint'].ambari_blueprint, decode='base64'
-                )
-                stack_version = bp_content['Blueprints']['stack_version']
-                
                 if dep:
                     deps[res_type].append(dep[0])
                 else:
@@ -536,12 +531,6 @@ def prep_dependencies(def_key, shortname=None):
                         purge_on_install = res['purge_on_install']
                     else:
                         purge_on_install = False
-                    
-                    if horton.cred.cloud_platform == 'AWS' and stack_version == '2.6':
-                        res['url'].replace('centos7','centos6')
-                        res['name'].replace('centos7','centos6')
-                        res['desc'].replace('Centos 7','Centos 6')
-                    
                     deps[res_type].append(
                         create_mpack(
                             name=res_name,
@@ -736,9 +725,7 @@ def prep_cluster(def_key, fullname=None):
                     "propertyName": loc['propname']
                 })
         elif horton.cred.cloud_platform == 'AZURE':
-            wasb_suffix = '.blob.core.windows.net'
-            bucket = config.profile['bucket'].split('@')[1]
-            container = config.profile['bucket'].split('@')[0]
+            bucket = config.profile['bucket']
             cloud_stor = cb.CloudStorageRequest(
                 wasb=cb.WasbCloudStorageParameters(
                     account_key=config.profile['bucketkey'],
@@ -748,7 +735,21 @@ def prep_cluster(def_key, fullname=None):
             )
             for loc in horton.defs[def_key]['infra']['cloudstor']:
                 cloud_stor.locations.append({
-                    "value": "wasb://" + container + '@' + bucket + wasb_suffix + loc['value'],
+                    "value": "wasb://" + bucket + loc['value'],
+                    "propertyFile": loc['propfile'],
+                    "propertyName": loc['propname']
+                })
+        elif horton.cred.cloud_platform == 'GCP':
+            bucket = config.profile['bucket']
+            cloud_stor = cb.CloudStorageRequest(
+                gcs=cb.GcsCloudStorageParameters(
+                    service_account_email=config.profile['bucketrole']
+                ),
+                locations=[]
+            )
+            for loc in horton.defs[def_key]['infra']['cloudstor']:
+                cloud_stor.locations.append({
+                    "value": "gs://" + bucket + loc['value'],
                     "propertyFile": loc['propfile'],
                     "propertyName": loc['propname']
                 })
@@ -827,8 +828,13 @@ def prep_cluster(def_key, fullname=None):
 def prep_instance_groups(def_key, fullname):
     horton = Horton()
     log.info("Prepping instance groups")
-    region = horton.specs[fullname].placement.region
-    avzone = horton.specs[fullname].placement.availability_zone
+    try:
+        region = horton.specs[fullname].placement.region
+        avzone = horton.specs[fullname].placement.availability_zone
+    except AttributeError:
+        region = horton.cbd.extra['zone'].extra['region']
+        avzone = horton.cbd.extra['zone'].name
+        
     log.info("Fetching Infrastructure recommendation for "
              "credential[%s]:blueprint[%s]:region[%s]:availability zone[%s]",
              horton.cred.name, horton.deps[fullname]['blueprint'].name,
@@ -847,6 +853,8 @@ def prep_instance_groups(def_key, fullname):
         sec_group = horton.cbd.extra['groups'][0]['group_id']
     elif horton.cred.cloud_platform == 'AZURE':
         sec_group = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')[0].id   
+    elif horton.cred.cloud_platform == 'GCP':
+        sec_group = infra.create_libcloud_session().ex_get_firewall(name=namespace + 'cloudbreak-secgroup').name
     if sec_group:
         # Predefined Security Group
         sec_group = cb.SecurityGroupResponse(
@@ -1026,6 +1034,25 @@ def prep_stack_specs(def_key, name=None):
                 'subnetId': namespace + 'cloudbreak-subnet',
                 'networkId': namespace + 'cloudbreak-network',
                 'resourceGroupName': namespace + 'cloudbreak-group'
+            }
+        )
+    elif horton.cred.cloud_platform == 'GCP':        
+        horton.specs[fullname].stack_authentication = \
+        cb.StackAuthenticationResponse(
+                public_key=config.profile['sshkey_pub']
+        )
+        horton.specs[fullname].placement = cb.PlacementSettings(
+            region=config.profile['platform']['region'],
+            availability_zone=horton.cbd.extra['zone'].name
+        )
+        subnet_path = horton.cbd.extra['networkInterfaces'][0]['subnetwork'].split('/')
+        subnet_id = subnet_path[len(subnet_path)-1]
+        network_path = horton.cbd.extra['networkInterfaces'][0]['network'].split('/')
+        network_id = network_path[len(network_path)-1]
+        horton.specs[fullname].network = cb.NetworkV2Request(
+            parameters={
+                'subnetId': subnet_id,
+                'networkId': network_id
             }
         )
         
@@ -1439,6 +1466,16 @@ def add_security_rule(cidr, start, end, protocol):
                                         security_rule_name=security_rule_name,
                                         security_rule_parameters=rule
                                         )
+    elif horton.cred.cloud_platform == 'GCP':
+        number_of_ports = end - start 
+        if  number_of_ports < 100:
+            session=infra.create_libcloud_session()
+            rule = {'IPProtocol': 'tcp','ports': [str(start)+'-'+str(end)]}
+            firewall = session.ex_get_firewall(name=namespace + 'cloudbreak-secgroup')
+            firewall.allowed.append(rule)
+            session.ex_update_firewall(firewall)
+        else:
+            log.info("Due to firewall rule structure of GCP, this action would cause >= 100 ports to be open to 0.0.0.0... skipping" )
     else:
         raise ValueError("Cloud Platform not Supported")
 
