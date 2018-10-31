@@ -647,7 +647,6 @@ def create_cloudbreak(session, cbd_name):
     elif session.type == 'gce': 
         project = config.profile['platform']['project']
         region = config.profile['platform']['region']
-        namespace = config.profile['namespace']
         cbd_name = namespace+'cloudbreak'
         public_ip_name = namespace+'cloudbreak-public-ip'
         subnet_name = namespace+'cloudbreak-subnet'
