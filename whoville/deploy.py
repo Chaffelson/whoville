@@ -725,7 +725,10 @@ def prep_cluster(def_key, fullname=None):
                     "propertyName": loc['propname']
                 })
         elif horton.cred.cloud_platform == 'AZURE':
-            bucket = config.profile['bucket']
+            wasb_suffix = '.blob.core.windows.net'
+            storage_location = config.profile['bucket'].split('@') 
+            bucket = storage_location[1]
+            container = storage_location[0]
             cloud_stor = cb.CloudStorageRequest(
                 wasb=cb.WasbCloudStorageParameters(
                     account_key=config.profile['bucketkey'],
@@ -735,7 +738,7 @@ def prep_cluster(def_key, fullname=None):
             )
             for loc in horton.defs[def_key]['infra']['cloudstor']:
                 cloud_stor.locations.append({
-                    "value": "wasb://" + bucket + loc['value'],
+                    "value": "wasb://" + container + '@' + bucket + wasb_suffix + loc['value'],
                     "propertyFile": loc['propfile'],
                     "propertyName": loc['propname']
                 })
@@ -908,6 +911,13 @@ def prep_instance_groups(def_key, fullname):
                 if ('m' in x.value or 't' in x.value)
                 and not 'm3' in x.value
                 ]
+                machine = machines[0].value
+            elif horton.cred.cloud_platform == 'GCP':
+                machines = [
+                x for x in machines
+                if ('n' in x.value)
+                ]
+                machine = machines[0].value
             else:
                 machine = machines[0].value
                         
