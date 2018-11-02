@@ -39,7 +39,7 @@ log.setLevel(logging.INFO)
 
 namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
-preferred_cb_ver = '2.7.1'
+preferred_cb_ver = '2.7.2'
 
 def create_libcloud_session():
     provider = config.profile.get('platform')['provider']
