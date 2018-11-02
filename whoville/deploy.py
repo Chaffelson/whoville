@@ -679,7 +679,7 @@ def prep_images_dependency(def_key, fullname=None):
             if ver_check:
                 valid_images.append(image)
         elif type(image) == cb.ImageResponse:
-            if image.stack_details.version == stack_root.version:
+            if image.stack_details.version[:3] == stack_version:
                 valid_images.append(image)
 
     if valid_images:
