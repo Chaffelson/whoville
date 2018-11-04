@@ -96,6 +96,8 @@ def service_login(service='cloudbreak', username=None, password=None,
                  '"password":"' + password + '"}'),
             ]
         )
+        if not 'Location' in resp.headers:
+            raise("Unexpected Response from Server, got: %s", str(resp.headers))
         try:
             token = parse.parse_qs(resp.headers['Location'])['access_token'][0]
             # Todo: get the expiry and set into config as well
