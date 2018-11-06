@@ -259,7 +259,9 @@ def get_val(root, items, sep='.', **kwargs):
     """
     assert isinstance(items, (list, six.string_types))
     for key in items if isinstance(items, list) else items.split(sep):
-        if isinstance(root, list):
+        if root is None:
+            return root
+        elif isinstance(root, list):
             if '|' not in key:
                 raise ValueError("Found list but key {0} does not match list "
                                  "filter format 'x|y'".format(key))

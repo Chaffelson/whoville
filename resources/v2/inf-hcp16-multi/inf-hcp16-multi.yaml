@@ -14,9 +14,6 @@ input:
   nifi.registry.security.encrypt.configuration.password: CALL:security.generate_password
   nifi.registry.sensitive.props.key: CALL:security.generate_passphrase
   ranger.kms.password: CALL:security.generate_password
-infra:
-  disktypes: [gp2, standard]
-  os: redhat7
 blueprint:
   name: blueprint.json
 recipe:
@@ -36,62 +33,62 @@ group:
   master2:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.2xlarge
+    machine: 4x28-8x32
     nodes: 1
   master1:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.2xlarge
+    machine: 4x28-8x32
     nodes: 1
   solr:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1
   ambari:
     recipe: [noexec-tmp, metron-db-setup, mysql-client, requests-upgrade, allow-renewable]
     type: GATEWAY
-    machine: m5.2xlarge
+    machine: 4x28-8x32
     nodes: 1
   worker:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1
   metron:
     recipe: [noexec-tmp, nodejs, requests-upgrade, mysql-client]
     type: CORE
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1
   hbase:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1
   kafka:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.2xlarge
+    machine: 4x28-8x32
     nodes: 1
   streaming:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1
   zookeeper:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.2xlarge
+    machine: 4x28-8x32
     nodes: 1
   master3:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.2xlarge
+    machine: 4x28-8x32
     nodes: 1
   nifi:
     recipe: [noexec-tmp]
     type: CORE
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1
 mpack:
 - name: hdp-search

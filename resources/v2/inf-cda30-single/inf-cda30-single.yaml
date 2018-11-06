@@ -24,7 +24,7 @@ blueprint:
   name: blueprint.json
 group:
   master:
-    machine: m5.2xlarge
+    machine: 4x28-8x32
 mpack:
 - name: hdf320
   desc: HDF 3.2.0

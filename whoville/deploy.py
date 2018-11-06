@@ -12,7 +12,6 @@ import logging
 import base64
 import re
 import sys
-import random
 from datetime import datetime, timedelta
 from calendar import timegm
 import json
@@ -35,7 +34,7 @@ __all__ = [
     'prep_images_dependency', 'prep_stack_specs', 'purge_resource',
     'prep_instance_groups', 'create_stack', 'delete_stack',
     'delete_credential', 'get_events', 'monitor_event_stream',
-    'create_auth_conf', 'delete_auth_conf', 'list_auth_confs'
+    'create_auth_conf', 'delete_auth_conf', 'list_auth_confs', 'Horton'
 ]
 
 log = logging.getLogger(__name__)
@@ -48,12 +47,12 @@ sep = ':'
 # All Stack statuses, taken from cloudbreak/models/StackResponse/status
 # and cloudbreak/model/ClusterResponse/status
 stack_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
-             "UPDATE_IN_PROGRESS", "UPDATE_REQUESTED", "UPDATE_FAILED",
-             "CREATE_FAILED", "ENABLE_SECURITY_FAILED",
-             "PRE_DELETE_IN_PROGRESS", "DELETE_IN_PROGRESS", "DELETE_FAILED",
-             "DELETE_COMPLETED", "STOPPED", "STOP_REQUESTED",
-             "START_REQUESTED", "STOP_IN_PROGRESS", "START_IN_PROGRESS",
-             "START_FAILED", "STOP_FAILED", "WAIT_FOR_SYNC"]
+              "UPDATE_IN_PROGRESS", "UPDATE_REQUESTED", "UPDATE_FAILED",
+              "CREATE_FAILED", "ENABLE_SECURITY_FAILED",
+              "PRE_DELETE_IN_PROGRESS", "DELETE_IN_PROGRESS", "DELETE_FAILED",
+              "DELETE_COMPLETED", "STOPPED", "STOP_REQUESTED",
+              "START_REQUESTED", "STOP_IN_PROGRESS", "START_IN_PROGRESS",
+              "START_FAILED", "STOP_FAILED", "WAIT_FOR_SYNC"]
 
 cluster_resp = ["REQUESTED", "CREATE_IN_PROGRESS", "AVAILABLE",
                 "UPDATE_IN_PROGRESS", "UPDATE_REQUESTED", "UPDATE_FAILED",
@@ -97,7 +96,7 @@ class Horton:
 
         Args:
             keys (str): dot notation string of the key for the value to be
-                retrieved. e.g 'secret.cloudbreak.hostnme'
+                retrieved. e.g 'secret.cloudbreak.hostname'
 
         Returns:
             The value if found, or None if not
@@ -150,14 +149,16 @@ def create_credential(from_profile=False, platform='EC2', name=None,
             if 'apikeypath' in platform:
                 apikey = open(platform['apikeypath'], "r")
                 apikey_encoded = apikey.read().encode()
-                apikey_encoded_base64 = base64.urlsafe_b64encode(apikey_encoded)
-                apikey_encoded_base64_str = str(apikey_encoded_base64).replace("b'","").replace("'","")
+                apikey_encoded_base64 = base64.urlsafe_b64encode(
+                    apikey_encoded)
+                apikey_encoded_base64_str = str(
+                    apikey_encoded_base64).replace("b'","").replace("'","")
                 sub_params = {
                     'credentialJson': apikey_encoded_base64_str,
                     'selector': 'credential-json'
                 }
             else:
-                raise ValueError("Could not determine Credential Type")   
+                raise ValueError("Could not determine Credential Type")
         else:
             raise ValueError("Platform [%s] unsupported", platform)
     else:
@@ -419,7 +420,8 @@ def prep_dependencies(def_key, shortname=None):
     log.info("---- Preparing Dependencies for Definition [%s] with Name "
              "override [%s]", def_key, shortname)
     horton = Horton()
-    supported_resouces = ['recipe', 'blueprint', 'catalog', 'mpack', 'auth', 'rds']
+    supported_resouces = ['recipe', 'blueprint', 'catalog', 'mpack', 'auth',
+                          'rds']
     current = {
         'blueprint': list_blueprints(),
         'recipe': list_recipes(),
@@ -455,7 +457,9 @@ def prep_dependencies(def_key, shortname=None):
                 break
             log.info("checking Resource type [%s]", res_type)
             if 'name' in res and res['name']:
-                if res_type not in ['blueprint']:
+                if res_type == 'auth':
+                    res_name = horton.namespace + 'auth'
+                elif res_type not in ['blueprint']:
                     res_name = '-'.join([fullname, res['name']])
                 else:
                     res_name = fullname
@@ -483,14 +487,11 @@ def prep_dependencies(def_key, shortname=None):
                 # Treat everything as a list for simplicity
                 deps[res_type] = []
             if res_type == 'blueprint':
-                try:
-                    isDatalake = res['datalake']
-                except KeyError:
-                    isDatalake = False
-                if isDatalake:
-                    tags={'shared_services_ready': True}
+                datalake = res['datalake'] if 'datalake' in res else False
+                if datalake:
+                    tags = {'shared_services_ready': True}
                 else:
-                    tags=None   
+                    tags = None
                 if dep:
                     deps[res_type] = dep[0]
                 else:
@@ -541,18 +542,12 @@ def prep_dependencies(def_key, shortname=None):
                     )
             if res_type == 'auth':
                 if horton.cache['LDAPPUBLICIP']:
-                    auth_name = namespace+res['name']
                     auth_configs = dict()
-                    for config in current[res_type]:
-                        key = config.__getattribute__("name")
-                        auth_configs[key] = config
-                    try:
-                        if auth_configs[auth_name]:
-                            authExists = True
-                    except KeyError:
-                        authExists = False
-                    if authExists:
-                        deps[res_type].append(auth_configs[auth_name])
+                    for conf in current[res_type]:
+                        key = conf.__getattribute__("name")
+                        auth_configs[key] = conf
+                    if res_name in auth_configs:
+                        deps[res_type].append(auth_configs[res_name])
                     else:
                         if 'params' in res:
                             params = res['params']
@@ -560,29 +555,31 @@ def prep_dependencies(def_key, shortname=None):
                             params = None
                         deps[res_type].append(
                             create_auth_conf(
-                                name=auth_name,
+                                name=res_name,
                                 host=horton.cache['LDAPPUBLICIP'],
                                 params=params
                             )
                         )
                 else:
-                    log.info("Auth resource is requested in def but no DPS is available, skipping...")
+                    log.info("Auth resource is requested in def but no DPS is "
+                             "available, skipping...")
             if res_type == 'rds':
                 if horton.cache['RDSPUBLICIP']:
                     rds_configs = dict()
                     if len(current[res_type]) > 0:
-                        for config in current[res_type]:
-                            key = config.__getattribute__("type")
-                            rds_configs[key] = config
+                        for conf in current[res_type]:
+                            key = conf.__getattribute__("type")
+                            rds_configs[key] = conf
                     if len(res['service']) > 0:
                         for rds_service in res['service']:
-                            try: 
+                            try:
                                 if rds_configs[rds_service]:
-                                    deps[res_type].append(rds_configs[rds_service])
+                                    deps[res_type].append(
+                                        rds_configs[rds_service])
                             except KeyError:
                                 deps[res_type].append(
                                     create_rds_conf(
-                                            name=namespace+res['name']+rds_service,
+                                            name=res_name + rds_service,
                                             host=horton.cache['RDSPUBLICIP'],
                                             port=horton.cache['RDSPORT'],
                                             rds_type=rds_service,
@@ -591,7 +588,8 @@ def prep_dependencies(def_key, shortname=None):
                                     )
                                 )
                 else:
-                    log.info("Rds resource is requested in def but no DPS is available, skipping...")
+                    log.info("Rds resource is requested in def but no DPS is "
+                             "available, skipping...")
     horton.deps[fullname] = deps
     prep_images_dependency(def_key, fullname)
     gateway_group_name = [
@@ -606,21 +604,21 @@ def prep_dependencies(def_key, shortname=None):
 def prep_images_dependency(def_key, fullname=None):
     horton = Horton()
     log.info("Prepping valid images for demo spec")
-    stack_defined = True
     cat_name = horton._getr('defs:' + def_key + ':catalog')
-    tgt_os = horton._getr('defs:' + def_key + ':infra:os')
     bp_content = utils.load(
         horton.deps[fullname]['blueprint'].ambari_blueprint, decode='base64'
     )
     stack_name = bp_content['Blueprints']['stack_name']
     stack_version = bp_content['Blueprints']['stack_version']
     try:
-        ambari_version = horton._getr('defs:' + def_key + ':infra:ambarirepo:version')
-        stack_version_detail = horton._getr('defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
+        ambari_version = horton._getr(
+            'defs:' + def_key + ':infra:ambarirepo:version')
+        stack_version_detail = horton._getr(
+            'defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
     except AttributeError:
-        stack_defined = False
-        log.info("Custom repo data not provided, will attempt to use, prewarmed image")
-           
+        log.info("Custom repo data not provided, will attempt to use, "
+                 "prewarmed image")
+        ambari_version = stack_version_detail = None
     log.info("fetching stack matrix for name:version [%s]:[%s]",
              stack_name, stack_version)
     stack_matrix = get_stack_matrix()
@@ -636,13 +634,12 @@ def prep_images_dependency(def_key, fullname=None):
     log.info("Fetched images from Cloudbreak [%s]",
              str(images.attribute_map)[:100]
              )
-    
-    if stack_defined:
+    if ambari_version and stack_version_detail:
         images_by_type = [
             x for x in
-            images.__getattribute__(
-                stack_name.lower() + '_images'
-            ) if x.version == ambari_version and x.stack_details.version == stack_version_detail
+            images.__getattribute__(stack_name.lower() + '_images')
+            if x.version == ambari_version
+            and x.stack_details.version == stack_version_detail
         ]
     else:
         images_by_type = [
@@ -651,23 +648,23 @@ def prep_images_dependency(def_key, fullname=None):
                 stack_name.lower() + '_images'
             ) if x.stack_details.version[:3] == stack_version
         ]
-           
-    if len(images_by_type) == 0 and stack_defined:
-        log.info("No matching prewarmed images found but custom repos are defined, using base image...")
+    if len(images_by_type) == 0 and stack_version_detail:
+        log.info("No matching prewarmed images found but custom repos are "
+                 "defined, using base image...")
         if horton.cred.cloud_platform == 'AWS':
-            images_by_type = [ x for x in images.base_images if x.os == 'redhat7']
+            images_by_type = [
+                x for x in images.base_images if x.os == 'redhat7'
+            ]
         else:
-            images_by_type = [ x for x in images.base_images if x.default_image]
+            images_by_type = [
+                x for x in images.base_images if x.default_image
+            ]
     elif len(images_by_type) > 0:
-        log.info("Custom repos are not defined but prewarmed image matching blueprint is available...")
+        log.info("Custom repos are not defined but prewarmed image matching "
+                 "blueprint is available...")
     else:
-        raise ValueError("Cloud not find prewarmed image matching blueprint and no custom repos defined...")
-    #if tgt_os:
-    #    images_by_os = [x for x in images_by_type if x.os == tgt_os]
-    #else:
-    #    images_by_os = images_by_type
-    #log.info("Filtered images by OS [%s] and found [%d]", tgt_os,
-    #         len(images_by_os))
+        raise ValueError("Cloud not find prewarmed image matching blueprint "
+                         "and no custom repos defined...")
     valid_images = []
     for image in images_by_type:
         if type(image) == cb.BaseImageResponse:
@@ -709,7 +706,9 @@ def prep_cluster(def_key, fullname=None):
     stack_version = bp_content['Blueprints']['stack_version']
 
     # Cloud Storage
-    if 'cloudstor' in horton.defs[def_key]['infra']:
+    # if 'infra' in horton.defs[def_key] \
+    #         and 'cloudstor' in horton.defs[def_key]['infra']:
+    if horton._getr('defs:' + def_key + ':infra:cloudstor'):
         if horton.cred.cloud_platform == 'AWS':
             bucket = config.profile['bucket']
             if 'bucketrole' in config.profile:
@@ -732,10 +731,11 @@ def prep_cluster(def_key, fullname=None):
                         "propertyName": loc['propname']
                     })
             else:
-                raise ValueError("AWS Cloudstor defined in Demo but no AWS Role found")
+                raise ValueError("AWS Cloudstor defined in Demo but no AWS "
+                                 "Role found")
         elif horton.cred.cloud_platform == 'AZURE':
             wasb_suffix = '.blob.core.windows.net'
-            storage_location = config.profile['bucket'].split('@') 
+            storage_location = config.profile['bucket'].split('@')
             bucket = storage_location[1]
             container = storage_location[0]
             cloud_stor = cb.CloudStorageRequest(
@@ -747,7 +747,8 @@ def prep_cluster(def_key, fullname=None):
             )
             for loc in horton.defs[def_key]['infra']['cloudstor']:
                 cloud_stor.locations.append({
-                    "value": "wasb://" + container + '@' + bucket + wasb_suffix + loc['value'],
+                    "value": "wasb://" + container
+                             + '@' + bucket + wasb_suffix + loc['value'],
                     "propertyFile": loc['propfile'],
                     "propertyName": loc['propname']
                 })
@@ -787,22 +788,25 @@ def prep_cluster(def_key, fullname=None):
                     user_name=config.profile['username'],
                     password=security.get_secret('password'),
                     validate_blueprint=False,  # Hardcoded?
-                    ambari_security_master_key=security.get_secret('masterkey'),
+                    ambari_security_master_key=security.get_secret(
+                        'masterkey'),
                     kerberos=None,
                     enable_security=False  # Hardcoded?
                 ),
                 cloud_storage=cloud_stor
             )
-    if 'auth' in horton.defs[def_key] and 'name' in horton.defs[def_key]['auth']:
-        #cluster_req.ldap_config_name = '-'.join([fullname, horton.defs[def_key]['auth']['name']])
-        cluster_req.ldap_config_name = namespace+"auth"
+    if 'auth' in horton.defs[def_key] \
+            and 'name' in horton.defs[def_key]['auth']:
+        cluster_req.ldap_config_name = namespace + "auth"
         cluster_req.proxy_name = None
     if 'rds' in horton.defs[def_key]:
         if len(horton.deps[fullname]['rds']) > 0:
             rds_config_names = []
             for rds_config in horton.deps[fullname]['rds']:
-                if horton.defs[def_key]['rds']['service'][rds_config.__getattribute__("type")]:
-                    rds_config_names.append(rds_config.__getattribute__("name"))    
+                rds_type = rds_config.__getattribute__("type")
+                if horton.defs[def_key]['rds']['service'][rds_type]:
+                    rds_name = rds_config.__getattribute__("name")
+                    rds_config_names.append(rds_name)
             cluster_req.rds_config_names = rds_config_names
     if 'proxy' in horton.defs[def_key] and horton.defs[def_key]['proxy']:
         cluster_req.ambari.gateway = cb.GatewayJson(
@@ -815,25 +819,32 @@ def prep_cluster(def_key, fullname=None):
                 )
             ]
         )
-    if 'stackrepo' in horton.defs[def_key]['infra']:
-        cluster_req.ambari.ambari_stack_details.repository_version = horton.defs[def_key]['infra']['stackrepo']['ver']
-        cluster_req.ambari.ambari_stack_details.version_definition_file_url = horton.defs[def_key]['infra']['stackrepo']['url']
-    if 'ambarirepo' in horton.defs[def_key]['infra']:
+    # if 'stackrepo' in horton.defs[def_key]['infra']:
+    if horton._getr('defs:' + def_key + ':infra:stackrepo'):
+        cluster_req.ambari.ambari_stack_details.repository_version = \
+            horton.defs[def_key]['infra']['stackrepo']['ver']
+        cluster_req.ambari.ambari_stack_details.version_definition_file_url = \
+            horton.defs[def_key]['infra']['stackrepo']['url']
+    # if 'ambarirepo' in horton.defs[def_key]['infra']:
+    if horton._getr('defs:' + def_key + ':infra:ambarirepo'):
         ambari_repo = {
-            x: y for x, y in horton.defs[def_key]['infra']['ambarirepo'].items()
+            x: y for x, y
+            in horton.defs[def_key]['infra']['ambarirepo'].items()
         }
         cluster_req.ambari.ambari_repo_details_json = ambari_repo
-    if 'krb' in horton.defs[def_key]:
-        if horton.defs[def_key]['krb'] and 'mode' in horton.defs[def_key]['krb']:
-            if not horton.defs[def_key]['krb']['mode'] == 'test':
-                raise ValueError("Kerberising in Cloudbreak Test Mode Only")
-            cluster_req.ambari.enable_security = True
-            cluster_req.ambari.kerberos = cb.KerberosRequest(
-                admin=config.profile['username'],
-                password=security.get_secret('password'),
-                master_key=security.get_secret('masterkey'),
-                tcp_allowed=False
-            )
+    if horton._getr('defs:' + def_key + ':krb:mode'):
+    # if 'krb' in horton.defs[def_key]:
+    #     if horton.defs[def_key]['krb'] \
+    #             and 'mode' in horton.defs[def_key]['krb']:
+        if not horton.defs[def_key]['krb']['mode'] == 'test':
+            raise ValueError("Kerberising in Cloudbreak Test Mode Only")
+        cluster_req.ambari.enable_security = True
+        cluster_req.ambari.kerberos = cb.KerberosRequest(
+            admin=config.profile['username'],
+            password=security.get_secret('password'),
+            master_key=security.get_secret('masterkey'),
+            tcp_allowed=False
+        )
     return cluster_req
 
 
@@ -846,7 +857,7 @@ def prep_instance_groups(def_key, fullname):
     except AttributeError:
         region = horton.cbd.extra['zone'].extra['region']
         avzone = horton.cbd.extra['zone'].name
-        
+
     log.info("Fetching Infrastructure recommendation for "
              "credential[%s]:blueprint[%s]:region[%s]:availability zone[%s]",
              horton.cred.name, horton.deps[fullname]['blueprint'].name,
@@ -861,12 +872,17 @@ def prep_instance_groups(def_key, fullname):
         )
     )
     log.info("Handling Security Rules")
+    lib_c_session = infra.create_libcloud_session()
     if horton.cred.cloud_platform == 'AWS':
         sec_group = horton.cbd.extra['groups'][0]['group_id']
     elif horton.cred.cloud_platform == 'AZURE':
-        sec_group = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')[0].id   
+        sec_group = lib_c_session.ex_list_network_security_groups(
+            resource_group=namespace + 'cloudbreak-group')[0].id
     elif horton.cred.cloud_platform == 'GCP':
-        sec_group = infra.create_libcloud_session().ex_get_firewall(name=namespace + 'cloudbreak-secgroup').name
+        sec_group = lib_c_session.ex_get_firewall(
+            name=namespace + 'cloudbreak-secgroup').name
+    else:
+        raise ValueError("Only Platforms AWS, AZURE, and GCP supported")
     if sec_group:
         # Predefined Security Group
         sec_group = cb.SecurityGroupResponse(
@@ -892,43 +908,43 @@ def prep_instance_groups(def_key, fullname):
         machine_range = machine.split('-')
         machine_min = machine_range[0]
         machine_max = machine_range[1]
-        min_cpu = int(machine_min.split('x')[0]) 
+        min_cpu = int(machine_min.split('x')[0])
         max_cpu = int(machine_max.split('x')[0])
         min_mem = float(machine_min.split('x')[1])
         max_mem = float(machine_max.split('x')[1])
         sizes = recs.virtual_machines
         machines = [
-        x for x in sizes
-        if  min_cpu <= int(x.vm_type_meta_json.properties['Cpu']) <= max_cpu
-        and min_mem <= float(x.vm_type_meta_json.properties['Memory']) <= max_mem
+            x for x in sizes
+            if min_cpu <= int(x.vm_type_meta_json.properties['Cpu']) <= max_cpu
+            and min_mem <= float(x.vm_type_meta_json.properties['Memory']) <= max_mem
         ]
         if not machines:
             raise ValueError("Couldn't find a VM of the right size")
         else:
             if horton.cred.cloud_platform == 'AZURE':
                 machines = [
-                x for x in machines
-                if ('Standard_D' in x.value or 'Standard_DS' in x.value)
-                and 'v2' in x.value
-                and not 'Promo' in x.value
+                    x for x in machines
+                    if ('Standard_D' in x.value or 'Standard_DS' in x.value)
+                    and 'v2' in x.value
+                    and 'Promo' not in x.value
                 ]
                 machine = machines[0].value
             elif horton.cred.cloud_platform == 'AWS':
                 machines = [
-                x for x in machines
-                if ('m' in x.value or 't' in x.value)
-                and not 'm3' in x.value
+                    x for x in machines
+                    if ('m' in x.value or 't' in x.value)
+                    and 'm3' not in x.value
                 ]
                 machine = machines[0].value
             elif horton.cred.cloud_platform == 'GCP':
                 machines = [
-                x for x in machines
-                if ('n' in x.value)
+                    x for x in machines
+                    if 'n' in x.value
                 ]
                 machine = machines[0].value
             else:
                 machine = machines[0].value
-                        
+
         if 'recipe' in group_def and group_def['recipe'] is not None:
             recipes = ['-'.join([fullname, x]) for x in group_def['recipe']]
         else:
@@ -940,20 +956,15 @@ def prep_instance_groups(def_key, fullname):
         else:
             typ = 'CORE'
         disk_types = [x.name for x in recs.disk_responses]
-        vol_type = None
         vol_types = sorted([
             x for x in disk_types
-            if ('standard' in x.lower() or 'gp2' in x.lower()) 
-            and not 'GRS' in x ] #in horton.defs[def_key]['infra']['disktypes']]
+            if ('standard' in x.lower() or 'gp2' in x.lower())
+            and 'GRS' not in x]
         )
         if len(vol_types) == 0:
             vol_type = disk_types[0]
         else:
             vol_type = vol_types[0]
-        log.info("selected disk type [%s] from preferred list [%s] out of "
-                 "available types [%s]",
-                 vol_type, str(horton.defs[def_key]['infra']['disktypes']),
-                 str(disk_types))
         root_vol_size = rec.vm_type_meta_json.properties[
                             'recommendedRootVolumeSize']
         log.info("using root vol size [%s]", root_vol_size)
@@ -1001,15 +1012,16 @@ def prep_stack_specs(def_key, name=None):
         general='', instance_groups=''
     )
     tags = config.profile.get('tags')
-    if not tags is None:
-        if not 'Deployer' in tags or tags['Deployer'] is None:
-            tags['Owner'] = horton.cred.name
-        if not 'StartDate' in tags or tags['StartDate'] is None:
-            tags['StartDate'] = str(datetime.now().strftime("%d%b%Y"))
-        if not 'EndDate' in tags or tags['EndDate'] is None:
-            tags['EndDate'] = str((datetime.now() + timedelta(days=2)).strftime("%d%b%Y"))
-        if not 'Service' in tags or tags['Service'] is None:
-            tags['Service'] = 'EphemeralHortonworksCluster'
+    if tags is not None:
+        if 'deployer' not in tags or tags['deployer'] is None:
+            tags['deployer'] = horton.cred.name
+        if 'startdate' not in tags or tags['startdate'] is None:
+            tags['startdate'] = str(datetime.now().strftime("%d%b%Y").lower())
+        if 'enddate' not in tags or tags['enddate'] is None:
+            tags['enddate'] = str(
+                (datetime.now() + timedelta(days=2)).strftime("%d%b%Y").lower())
+        if 'service' not in tags or tags['service'] is None:
+            tags['service'] = 'ephemeralhortonworkscluster'
         horton.specs[fullname].tags = {'userDefinedTags': tags}
 
     horton.specs[fullname].general = cb.GeneralSettings(
@@ -1021,9 +1033,9 @@ def prep_stack_specs(def_key, name=None):
             image_catalog=cat_name,
             image_id=horton.deps[fullname]['images'][0].uuid
         )
-    if horton.cred.cloud_platform == 'AWS':    
+    if horton.cred.cloud_platform == 'AWS':
         horton.specs[fullname].stack_authentication = \
-        cb.StackAuthenticationResponse(
+            cb.StackAuthenticationResponse(
                 public_key_id=config.profile['sshkey_name']
         )
         horton.specs[fullname].placement = cb.PlacementSettings(
@@ -1037,12 +1049,10 @@ def prep_stack_specs(def_key, name=None):
             }
         )
     elif horton.cred.cloud_platform == 'AZURE':
-        cb_nic = infra.create_libcloud_session().ex_list_nics(resource_group=namespace + 'cloudbreak-group')[0]
-        
         horton.specs[fullname].stack_authentication = \
-        cb.StackAuthenticationResponse(
-                public_key=config.profile['sshkey_pub']
-        )
+            cb.StackAuthenticationResponse(
+                    public_key=config.profile['sshkey_pub']
+            )
         horton.specs[fullname].placement = cb.PlacementSettings(
             region=config.profile['platform']['region'],
             availability_zone=config.profile['platform']['region']
@@ -1054,18 +1064,19 @@ def prep_stack_specs(def_key, name=None):
                 'resourceGroupName': namespace + 'cloudbreak-group'
             }
         )
-    elif horton.cred.cloud_platform == 'GCP':        
+    elif horton.cred.cloud_platform == 'GCP':
         horton.specs[fullname].stack_authentication = \
-        cb.StackAuthenticationResponse(
-                public_key=config.profile['sshkey_pub']
-        )
+            cb.StackAuthenticationResponse(
+                    public_key=config.profile['sshkey_pub']
+            )
         horton.specs[fullname].placement = cb.PlacementSettings(
             region=config.profile['platform']['region'],
             availability_zone=horton.cbd.extra['zone'].name
         )
-        subnet_path = horton.cbd.extra['networkInterfaces'][0]['subnetwork'].split('/')
+        nic_info = horton.cbd.extra['networkInterfaces'][0]
+        subnet_path = nic_info['subnetwork'].split('/')
         subnet_id = subnet_path[len(subnet_path)-1]
-        network_path = horton.cbd.extra['networkInterfaces'][0]['network'].split('/')
+        network_path = nic_info['network'].split('/')
         network_id = network_path[len(network_path)-1]
         horton.specs[fullname].network = cb.NetworkV2Request(
             parameters={
@@ -1073,7 +1084,7 @@ def prep_stack_specs(def_key, name=None):
                 'networkId': network_id
             }
         )
-        
+
     horton.specs[fullname].cluster = prep_cluster(def_key, fullname)
     log.info("Checking Inputs for Blueprint")
     if 'input' in horton.defs[def_key]:
@@ -1120,7 +1131,8 @@ def create_stack(name, wait=False, purge=False, **kwargs):
         if horton.global_purge or purge:
             log.info("Purge is True, deleting existing Stack", name)
             delete_stack(stack.id)
-        elif any(s in stack.status for s in ['FAILED', 'STOP']) or any(s in stack.cluster.status for s in ['FAILED', 'STOP']):
+        elif any(s in stack.status for s in ['FAILED', 'STOP']) \
+                or any(s in stack.cluster.status for s in ['FAILED', 'STOP']):
             log.info("Stack [%s] in bad state [%s], recreating",
                      name, str(stack.status + stack.cluster.status))
             delete_stack(stack.id)
@@ -1171,6 +1183,7 @@ def delete_stack(stack_id, force=False, wait=True, **kwargs):
         **kwargs
     )
     if wait:
+        # max wait 600 - Azure is slower than an asthmatic grandma at Costco
         utils.wait_to_complete(
             monitor_event_stream,
             start_ts=start_ts,
@@ -1178,16 +1191,16 @@ def delete_stack(stack_id, force=False, wait=True, **kwargs):
             target_event=('stack_status', 'DELETE_COMPLETED'),
             valid_events=['DELETE_IN_PROGRESS'],
             whoville_delay=20,
-            whoville_max_wait=300
+            whoville_max_wait=600
         )
     return resp
 
 
-def monitor_event_stream(start_ts, identity, target_event, valid_events,
-                         **kwargs):
+def monitor_event_stream(start_ts, identity, target_event, valid_events):
     log.info("Monitoring event stream from [%s] for Event [%s] for Identity "
              "[%s] against Valid Events [%s]",
-             str(start_ts), str(target_event), str(identity), str(valid_events))
+             str(start_ts), str(target_event), str(identity), str(valid_events)
+             )
     events = get_events(
         start_ts=start_ts,
         select_by=identity,
@@ -1204,9 +1217,10 @@ def monitor_event_stream(start_ts, identity, target_event, valid_events,
         return True
     valid_test = [x for x in event_set if x not in valid_events]
     if valid_test:
-        raise ValueError("Found Event {0} for Identity {1} which is not in"
-                         "Valid Event list {2}".format(
-            str(valid_test), str(identity), str(valid_events)))
+        raise ValueError(
+            "Found Event {0} for Identity {1} which is not in Valid Event "
+            "list {2}"
+            .format(str(valid_test), str(identity), str(valid_events)))
     return False
 
 
@@ -1239,7 +1253,8 @@ def get_events(start_ts=None, select_by=None, ordered_by='event_timestamp',
         for e in selected:
             _ = {e.__setattr__(
                 k,
-                datetime(1970, 1, 1) + timedelta(milliseconds=e.event_timestamp)
+                datetime(1970, 1, 1) +
+                timedelta(milliseconds=e.event_timestamp)
             )
              for k in e.swagger_types.keys()
              if k == 'event_timestamp'}
@@ -1263,11 +1278,13 @@ def purge_resource(res_name, res_type):
         # rename if necessary
 
         if res_type == 'catalog':
-            res_type = 'image_catalog'
-        if res_type == 'auth':
-            res_type = 'auth_conf'
-        if res_type == 'rds':
-            res_type = 'rds_conf'    
+            p_res_type = 'image_catalog'
+        elif res_type == 'auth':
+            p_res_type = 'auth_conf'
+        elif res_type == 'rds':
+            p_res_type = 'rds_conf'
+        else:
+            p_res_type = res_type
 
         # set extra kwargs for submission
         if res_type == 'stack':
@@ -1280,21 +1297,22 @@ def purge_resource(res_name, res_type):
     else:
         raise ValueError("res_type [%s] unsupported", res_type)
     # select functions
-    target = [x for x in getattr(sys.modules[__name__], 'list_' + res_type + 's')()
+    target = [x for x
+              in getattr(sys.modules[__name__], 'list_' + p_res_type + 's')()
               if x.name == res_name]
     if not target:
         log.info("Resource named [%s] of Type [%s] not found, skipping delete",
-                 res_name, res_type)
+                 res_name, p_res_type)
         return
     try:
         log.info("Attempting Delete of [%s]:[%s] identified by [%s]",
-                 res_type, res_name, del_arg)
-        getattr(sys.modules[__name__], 'delete_' + res_type)(
+                 p_res_type, res_name, del_arg)
+        getattr(sys.modules[__name__], 'delete_' + p_res_type)(
             target[0].__getattribute__(del_arg),
             **params
         )
         log.info("Deleted [%s]:[%s] identified by [%s]",
-                 res_type, res_name, del_arg)
+                 p_res_type, res_name, del_arg)
     except ApiException as e:
         if 'Please remove this cluster' in e.body:
             log.info("Delete blocked by dependency, requesting Purge of "
@@ -1314,7 +1332,7 @@ def purge_resource(res_name, res_type):
     # execute
 
 
-def purge_cloudbreak(for_reals, namespace=''):
+def purge_cloudbreak(for_reals, ns=''):
     if not for_reals:
         raise ValueError("Cowardly not purging Cloudbreak as you didn't say "
                          "for reals. Please check function definition")
@@ -1322,7 +1340,7 @@ def purge_cloudbreak(for_reals, namespace=''):
     log.info("Purging stacks")
     [delete_stack(x.id, force=True)
      for x in list_stacks()
-     if namespace in x.name]
+     if ns in x.name]
     # Then other stuff
     # Images
     log.info("Purging Images")
@@ -1333,27 +1351,27 @@ def purge_cloudbreak(for_reals, namespace=''):
     log.info("Purging Blueprints")
     [delete_blueprint(x.id)
      for x in list_blueprints()
-     if namespace in x.name]
+     if ns in x.name]
     # Recipes
     log.info("Purging Recipes")
     [delete_recipe(x.id)
      for x in list_recipes()
-     if namespace in x.name]
+     if ns in x.name]
     # Credentials
     log.info("Purging Credentials")
     [delete_credential(x.id)
      for x in list_credentials()
-     if namespace in x.name]
+     if ns in x.name]
     # Mpacks
     log.info("Purging MPacks")
     [delete_mpack(x.name)
      for x in list_mpacks()
-     if namespace in x.name]
+     if ns in x.name]
     # Auths
     log.info("Purging Auths")
     [delete_auth_conf(x.name)
      for x in list_auth_confs()
-     if namespace in x.name]
+     if ns in x.name]
 
 
 def list_auth_confs():
@@ -1393,24 +1411,28 @@ def create_auth_conf(name, host, params=None):
         body=obj
     )
 
+
 def list_rds_confs():
     return cb.V1rdsconfigsApi().get_privates_rds()
+
 
 def delete_rds_conf(rds_name):
     return cb.V1rdsconfigsApi().delete_private_rds(rds_name)
 
+
 def create_rds_conf(name, host, port, rds_type, user_name, password):
     obj = cb.RdsConfig(
         name=name,
-        connection_url="jdbc:postgresql://"+host+":"+str(port)+"/"+rds_type, 
-        type=rds_type, 
-        connection_user_name=user_name, 
+        connection_url="jdbc:postgresql://"+host+":"+str(port)+"/"+rds_type,
+        type=rds_type,
+        connection_user_name=user_name,
         connection_password=password
     )
 
     return cb.V1rdsconfigsApi().post_private_rds(
         body=obj
     )
+
 
 def wait_for_event(name, field, state, start_ts, wait):
     log.info("Waiting against state [%s] for Stack [%s]",
@@ -1464,36 +1486,75 @@ def add_security_rule(cidr, start, end, protocol):
             sec_group_id=horton.cbd.extra['groups'][0]['group_id']
         )
     elif horton.cred.cloud_platform == 'AZURE':
-        priority = random.randint(150,1000)
-        security_rule_name = str(start)+'-'+str(end)+'_rule'
-        rule = {
-                    'protocol': 'Tcp',
-                    'source_port_range': '*',
-                    'destination_port_range': str(start)+'-'+str(end),
-                    'source_address_prefix': cidr,
-                    'destination_address_prefix': '*',
-                    'access': 'Allow',
-                    'priority': priority,
-                    'direction': 'Inbound'
-        }
-        sec_group = infra.create_libcloud_session().ex_list_network_security_groups(resource_group=namespace + 'cloudbreak-group')
-        sec_group_name = sec_group[0].name
-        infra.add_sec_rule_azure(session=infra.create_azure_network_session(),
-                                        resource_group=namespace+'cloudbreak-group',
-                                        sec_group_name=sec_group_name,
-                                        security_rule_name=security_rule_name,
-                                        security_rule_parameters=rule
-                                        )
+        token = infra.get_azure_token()
+        a_session = infra.create_azure_session(token, 'network')
+        res_group_name = horton.namespace + 'cloudbreak-group'
+        sec_group = [
+            x for x in a_session.network_security_groups.list(res_group_name)
+        ][0]
+        sec_group_name = sec_group.name
+        # standard fields excepting priority
+        rule_fingerprint = [
+            'protocol', 'source_port_range', 'destination_port_range',
+            'direction', 'source_address_prefix', 'access',
+            'destination_address_prefix'
+        ]
+        current_rules = [
+            {
+                k: v for k, v in x.as_dict().items()
+                if k in rule_fingerprint
+            } for x in sec_group.security_rules
+        ]
+        new_rule = {
+                'protocol': 'Tcp',
+                'source_port_range': '*',
+                'destination_port_range': str(start)+'-'+str(end),
+                'source_address_prefix': cidr,
+                'destination_address_prefix': '*',
+                'access': 'Allow',
+                'direction': 'Inbound'
+            }
+        if new_rule in current_rules:
+            log.info("Rule already exists, skipping...")
+            return
+        # if rule is new, find next available priority
+        priorities = [
+            x.priority for x in sec_group.security_rules
+        ]
+        if priorities:
+            priority = sorted(priorities)[-1] + 1
+        else:
+            priority = 100
+        new_rule['priority'] = priority
+        security_rule_name = '-'.join(
+            [str(start),
+             str(end),
+             str(cidr).replace('.','-').replace('/','-')
+             ]
+        )
+        log.info("Creating Azure rule [%s] in security group [%s]",
+                 security_rule_name, sec_group_name)
+        infra.add_sec_rule_azure(
+            session=a_session,
+            resource_group=res_group_name,
+            sec_group_name=sec_group_name,
+            security_rule_name=security_rule_name,
+            security_rule_parameters=new_rule
+        )
     elif horton.cred.cloud_platform == 'GCP':
-        number_of_ports = end - start 
-        if  number_of_ports < 100:
-            session=infra.create_libcloud_session()
-            rule = {'IPProtocol': 'tcp','ports': [str(start)+'-'+str(end)]}
-            firewall = session.ex_get_firewall(name=namespace + 'cloudbreak-secgroup')
+        number_of_ports = end - start
+        if number_of_ports < 100:
+            session = infra.create_libcloud_session()
+            rule = {'IPProtocol': 'tcp',
+                    'ports': [str(start) + '-' + str(end)]}
+            firewall = session.ex_get_firewall(
+                name=namespace + 'cloudbreak-secgroup')
             firewall.allowed.append(rule)
             session.ex_update_firewall(firewall)
         else:
-            log.info("Due to firewall rule structure of GCP, this action would cause >= 100 ports to be open to 0.0.0.0... skipping" )
+            log.info("Due to firewall rule structure of GCP, this action "
+                     "would cause >= 100 ports to be open to "
+                     "0.0.0.0... skipping")
     else:
         raise ValueError("Cloud Platform not Supported")
 
@@ -1506,20 +1567,58 @@ def write_cache(name, item, cache_key):
         stack = [x for x in list_stacks()
                  if x.name == name][0]
         if stack:
-            group = [x for x in stack.instance_groups
-                  if x.type == 'GATEWAY'][0]
+            group = [
+                x for x in stack.instance_groups
+                if x.type == 'GATEWAY'][0]
             if group:
-                instance = [x for x in group.metadata
-                    if x.ambari_server == True][0]
-        horton.cache[cache_key] = instance.__getattribute__(item)
+                instance = [
+                    x for x in group.metadata if x.ambari_server is True][0]
+                horton.cache[cache_key] = instance.__getattribute__(item)
     else:
-        #write literal value to cache
+        # write literal value to cache
         horton.cache[cache_key] = item
-        #if instance:
-        #            horton.cache[cache_key] = instance.__getattribute__(item)
-        #else:
-        #    raise ValueError("Could not fetch item [%s] to write to Cache",item)
+
 
 def replace_string_in_resource(name, target, cache_key):
     horton = Horton()
     horton.resources[name][target].replace(cache_key, horton.cache[cache_key])
+
+
+def validate_profile():
+    horton = Horton()
+    # Check Profile is imported
+    if not config.profile:
+        raise ValueError("whoville Config Profile is not populated with"
+                         "deployment controls, cannot proceed")
+    # Check Profile version
+    if not 'profilever' in config.profile:
+        raise ValueError("Your Profile is out of date, please recreate your "
+                         "Profile from the template")
+    if config.profile['profilever'] < config.min_profile_ver:
+        raise ValueError("Your Profile is out of date, please recreate your "
+                         "Profile from the template")
+    # Check Password
+    if 'password' in config.profile and config.profile['password']:
+        horton.cache['ADMINPASSWORD'] = config.profile['password']
+    else:
+        horton.cache['ADMINPASSWORD'] = security.get_secret('password')
+    # Check Provider
+    provider = config.profile.get('platform')['provider']
+    assert provider in ['EC2', 'AZURE_ARM', 'GCE']
+    # TODO: Read in the profile template, check it has all matching keys
+    # Check Profile Namespace is validate
+    ns_test = re.compile(r'[a-z0-9-]')
+    if not bool(ns_test.match(horton.namespace)):
+        raise ValueError("Namespace must only contain 0-9 a-z -")
+    # Check storage bucket matches expected format
+    if 'bucket' in config.profile:
+        if provider == 'EC2':
+            bucket_test = re.compile(r'[a-z0-9.-]')
+        elif provider == 'AZURE_ARM':
+            bucket_test = re.compile(r'[a-z0-9@]')
+        elif provider == 'GCE':
+            bucket_test = re.compile(r'[a-z0-9.-]')
+        else:
+            raise ValueError("Platform Provider not supported")
+        if not bool(bucket_test.match(config.profile['bucket'])):
+            raise ValueError("Bucket name doesn't match Platform spec")

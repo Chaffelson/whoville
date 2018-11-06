@@ -26,6 +26,10 @@ profile_loc = os.environ.get("PROFILE")
 if not profile_loc:
     profile_loc = 'profile.yml'
 
+
+# --- Profile Versioning ------
+min_profile_ver = 2
+
 # --- Logging ------
 logging.basicConfig(level=logging.INFO)
 

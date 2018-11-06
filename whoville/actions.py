@@ -11,9 +11,7 @@ Warnings:
 from __future__ import absolute_import as _absolute_import
 import logging as _logging
 from datetime import datetime as _datetime
-from whoville import deploy
-from whoville.utils import get_val as _get_val
-from whoville.utils import set_val as _set_val
+from whoville import deploy, utils
 
 _horton = deploy.Horton()
 
@@ -38,6 +36,13 @@ def do_builds(args):
         deploy.create_stack(
             fullname,
             purge=False
+        )
+        deploy.wait_for_event(
+            fullname,
+            'event_type',
+            'BILLING_STARTED',
+            _datetime.utcnow(),
+            600
         )
 
 
@@ -83,10 +88,19 @@ def replace_str(args):
     cache_key = args[2]
     log.info("Replacing string [%s] with [%s] in Resource [%s] in def [%s]",
              cache_key, _horton.cache[cache_key], res_name, def_key)
-    s = _horton.resources[def_key][res_name].replace(
-        cache_key, _horton.cache[cache_key]
-    )
-    _horton.resources[def_key][res_name] = s
+    resource = _horton.resources[def_key][res_name]
+    # Read
+    if isinstance(resource, dict):
+        source = utils.dump(resource)
+    else:
+        source = resource
+    # Replace String
+    target = source.replace(cache_key, _horton.cache[cache_key])
+    # Write
+    if isinstance(resource, dict):
+        _horton.resources[def_key][res_name] = utils.load(target)
+    else:
+        _horton.resources[def_key][res_name] = target
 
 
 def copy_def(args):

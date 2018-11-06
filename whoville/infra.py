@@ -17,6 +17,8 @@ from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
 from libcloud.common.google import ResourceNotFoundError
 from botocore.exceptions import ClientError
+from azure.common.credentials import ServicePrincipalCredentials
+import adal
 import boto3
 from whoville import config, utils, security
 import base64
@@ -25,10 +27,13 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
            'create_node', 'list_images', 'list_sizes', 'list_networks',
            'list_subnets', 'list_security_groups', 'list_keypairs',
-           'list_nodes']
+           'namespace', 'list_nodes']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
+
+# ADAL for Azure is verbose, reducing output
+adal.log.set_logging_options({'level': 'WARNING'})
 
 namespace = config.profile['namespace']
 namespace = namespace if namespace else ''
@@ -48,14 +53,14 @@ def create_libcloud_session():
             )
     elif provider == 'AZURE_ARM':
         return cls(tenant_id=params['tenant'],
-                   subscription_id=params['subscription'], 
+                   subscription_id=params['subscription'],
                    key=params['application'],
                    secret=params['secret'],
                    region=params['region']
             )
     elif provider == 'GCE':
-        return cls(params['serviceaccount'], 
-                   params['apikeypath'], 
+        return cls(params['serviceaccount'],
+                   params['apikeypath'],
                    project=params['project']
             )
 
@@ -63,15 +68,15 @@ def create_libcloud_session():
 def create_libcloud_storge_session():
     from libcloud.storage.types import Provider
     from libcloud.storage.providers import get_driver
-    
     provider = config.profile.get('objectstore')
     if provider == 'wasb':
         cls = get_driver(Provider.AZURE_BLOBS)
-        return cls(key=config.profile.get('bucket'), 
-               secret=config.profile.get('bucketkey'))
+        return cls(key=config.profile.get('bucket'),
+                   secret=config.profile.get('bucketkey')
+                   )
     else:
         raise ValueError("Azure infra access keys not defined in Profile")
-        
+
 
 def create_boto3_session():
     platform = config.profile.get('platform')
@@ -84,82 +89,44 @@ def create_boto3_session():
     else:
         raise ValueError("EC2 infra access keys not defined in Profile")
 
-def create_azure_compute_session():
-    from azure.common.credentials import ServicePrincipalCredentials
-    from azure.mgmt.compute import ComputeManagementClient
-    
+
+def get_azure_token():
     platform = config.profile.get('platform')
     if platform['provider'] == 'AZURE_ARM':
-        subscription_id = platform['subscription']
         credentials = ServicePrincipalCredentials(
             client_id=platform['application'],
             secret=platform['secret'],
             tenant=platform['tenant']
         )
-        return ComputeManagementClient(credentials, subscription_id)
     else:
         raise ValueError("Azure infra access keys not defined in Profile")
+    return credentials
 
-def create_azure_network_session():
-    from azure.common.credentials import ServicePrincipalCredentials
-    from azure.mgmt.network import NetworkManagementClient
-    platform = config.profile.get('platform')
-    if platform['provider'] == 'AZURE_ARM':
-        subscription_id = platform['subscription']
-        credentials = ServicePrincipalCredentials(
-            client_id=platform['application'],
-            secret=platform['secret'],
-            tenant=platform['tenant']
-        )
-        return NetworkManagementClient(credentials, subscription_id)
-    else:
-        raise ValueError("Azure infra access keys not defined in Profile")
 
-def create_azure_security_session():
-    from azure.common.credentials import ServicePrincipalCredentials
-    from azure.mgmt.network import NetworkResourceProviderClient
+def create_azure_session(token, service):
+    assert service in ['compute', 'network', 'security', 'storage', 'resource']
+    assert isinstance(token, ServicePrincipalCredentials)
     platform = config.profile.get('platform')
-    if platform['provider'] == 'AZURE_ARM':
-        subscription_id = platform['subscription']
-        credentials = ServicePrincipalCredentials(
-            client_id=platform['application'],
-            secret=platform['secret'],
-            tenant=platform['tenant']
-        )
-        return NetworkResourceProviderClient(credentials, subscription_id)
+    if 'subscription' in platform and platform['subscription']:
+        sub_id = platform['subscription']
     else:
-        raise ValueError("Azure infra access keys not defined in Profile")
+        raise ValueError("Subscription ID not in Azure Platform Definition")
+    if service == 'compute':
+        from azure.mgmt.compute import ComputeManagementClient
+        return ComputeManagementClient(token, sub_id)
+    if service == 'network':
+        from azure.mgmt.network import NetworkManagementClient
+        return NetworkManagementClient(token, sub_id)
+    if service == 'security':
+        from azure.mgmt.network import NetworkResourceProviderClient
+        return NetworkResourceProviderClient(token, sub_id)
+    if service == 'storage':
+        from azure.mgmt.storage import StorageManagementClient
+        return StorageManagementClient(token, sub_id)
+    if service == 'resource':
+        from azure.mgmt.resource import ResourceManagementClient
+        return ResourceManagementClient(token, sub_id)
 
-def create_azure_storage_session():
-    from azure.common.credentials import ServicePrincipalCredentials
-    from azure.mgmt.storage import StorageManagementClient
-    
-    platform = config.profile.get('platform')
-    if platform['provider'] == 'AZURE_ARM':
-        subscription_id = platform['subscription']
-        credentials = ServicePrincipalCredentials(
-            client_id=platform['application'],
-            secret=platform['secret'],
-            tenant=platform['tenant']
-        )
-        return StorageManagementClient(credentials, subscription_id)
-    else:
-        raise ValueError("Infra provider is Azure but objectstore is not set to WASB")
-
-def create_azure_resource_session():
-    from azure.common.credentials import ServicePrincipalCredentials
-    from azure.mgmt.resource import ResourceManagementClient
-    platform = config.profile.get('platform')
-    if platform['provider'] == 'AZURE_ARM':
-        subscription_id = platform['subscription']
-        credentials = ServicePrincipalCredentials(
-            client_id=platform['application'],
-            secret=platform['secret'],
-            tenant=platform['tenant']
-        )
-        return ResourceManagementClient(credentials, subscription_id)
-    else:
-        raise ValueError("Azure infra access keys not defined in Profile")
 
 def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
@@ -233,12 +200,12 @@ def create_cloudbreak(session, cbd_name):
         s_boto3 = create_boto3_session()
         client_cf = s_boto3.client('cloudformation')
         cf_stacks = client_cf.list_stacks()
-        log.info("Looking for existing Cloud Formation stacks within namespace "
-                 "[%s]", namespace)
+        log.info("Looking for existing Cloud Formation stacks within namespace"
+                 " [%s]", namespace)
         for cf_stack in cf_stacks['StackSummaries']:
             if namespace in cf_stack['StackName']:
-                log.info("Found Cloud Formation [%s], deleting to avoid collision "
-                         "with Cloudbreak cluster creation...",
+                log.info("Found Cloud Formation [%s], deleting to avoid "
+                         "collision with Cloudbreak cluster creation...",
                          cf_stack['StackName'])
                 client_cf.delete_stack(StackName=cf_stack['StackName'])
         images = list_images(
@@ -284,8 +251,10 @@ def create_cloudbreak(session, cbd_name):
         subnet = [x for x in subnets
                   if ec2_resource.Subnet(x.id).map_public_ip_on_launch]
         if not subnet:
-            raise ValueError("There are no subnets with auto provisioning of public IPs enabled..." 
-                              "enable public IP auto provisioning on at least one subnet in the default VPC")
+            raise ValueError("There are no subnets with auto provisioning of "
+                             "public IPs enabled..."
+                             "enable public IP auto provisioning on at least "
+                             "one subnet in the default VPC")
         else:
             subnet = subnet[0]
         sec_group = list_security_groups(session, {'name': namespace})
@@ -340,7 +309,6 @@ def create_cloudbreak(session, cbd_name):
             static_ip = static_ips[0]
         if not static_ip:
             raise ValueError("Couldn't get a Static IP for Cloudbreak") 
-                       
         # This is just a tidy way of specifying a script
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
@@ -395,28 +363,32 @@ def create_cloudbreak(session, cbd_name):
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
     if session.type == 'azure_arm':
-        #ssh_key = NodeAuthSSHKey(config.profile['sshkey_pub'])
         ssh_key = config.profile['sshkey_pub']
-        resource_group = namespace+'cloudbreak-group'
-        storage_account_name = config.profile.get('bucket')
-        network_name = namespace+'cloudbreak-network'
-        subnet_name = namespace+'cloudbreak-subnet'
-        sec_group_name = namespace+'cloudbreak-secgroup'
-        public_ip_name = namespace+'cloudbreak-ip'
-        nic_name = namespace+'cloudbreak-nic'
-        disk_account_name = namespace+'diskaccount'
+        resource_group = namespace + 'cloudbreak-group'
+        network_name = namespace + 'cloudbreak-network'
+        subnet_name = namespace + 'cloudbreak-subnet'
+        sec_group_name = namespace + 'cloudbreak-secgroup'
+        public_ip_name = namespace + 'cloudbreak-ip'
+        nic_name = namespace + 'cloudbreak-nic'
+        disk_account_name = namespace + 'diskaccount'
         disk_account_name = disk_account_name.replace('-', '')
-        
-        log.info("Creating Resource Group...")        
-        azure_resource_client = create_azure_resource_session()
-        azure_resource_client.resource_groups.create_or_update(resource_group, {'location': config.profile.get('platform')['region']})
-                
-        image = session.list_images(ex_publisher='OpenLogic',ex_offer='CentOS-CI',ex_sku='7-CI')
+        # ToDo: examine cleaning Azure Resource Groups
+        log.info("Creating Resource Group...")
+        token = get_azure_token()
+        azure_resource_client = create_azure_session(token, 'resource')
+        azure_resource_client.resource_groups.create_or_update(
+            resource_group,
+            {'location': config.profile.get('platform')['region']}
+        )
+
+        image = session.list_images(
+            ex_publisher='OpenLogic',ex_offer='CentOS-CI',ex_sku='7-CI'
+        )
         if not image:
             raise ValueError("Couldn't find a valid Centos7 Image")
         else:
             image = image[-1]
-        
+
         machines = list_sizes_azure(
             session, cpu_min=4, cpu_max=4, mem_min=16384, mem_max=20480
         )
@@ -424,13 +396,9 @@ def create_cloudbreak(session, cbd_name):
             raise ValueError("Couldn't find a VM of the right size")
         else:
             machine = machines[0]
-        
-        #networks = list_networks(session, {'name': network_name})
-        #network = networks[-1]
-        #subnet = session.ex_list_subnets(network)[0]
-        
-        log.info("Checking for disk storage account...")
-        azure_storage_client = create_azure_storage_session()
+
+        log.info("Checking for disk storage account, please wait...")
+        azure_storage_client = create_azure_session(token, 'storage')
         try:
             azure_storage_client.storage_accounts.create(
                 resource_group,
@@ -443,9 +411,9 @@ def create_cloudbreak(session, cbd_name):
             ).wait()
         except Exception:
             log.info("Found existing os disk account...")
-        
+
         log.info("Looking for existing network resources...")
-        azure_network_client = create_azure_network_session()    
+        azure_network_client = create_azure_session(token, 'network')
         try:
             log.info("Getting Vnet...")
             network = azure_network_client.virtual_networks.get(resource_group, network_name)
@@ -464,7 +432,6 @@ def create_cloudbreak(session, cbd_name):
                 }
             )
             network = network.result()
-            
             log.info("Creating Subnet...")
             subnet = azure_network_client.subnets.create_or_update(
                 resource_group,
@@ -472,7 +439,6 @@ def create_cloudbreak(session, cbd_name):
                 subnet_name,
                 {'address_prefix': '10.0.0.0/24'}
             )
-            
             log.info("Creating Public IP...")
             public_ip = azure_network_client.public_ip_addresses.create_or_update(
                 resource_group,
@@ -482,10 +448,8 @@ def create_cloudbreak(session, cbd_name):
                     'public_ip_allocation_method': 'static'
                 }
             )
-            
             subnet = subnet.result()
             public_ip = public_ip.result()
-            
             log.info("Creating Security Group...")
             sec_group = azure_network_client.network_security_groups.create_or_update(
                 resource_group,
@@ -547,7 +511,6 @@ def create_cloudbreak(session, cbd_name):
                 }
             )
             sec_group = sec_group.result()
-            
             log.info("Creating Network Interface...")
             nic = azure_network_client.network_interfaces.create_or_update(
                 resource_group,
@@ -560,19 +523,19 @@ def create_cloudbreak(session, cbd_name):
                         'subnet': {'id': subnet.id},
                         'public_ip_address': {'id': public_ip.id}
                     }]
-                }   
+                }
             )
             nic = nic.result()
-        
+        # End network exception handling for missing vnet
         public_ip = public_ip.ip_address
-        
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
         script_lines = [
             "#!/bin/bash",
             "cd /root",
             "yum install -y wget",
-            "wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64",
+            "wget -O jq https://github.com/stedolan/jq/releases/download/"
+            "jq-1.5/jq-linux64",
             "chmod +x ./jq",
             "cp jq /usr/bin",
             "export cb_ver=" + cb_ver,
@@ -580,15 +543,17 @@ def create_cloudbreak(session, cbd_name):
             "export uaa_default_pw=" + security.get_secret('password'),
             "export uaa_default_email=" + config.profile['email'],
             "export public_ip=" + public_ip,
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
         ]
         script = '\n'.join(script_lines)
         script = script.encode()
-        script = str(base64.urlsafe_b64encode(script)).replace("b'","").replace("'","")
+        script = str(base64.urlsafe_b64encode(script))\
+            .replace("b'","").replace("'","")
 
         log.info("Creating Virtual Machine...")
-        log.info("with custom_data string: " + script)
-        azure_compute_client = create_azure_compute_session()
+        log.info("with custom_data string like: " + script[:100])
+        azure_compute_client = create_azure_session(token, 'compute')
         cbd = azure_compute_client.virtual_machines.create_or_update(
             resource_group,
             cbd_name,
@@ -601,7 +566,8 @@ def create_cloudbreak(session, cbd_name):
                         'disable_password_authentication': True,
                         'ssh': {
                             'public_keys': [{
-                                'path': '/home/{}/.ssh/authorized_keys'.format('centos'),
+                                'path': '/home/{}/.ssh/authorized_keys'
+                                .format('centos'),
                                 'key_data': ssh_key
                             }]
                         }
@@ -621,7 +587,10 @@ def create_cloudbreak(session, cbd_name):
                     'os_disk': {
                         'name': cbd_name,
                         'create_option': 'fromImage',
-                        'vhd': {'uri': 'https://{}.blob.core.windows.net/vhds/{}.vhd'.format(disk_account_name, cbd_name)}
+                        'vhd': {
+                            'uri': 'https://{}.blob.core.windows.net/'
+                                   'vhds/{}.vhd'
+                            .format(disk_account_name, cbd_name)}
                     },
                 },
                 'network_profile': {
@@ -629,7 +598,6 @@ def create_cloudbreak(session, cbd_name):
                 }
             }
         )
-        
         log.info("Waiting for Cloudbreak Instance to be Available...")
         cbd.wait()
 
@@ -647,7 +615,7 @@ def create_cloudbreak(session, cbd_name):
         subnet_name = namespace+'cloudbreak-subnet'
         firewall_name = namespace+'cloudbreak-secgroup'
         ssh_key = config.profile['sshkey_pub']
-        
+
         log.info("Looking for existing network...")
         networks = session.ex_list_networks()
         network = [
@@ -660,7 +628,7 @@ def create_cloudbreak(session, cbd_name):
         else:
             network = network[-1]
             log.info("Found network: " + network.name)
-        
+
         log.info("Looking for existing subnets...")
         subnets = session.ex_list_subnetworks(region=region)
         subnet = [
@@ -668,27 +636,34 @@ def create_cloudbreak(session, cbd_name):
             if x.name == 'default'
             ]
         if not subnet:
-            session.ex_create_subnetwork(name=subnet_name,region=region,network=network)
+            session.ex_create_subnetwork(
+                name=subnet_name,region=region,network=network
+            )
         else:
             subnet = subnet[-1]
             subnet_name = subnet.name
             log.info("Found existing subnet called: " + subnet_name)
-        
+
         log.info("Getting Public IP...")
         try:
-            public_ip = session.ex_get_address(name=public_ip_name,region=region)
-            log.info("Found existing Public IP matching name: " + public_ip_name)
+            public_ip = session.ex_get_address(
+                name=public_ip_name,region=region
+            )
+            log.info("Found existing Public IP matching name: "
+                     + public_ip_name)
         except ResourceNotFoundError:
-            public_ip = session.ex_create_address(name=public_ip_name, region=region)
+            public_ip = session.ex_create_address(
+                name=public_ip_name, region=region
+            )
             log.info("Creating new Public IP with name: " + public_ip_name)
-            
+
         images = session.list_images()
         image = [
             x for x in images 
             if x.extra['family'] == 'centos-7' 
             and 'centos-7' in x.name 
             ]
-        
+
         zones = session.ex_list_zones()
         zone = [
             x for x in zones
@@ -696,23 +671,24 @@ def create_cloudbreak(session, cbd_name):
             and x.status == 'UP'
             ]
         if not zone:
-            raise ValueError("Couldn't find a zone for the requested region...")
+            raise ValueError("Couldn't find a zone for the requested region..")
         else:
             zone = zone[-1]
-        
+
         if not image:
             raise ValueError("Couldn't find a valid Centos7 Image")
         else:
             image = image[-1]
-        
+
         machines = list_sizes_gce(
-            session, location=region, cpu_min=4, cpu_max=4, mem_min=13000, mem_max=20000
+            session, location=region, cpu_min=4, cpu_max=4, mem_min=13000,
+            mem_max=20000
         )
         if not machines:
             raise ValueError("Couldn't find a VM of the right size")
         else:
             machine = machines[-1]
-        
+
         log.info("Creating Security Group...")
         try:
             firewall = session.ex_get_firewall(name=firewall_name)
@@ -724,12 +700,12 @@ def create_cloudbreak(session, cbd_name):
                              'ports': ['22','443','9443']
                             }
                         ]
-            firewall = session.ex_create_firewall(name=firewall_name,                                        
-                                               network=network,  
+            firewall = session.ex_create_firewall(name=firewall_name,
+                                               network=network,
                                                allowed=net_rules,
                                                target_tags=[cbd_name]
                                             )
-        
+
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
         script_lines = [
@@ -744,8 +720,7 @@ def create_cloudbreak(session, cbd_name):
                     "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
                 ]
         script = '\n'.join(script_lines)
-        
-        metadata =  {
+        metadata = {
                         'items': [
                             {
                                 'key': 'startup-script',
@@ -756,8 +731,8 @@ def create_cloudbreak(session, cbd_name):
                                 'value': 'centos:' + ssh_key
                             }
                         ]
-                    }   
-        
+                    }
+
         log.info("Creating Cloudbreak instance...")
         cbd = session.create_node(name=cbd_name, 
                     size=machine, 
@@ -768,7 +743,7 @@ def create_cloudbreak(session, cbd_name):
                     ex_metadata=metadata,
                     ex_tags=[cbd_name]
                 )
-        
+
         log.info("Waiting for Cloudbreak Instance to be Available...")
         session.wait_until_running(nodes=[cbd])
         cbd = list_nodes(session, {'name': cbd_name})
@@ -778,8 +753,9 @@ def create_cloudbreak(session, cbd_name):
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
     else:
-        raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, and GCE")
- 
+        raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, "
+                         "and GCE")
+
 
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
     try:
@@ -794,7 +770,8 @@ def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
             raise e
 
 
-def add_sec_rule_azure(session, resource_group, sec_group_name, security_rule_name, security_rule_parameters):
+def add_sec_rule_azure(session, resource_group, sec_group_name,
+                       security_rule_name, security_rule_parameters):
     sec_rule = session.security_rules.create_or_update(
                 resource_group,
                 sec_group_name,
@@ -808,7 +785,8 @@ def add_sec_rule_gce(session, sec_group_name, security_rule):
     firewall = session.ex_get_firewall(name=sec_group_name)
     firewall.allowed.append(security_rule)
     session.ex_update_firewall(firewall)
-    
+
+
 # noinspection PyCompatibility
 def deploy_node(session, name, image, machine, deploy, params=None):
     obj = {
@@ -848,8 +826,8 @@ def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
     return machines
 
 
-def list_sizes_azure(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
-               disk_min=0, disk_max=10475520):
+def list_sizes_azure(session, cpu_min=2, cpu_max=16, mem_min=4096,
+                     mem_max=32768, disk_min=0, disk_max=10475520):
     sizes = session.list_sizes()
     machines = [
         x for x in sizes
@@ -860,8 +838,8 @@ def list_sizes_azure(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768
     return machines
 
 
-def list_sizes_gce(session, location=None, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
-               disk_min=0, disk_max=10475520):
+def list_sizes_gce(session, location=None, cpu_min=2, cpu_max=16,
+                   mem_min=4096, mem_max=32768, disk_min=0, disk_max=10475520):
     sizes = session.list_sizes(location=location)
     machines = [
         x for x in sizes
