@@ -19,9 +19,6 @@ export public_ip=${public_ip:-$(curl -s icanhazptr.com)}
 
  # Install per Cloudbreak 2.7.1
  # https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-launch/index.html
-echo Patching local machine
-yum -y update
-
 echo Installing dependencies
 yum -y install net-tools ntp wget lsof unzip tar iptables-services docker sed yq jq
 
