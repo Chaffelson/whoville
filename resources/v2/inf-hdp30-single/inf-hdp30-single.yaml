@@ -5,7 +5,6 @@ seq:
 - prep_deps: [inf-hdp30-single, hdp30-s]
 - prep_spec: [inf-hdp30-single, hdp30-s] 
 - do_builds: [hdp30-s]
-- wait_event: [inf-hdp30-single, hdp30-s, event_type, BILLING_STARTED]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 infra:
   ambarirepo:

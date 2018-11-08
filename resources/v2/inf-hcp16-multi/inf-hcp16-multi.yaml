@@ -3,7 +3,6 @@ seq:
 - prep_deps: [inf-hcp16-multi, hcp16-m]
 - prep_spec: [inf-hcp16-multi, hcp16-m]
 - do_builds: [hcp16-m]
-- wait_event: [inf-hcp16-multi, hcp16-m, event_type, BILLING_STARTED]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 deploywait: 1800
 purge: true

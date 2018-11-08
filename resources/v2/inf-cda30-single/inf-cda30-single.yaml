@@ -12,7 +12,6 @@ seq:
 - prep_deps: [cda30-s, cda30-s]
 - prep_spec: [cda30-s, cda30-s]
 - do_builds: [cda30-s]
-- wait_event: [inf-cda30-single, cda30-s, event_type, BILLING_STARTED]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 input:
   yarn.vcores: 12
