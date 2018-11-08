@@ -99,8 +99,8 @@ def service_login(service='cloudbreak', username=None, password=None,
             ]
         )
         if 'Location' not in resp.headers:
-            raise ValueError(
-                "Unexpected Response from Server, got: %s", str(resp.headers))
+            raise ValueError("Login Failed, please check Cloudbreak and your"
+                             "Credentials")
         try:
             token = parse.parse_qs(resp.headers['Location'])['access_token'][0]
             # Todo: get the expiry and set into config as well
@@ -157,26 +157,17 @@ def generate_password(length=50):
     return ''.join(secrets.choice(pick_list) for _ in range(length))
 
 
-def get_secret(key='password', create=True):
+def get_secret(key='ADMINPASSWORD', create=True):
     horton = Horton()
-    assert key in ['password', 'masterkey']
-    if key == 'password':
-        if 'ADMINPASSWORD' in horton.cache and horton.cache['ADMINPASSWORD']:
-            return horton.cache['ADMINPASSWORD']
+    assert key in ['ADMINPASSWORD', 'MASTERKEY']
+    if key in horton.cache and horton.cache[key]:
+        return horton.cache[key]
+    else:
+        if create:
+            length = 15 if key[0] == 'A' else 50
+            secret = generate_password(length)
+            horton.cache[key] = secret
+            return secret
         else:
-            if create:
-                secret = generate_passphrase()
-                horton.cache['ADMINPASSWORD'] = secret
-                return secret
-            else:
-                return None
-    if key == 'masterkey':
-        if 'MASTERKEY' in horton.cache and horton.cache['MASTERKEY']:
-            return horton.cache['MASTERKEY']
-        else:
-            if create:
-                secret = generate_password()
-                horton.cache['MASTERKEY'] = secret
-                return secret
-            else:
-                return None
+            return None
+

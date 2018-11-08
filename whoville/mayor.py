@@ -86,7 +86,7 @@ def step_2_init_infra(create_wait=0):
     auth_success = security.service_login(
             service='cloudbreak',
             username=config.profile['email'],
-            password=security.get_secret('password'),
+            password=security.get_secret('ADMINPASSWORD'),
             bool_response=False
         )
     if not auth_success:
@@ -169,8 +169,6 @@ def step_4_build(def_key=None):
 
 
 def print_intro():
-    #public_dns_name = str(_socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0])     
-    #url = 'https://' + public_dns_name + '/sl'
     cbd_public_ip = horton.cbd.public_ips[0]
     url = 'https://' + cbd_public_ip + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
@@ -200,7 +198,7 @@ def user_menu():
             print('\033[1m' + "Exiting Whoville!" + '\033[0m')
             exit(0)
         elif selected in ['purge']:
-            deploy.purge_cloudbreak(for_reals=True, namespace=horton.namespace)
+            deploy.purge_cloudbreak(for_reals=True, ns=horton.namespace)
         elif selected in horton.defs.keys():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")

@@ -786,10 +786,10 @@ def prep_cluster(def_key, fullname=None):
                         mpacks=mpacks
                     ),
                     user_name=config.profile['username'],
-                    password=security.get_secret('password'),
+                    password=security.get_secret('ADMINPASSWORD'),
                     validate_blueprint=False,  # Hardcoded?
                     ambari_security_master_key=security.get_secret(
-                        'masterkey'),
+                        'MASTERKEY'),
                     kerberos=None,
                     enable_security=False  # Hardcoded?
                 ),
@@ -841,8 +841,8 @@ def prep_cluster(def_key, fullname=None):
         cluster_req.ambari.enable_security = True
         cluster_req.ambari.kerberos = cb.KerberosRequest(
             admin=config.profile['username'],
-            password=security.get_secret('password'),
-            master_key=security.get_secret('masterkey'),
+            password=security.get_secret('ADMINPASSWORD'),
+            master_key=security.get_secret('MASTERKEY'),
             tcp_allowed=False
         )
     return cluster_req
@@ -1392,7 +1392,7 @@ def create_auth_conf(name, host, params=None):
         directory_type='LDAP',
         protocol='ldap',
         bind_dn='uid=admin,ou=people,dc=hadoop,dc=apache,dc=org',
-        bind_password=security.get_secret('password'),
+        bind_password=security.get_secret('ADMINPASSWORD'),
         user_search_base='ou=people,dc=hadoop,dc=apache,dc=org',
         user_dn_pattern='uid={0},ou=people,dc=hadoop,dc=apache,dc=org',
         user_object_class='person',
@@ -1601,7 +1601,12 @@ def validate_profile():
     if 'password' in config.profile and config.profile['password']:
         horton.cache['ADMINPASSWORD'] = config.profile['password']
     else:
-        horton.cache['ADMINPASSWORD'] = security.get_secret('password')
+        horton.cache['ADMINPASSWORD'] = security.get_secret('ADMINPASSWORD')
+    password_test = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d-]{8,}$')
+    if not bool(password_test.match(horton.cache['ADMINPASSWORD'])):
+        raise ValueError("Password doesn't match Platform spec."
+                         "Requires 8+ characters, at least 1 letter and "
+                         "number, may also contain -")
     # Check Provider
     provider = config.profile.get('platform')['provider']
     assert provider in ['EC2', 'AZURE_ARM', 'GCE']

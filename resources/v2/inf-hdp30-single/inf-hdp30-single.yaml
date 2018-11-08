@@ -1,5 +1,5 @@
 desc: Single node cluster with minimal install of HDP-3.0 
-purge: false 
+purge: true 
 deploywait: 1800
 seq:
 - prep_deps: [inf-hdp30-single, hdp30-s]

@@ -316,8 +316,8 @@ def create_cloudbreak(session, cbd_name):
             "#!/bin/bash",
             "cd /root",
             "export cb_ver=" + cb_ver,
-            "export uaa_secret=" + security.get_secret('masterkey'),
-            "export uaa_default_pw=" + security.get_secret('password'),
+            "export uaa_secret=" + security.get_secret('MASTERKEY'),
+            "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
             "export uaa_default_email=" + config.profile['email'],
             "export public_ip=" + static_ip.ip,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
@@ -539,8 +539,8 @@ def create_cloudbreak(session, cbd_name):
             "chmod +x ./jq",
             "cp jq /usr/bin",
             "export cb_ver=" + cb_ver,
-            "export uaa_secret=" + security.get_secret('masterkey'),
-            "export uaa_default_pw=" + security.get_secret('password'),
+            "export uaa_secret=" + security.get_secret('MASTERKEY'),
+            "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
             "export uaa_default_email=" + config.profile['email'],
             "export public_ip=" + public_ip,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
@@ -607,8 +607,7 @@ def create_cloudbreak(session, cbd_name):
             return cbd[0]
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
-    elif session.type == 'gce': 
-        project = config.profile['platform']['project']
+    elif session.type == 'gce':
         region = config.profile['platform']['region']
         cbd_name = namespace+'cloudbreak'
         public_ip_name = namespace+'cloudbreak-public-ip'
@@ -620,11 +619,10 @@ def create_cloudbreak(session, cbd_name):
         networks = session.ex_list_networks()
         network = [
             x for x in networks
-            if x.mode == 'auto' 
+            if x.mode == 'auto'
             ]
         if not network:
-            raise ValueError("There should be at least one network, this "
-                 "is rather unexpected")
+            raise ValueError("There should be at least one network")
         else:
             network = network[-1]
             log.info("Found network: " + network.name)
@@ -660,7 +658,7 @@ def create_cloudbreak(session, cbd_name):
         images = session.list_images()
         image = [
             x for x in images 
-            if x.extra['family'] == 'centos-7' 
+            if x.extra['family'] == 'centos-7'
             and 'centos-7' in x.name 
             ]
 
@@ -691,7 +689,7 @@ def create_cloudbreak(session, cbd_name):
 
         log.info("Creating Security Group...")
         try:
-            firewall = session.ex_get_firewall(name=firewall_name)
+            _ = session.ex_get_firewall(name=firewall_name)
             log.info("Found existing firewall definition called: " + firewall_name)
         except ResourceNotFoundError:
             log.info("Creating new firewall definition called: " + firewall_name)
@@ -700,7 +698,7 @@ def create_cloudbreak(session, cbd_name):
                              'ports': ['22','443','9443']
                             }
                         ]
-            firewall = session.ex_create_firewall(name=firewall_name,
+            _ = session.ex_create_firewall(name=firewall_name,
                                                network=network,
                                                allowed=net_rules,
                                                target_tags=[cbd_name]
@@ -712,8 +710,8 @@ def create_cloudbreak(session, cbd_name):
                     "#!/bin/bash",
                     "cd /root",
                     "export cb_ver=" + cb_ver,
-                    "export uaa_secret=" + security.get_secret('masterkey'),
-                    "export uaa_default_pw=" + security.get_secret('password'),
+                    "export uaa_secret=" + security.get_secret('MASTERKEY'),
+                    "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
                     "export uaa_default_email=" + config.profile['email'],
                     "export public_ip=" + public_ip.address,
                     "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
