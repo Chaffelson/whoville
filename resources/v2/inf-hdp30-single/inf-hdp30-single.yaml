@@ -1,15 +1,12 @@
 desc: Single node cluster with minimal install of HDP-3.0 
-purge: false 
+purge: true 
 deploywait: 1800
 seq:
 - prep_deps: [inf-hdp30-single, hdp30-s]
 - prep_spec: [inf-hdp30-single, hdp30-s] 
 - do_builds: [hdp30-s]
-- wait_event: [inf-hdp30-single, hdp30-s, event_type, BILLING_STARTED]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 infra:
-  disktypes: [gp2, standard]
-  os: redhat7
   ambarirepo:
     version: 2.7.1.0
     baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.7.1.0
@@ -30,5 +27,5 @@ group:
   master:
     recipe: [remount-tmpfs, prepare-metastores-30, phoenix-client]
     type: GATEWAY
-    machine: m5.xlarge
+    machine: 4x14-4x16
     nodes: 1

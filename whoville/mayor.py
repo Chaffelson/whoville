@@ -9,7 +9,6 @@ Warnings:
 
 from __future__ import absolute_import as _abs_imp
 import logging
-import socket as _socket
 import re as _re
 from time import sleep as _sleep
 from datetime import datetime as _dt
@@ -30,13 +29,7 @@ def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service at [%s]",
              init_start_ts)
     log.info("------------- Validating Profile")
-    if not config.profile:
-        raise ValueError("whoville Config Profile is not populated with"
-                         "deployment controls, cannot proceed")
-    ns_test = _re.compile(r'[a-z0-9-]')
-    if not bool(ns_test.match(horton.namespace)):
-        raise ValueError("Namespace must only contain 0-9 a-z -")
-    # TODO: Read in the profile template, check it has all matching keys
+    deploy.validate_profile()
     log.info("------------- Loading Default Resources")
     horton.resources.update(
         utils.load_resources_from_files('resources/v2')
@@ -85,17 +78,15 @@ def step_2_init_infra(create_wait=0):
         create_wait=create_wait
     )
     log.info("------------- Connecting to Cloudbreak")
-    public_dns_name = str(
-        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
-    )
-    url = 'https://' + public_dns_name + '/cb/api'
+    cbd_public_ip = horton.cbd.public_ips[0]
+    url = 'https://' + cbd_public_ip + '/cb/api'
     log.info("Setting endpoint to %s", url)
     utils.set_endpoint(url)
     log.info("------------- Authenticating to Cloudbreak")
     auth_success = security.service_login(
             service='cloudbreak',
             username=config.profile['email'],
-            password=config.profile['password'],
+            password=security.get_secret('ADMINPASSWORD'),
             bool_response=False
         )
     if not auth_success:
@@ -178,10 +169,8 @@ def step_4_build(def_key=None):
 
 
 def print_intro():
-    public_dns_name = str(
-        _socket.gethostbyaddr(horton._getr('cbd:public_ips')[0])[0]
-    )
-    url = 'https://' + public_dns_name + '/sl'
+    cbd_public_ip = horton.cbd.public_ips[0]
+    url = 'https://' + cbd_public_ip + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
     print("\nCloudbreak is available at (browser): " + url)
     print("Currently Deployed Environments: " + str(
@@ -209,7 +198,7 @@ def user_menu():
             print('\033[1m' + "Exiting Whoville!" + '\033[0m')
             exit(0)
         elif selected in ['purge']:
-            deploy.purge_cloudbreak(for_reals=True, namespace=horton.namespace)
+            deploy.purge_cloudbreak(for_reals=True, ns=horton.namespace)
         elif selected in horton.defs.keys():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")

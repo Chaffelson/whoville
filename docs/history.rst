@@ -1,10 +1,37 @@
 History
 -------
 
+0.1.0
+    7 Nov 2018
+
+- Added Azure and GCP Support
+- Cloudbreak install script is more efficient
+- Fixed DNS bug when Docker is installed in a Definition
+- AWS Role based access no longer preferred due to support complexity
+- Refactored out hard coded passwords, all passwords now taken from Profile or randomly generated
+- Refactored Definitions to support multicloud deployment
+- Simplified Definition Sequences
+- Enhanced Profile validation for easier user experience
+- Reworked all Tags to match multicloud requirements
+- Incremented Profile to ver2 for new Tags
+- All wait times doubled to allow for Azure
+
+
+
+0.0.1-rc4
+    28 Sept 2018
+
+- refactored naming to be clearer
+- Added copy_def and merge_def primitives for future demo script usage
+- Added cmdline menu for Quickstart and Docker consumption
+- Tidied up exemplar definitions
+
+
 0.0.1-rc1
     24 Sept 2018
 
 - Initial Release for beta testing
+
 
 0.0.1-rc2
     25 Sept 2018
@@ -27,12 +54,3 @@ History
 - Moved sequencing primitives into actions.py
 - Refactored borg singleton to support iteraction and basic parameter setting, more to come
 - Documentation updates
-
-
-0.0.1-rc4
-    28 Sept 2018
-
-- refactored naming to be clearer
-- Added copy_def and merge_def primitives for future demo script usage
-- Added cmdline menu for Quickstart and Docker consumption
-- Tidied up exemplar definitions

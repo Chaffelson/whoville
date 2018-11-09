@@ -12,11 +12,13 @@ import secrets
 import string
 from six.moves.urllib import parse
 from whoville import config
+from whoville.deploy import Horton
 
 
 log = logging.getLogger(__name__)
 
-__all__ = ['service_login', 'set_service_auth_token']
+__all__ = ['service_login', 'set_service_auth_token', 'generate_passphrase',
+           'generate_password', 'get_secret']
 
 # These are the services that these functions know how to configure
 _valid_services = ['cloudbreak']
@@ -96,8 +98,9 @@ def service_login(service='cloudbreak', username=None, password=None,
                  '"password":"' + password + '"}'),
             ]
         )
-        if not 'Location' in resp.headers:
-            raise("Unexpected Response from Server, got: %s", str(resp.headers))
+        if 'Location' not in resp.headers:
+            raise ValueError("Login Failed, please check Cloudbreak and your"
+                             "Credentials")
         try:
             token = parse.parse_qs(resp.headers['Location'])['access_token'][0]
             # Todo: get the expiry and set into config as well
@@ -112,7 +115,8 @@ def service_login(service='cloudbreak', username=None, password=None,
         return True
 
 
-def set_service_auth_token(token=None, token_name='tokenAuth', service='cloudbreak'):
+def set_service_auth_token(
+        token=None, token_name='tokenAuth', service='cloudbreak'):
     """
     Helper method to set the auth token correctly for the specified service
 
@@ -143,23 +147,27 @@ def generate_passphrase(length=4):
     try:
         with open('/usr/share/dict/words') as f:
             words = [word.strip() for word in f]
-            return '-'.join(secrets.choice(words) for i in range(length))
+            return '-'.join(secrets.choice(words) for _ in range(length))
     except FileNotFoundError:
         return generate_password(length=length*5)
 
 
-def generate_password(length=20):
+def generate_password(length=50):
     pick_list = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(pick_list) for i in range(length))
+    return ''.join(secrets.choice(pick_list) for _ in range(length))
 
 
-def get_secret(key='password', create=True):
-    assert key in ['password', 'masterkey']
-    secret = config.profile.get(key)
-    if not secret:
+def get_secret(key='ADMINPASSWORD', create=True):
+    horton = Horton()
+    assert key in ['ADMINPASSWORD', 'MASTERKEY']
+    if key in horton.cache and horton.cache[key]:
+        return horton.cache[key]
+    else:
         if create:
-            secret = generate_passphrase()
-            config.profile[key] = secret
+            length = 15 if key[0] == 'A' else 50
+            secret = generate_password(length)
+            horton.cache[key] = secret
+            return secret
         else:
             return None
-    return secret
+

@@ -44,4 +44,4 @@ CMD ["whoville/mayor.py"]
 
 
 # Build & Run Example from project root /whoville
-# docker build -f="./docker/v2/localdev/Dockerfile" -t whoville:hdp3cbd . && docker run -v /whoville:/whoville --env PROFILE=/whoville/profile.yml --name whoville whoville:hdp3cbd
+# docker build -f="./docker/v2/localdev/Dockerfile" -t whoville:next . && docker run -v /whoville:/whoville --env PROFILE=/whoville/profile.yml --name whoville whoville:next

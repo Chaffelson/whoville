@@ -34,7 +34,7 @@ sshkey_pub: ssh-rsa CHANGEME
 
 
 # ------------ DEFAULTS ---------------
-
+profilever: 2
 # URIs for additional resources to be loaded and processed by the orchestrator.
 # Loc's can be either local or github
 # URI should point to the folder root of the resources
@@ -47,11 +47,12 @@ resources:
 # and users and environments
 # Empty tags will be autopopulated with useful defaults
 tags:
-  Owner: user@company.com
-  Service: Whoville Ephemeral Cluster
-  BusinessUnit: DevOps
-  StartDate:
-  EndDate:
+  deployer: dchaffelson
+  deploytool: whoville
+  service: whovilleephemeralcluster
+  businessunit: se
+  startdate:
+  enddate:
 
 
 # The base name of your objectsore bucket if using objectstore definitions, 

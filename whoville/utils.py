@@ -17,6 +17,7 @@ import os
 import ruamel.yaml
 import requests
 from github import Github
+from github.GithubException import UnknownObjectException
 from requests.models import Response
 from whoville import config
 
@@ -259,7 +260,9 @@ def get_val(root, items, sep='.', **kwargs):
     """
     assert isinstance(items, (list, six.string_types))
     for key in items if isinstance(items, list) else items.split(sep):
-        if isinstance(root, list):
+        if root is None:
+            return root
+        elif isinstance(root, list):
             if '|' not in key:
                 raise ValueError("Found list but key {0} does not match list "
                                  "filter format 'x|y'".format(key))
@@ -347,7 +350,12 @@ def load_resources_from_github(repo_name, username, token, tgt_dir, ref='master'
                     out[obj.name] = load(obj.decoded_content)
         return out
 
-    g_accnt = Github(username, token)
+    try:
+        g_accnt = Github(username, token)
+    except UnknownObjectException:
+        raise ValueError("Github Login failure - please check you have access "
+                         "to Repo %s and your token is correctly setup",
+                         tgt_dir)
     g_repo = g_accnt.get_repo(repo_name)
     if not recurse:
         listing = g_repo.get_dir_contents(tgt_dir, ref)
