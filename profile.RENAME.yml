@@ -3,7 +3,7 @@
 # This section provides the bootstrap service with information to create
 # a Cloudbreak instance on your specified Hosting Provider
 
-# The instructions on setting up CLoudbreak role permissions for AWS are in 
+# The instructions on setting up Cloudbreak role permissions for AWS are in 
 # https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-quick/index.html#create-cloudbreak-credential
 
 # NOTE that the indentiation is deliberate to construct a dictionary
@@ -42,6 +42,9 @@ profilever: 2
 #- loc: local
 #  uri: resources/v2
 resources:
+- loc: github
+  repo: hortonworks/SE-demo
+  subdir: whoville/v1
 
 # It is good practice to tag your services in order to distinguish projects
 # and users and environments
