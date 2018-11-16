@@ -18,6 +18,7 @@ import json
 import six
 from whoville import config, utils, infra, security
 from whoville import cloudbreak as cb
+from whoville import __version__ as proj_ver
 from whoville.cloudbreak.rest import ApiException
 from whoville.infra import namespace
 
@@ -1022,6 +1023,8 @@ def prep_stack_specs(def_key, name=None):
                 (datetime.now() + timedelta(days=2)).strftime("%d%b%Y").lower())
         if 'service' not in tags or tags['service'] is None:
             tags['service'] = 'ephemeralhortonworkscluster'
+        if 'deploytool' not in tags or tags['deploytool'] is None:
+            tags['deploytool'] = 'whoville' + proj_ver
         horton.specs[fullname].tags = {'userDefinedTags': tags}
 
     horton.specs[fullname].general = cb.GeneralSettings(
@@ -1602,10 +1605,10 @@ def validate_profile():
         horton.cache['ADMINPASSWORD'] = config.profile['password']
     else:
         horton.cache['ADMINPASSWORD'] = security.get_secret('ADMINPASSWORD')
-    password_test = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d-]{8,}$')
+    password_test = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d-]{12,}$')
     if not bool(password_test.match(horton.cache['ADMINPASSWORD'])):
         raise ValueError("Password doesn't match Platform spec."
-                         "Requires 8+ characters, at least 1 letter and "
+                         "Requires 12+ characters, at least 1 letter and "
                          "number, may also contain -")
     # Check Provider
     provider = config.profile.get('platform')['provider']
