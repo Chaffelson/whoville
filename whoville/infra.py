@@ -210,6 +210,7 @@ def create_cloudbreak(session, cbd_name):
     if session.type == 'ec2':
         s_boto3 = create_boto3_session()
         aws_clean_cloudformation(s_boto3)
+        log.info("Selecting OS Image for Cloudbreak")
         images = list_images(
             session,
             filters={
@@ -231,6 +232,7 @@ def create_cloudbreak(session, cbd_name):
                 'DeleteOnTermination': True
             }
         }
+        log.info("Fetching list of suitable machine types")
         machines = list_sizes(
             session, cpu_min=4, cpu_max=4, mem_min=16000, mem_max=20000
         )
@@ -238,6 +240,7 @@ def create_cloudbreak(session, cbd_name):
             raise ValueError("Couldn't find a VM of the right size")
         else:
             machine = machines[-1]
+        log.info("Fetching list of available networks")
         networks = list_networks(session)
         network = sorted(networks, key=lambda k: k.extra['is_default'])
         if not network:
@@ -245,6 +248,7 @@ def create_cloudbreak(session, cbd_name):
                              "is rather unexpected")
         else:
             network = network[-1]
+        log.info("Fetching subnets in Network")
         subnets = list_subnets(session, {'extra.vpc_id': network.id})
         subnets = sorted(subnets, key=lambda k: k.state)
         ec2_resource = s_boto3.resource('ec2')
@@ -259,8 +263,10 @@ def create_cloudbreak(session, cbd_name):
                              "one subnet in the default VPC")
         else:
             subnet = subnet[0]
+        log.info("Fetching Security groups matching namespace")
         sec_group = list_security_groups(session, {'name': namespace})
         if not sec_group:
+            log.info("Namespace Security group not found, creating")
             _ = session.ex_create_security_group(
                 name=namespace + 'whoville-default',
                 description=namespace + 'whoville-default Security Group',
@@ -288,6 +294,7 @@ def create_cloudbreak(session, cbd_name):
         )
         for rule in net_rules:
             add_sec_rule_to_ec2_group(session, rule, sec_group.id)
+        log.info("Checking for expected SSH Keypair")
         ssh_key = list_keypairs(
             session, {'name': config.profile['sshkey_name']}
         )
