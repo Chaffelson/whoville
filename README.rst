@@ -1,7 +1,7 @@
 Whoville
 ========
 Cloudy Hortonworks Platforms in under 60 minutes
-    A set of demos in a small Docker Image with Orchestration for AWS deployment from a simple Profile
+    A set of demos in a small Docker Image with Orchestration for AWS/GCP/Azure deployment from a simple Profile
 
 Requirements
 ------------

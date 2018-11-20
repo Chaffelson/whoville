@@ -21,11 +21,9 @@ recipe:
   typ: PRE_AMBARI_START
 - name: prepare-metastores-30.sh
   typ: PRE_AMBARI_START
-- name: phoenix-client.sh
-  typ: PRE_AMBARI_START
 group:
   master:
-    recipe: [remount-tmpfs, prepare-metastores-30, phoenix-client]
+    recipe: [remount-tmpfs, prepare-metastores-30]
     type: GATEWAY
     machine: 4x14-4x16
     nodes: 1

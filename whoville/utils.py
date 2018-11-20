@@ -397,3 +397,10 @@ def singleton(cls, *args, **kw):
             instances[cls] = cls(*args, **kw)
         return instances[cls]
     return _singleton
+
+
+def get_namespace():
+    if 'namespace' in config.profile and config.profile['namespace']:
+        return config.profile['namespace']
+    else:
+        return 'wv2-'
