@@ -819,7 +819,8 @@ def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
     sizes = session.list_sizes()
     machines = [
         x for x in sizes
-        if mem_min <= x.ram <= mem_max
+        if 'cpu' in x.extra
+        and mem_min <= x.ram <= mem_max
         and cpu_min <= x.extra['cpu'] <= cpu_max
         and disk_min <= x.disk <= disk_max
     ]
