@@ -189,7 +189,8 @@ def user_menu():
         print("e.g.")
         print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
         print("\nAlternately type 'help' to see the Definitions again, 'purge'"
-              " to remove all deployed environments, or 'exit' to exit "
+              " to remove all deployed environments from cloudbreak, 'nuke' "
+              "to remove everything including Cloudbreak, or 'exit' to exit "
               "gracefully")
         selected = str(input(">> "))
         if selected in ['list', 'help']:
@@ -199,6 +200,8 @@ def user_menu():
             exit(0)
         elif selected in ['purge']:
             deploy.purge_cloudbreak(for_reals=True, ns=horton.namespace)
+        elif selected in ['nuke']:
+            infra.nuke_namespace(dry_run=False)
         elif selected in horton.defs.keys():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")
@@ -215,6 +218,7 @@ def autorun(def_key=None):
         step_2_init_infra()
     step_3_sequencing(def_key=def_key)
     step_4_build()
+    print_intro()
 
 
 if __name__ == '__main__':

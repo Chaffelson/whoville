@@ -35,8 +35,7 @@ log.setLevel(logging.INFO)
 # ADAL for Azure is verbose, reducing output
 adal.log.set_logging_options({'level': 'WARNING'})
 
-namespace = config.profile['namespace']
-namespace = namespace if namespace else ''
+namespace = utils.get_namespace()
 preferred_cb_ver = '2.7.2'
 
 
@@ -133,8 +132,8 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
         s_libc = create_libcloud_session()
 
     cbd_name = namespace + 'cloudbreak'
-    cbd = list_nodes(s_libc, {'name': cbd_name})
-    cbd = [x for x in cbd if x.state == 'running']
+    cbd_nodes = list_nodes(s_libc, {'name': cbd_name})
+    cbd = [x for x in cbd_nodes if x.state == 'running']
     if cbd:
         if not purge:
             log.info("Cloudbreak [%s] found, returning instance",
@@ -158,7 +157,6 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
                 sleep(create_wait)
             cbd = create_cloudbreak(s_libc, cbd_name)
             log.info("Waiting for Cloudbreak Deployment to Complete")
-            #public_dns_name = str(socket.gethostbyaddr(cbd.public_ips[0])[0])
             utils.wait_to_complete(
                 utils.is_endpoint_up,
                 'https://' + cbd.public_ips[0],
@@ -168,8 +166,21 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
             return cbd
 
 
+def aws_clean_cloudformation(s_boto3):
+    client_cf = s_boto3.client('cloudformation')
+    cf_stacks = client_cf.list_stacks()
+    log.info("Looking for existing Cloud Formation stacks within namespace"
+             " [%s]", namespace)
+    for cf_stack in cf_stacks['StackSummaries']:
+        if namespace in cf_stack['StackName']:
+            log.info("Found Cloud Formation [%s], deleting to avoid "
+                     "collision with Cloudbreak cluster creation...",
+                     cf_stack['StackName'])
+            client_cf.delete_stack(StackName=cf_stack['StackName'])
+
+
 def create_cloudbreak(session, cbd_name):
-    public_ip = requests.get('http://ipv4.icanhazip.com').text.rstrip()
+    public_ip = requests.get('https://ipv4.icanhazip.com').text.rstrip()
     net_rules = [
         {
             'protocol': 'tcp',
@@ -198,16 +209,7 @@ def create_cloudbreak(session, cbd_name):
     ]
     if session.type == 'ec2':
         s_boto3 = create_boto3_session()
-        client_cf = s_boto3.client('cloudformation')
-        cf_stacks = client_cf.list_stacks()
-        log.info("Looking for existing Cloud Formation stacks within namespace"
-                 " [%s]", namespace)
-        for cf_stack in cf_stacks['StackSummaries']:
-            if namespace in cf_stack['StackName']:
-                log.info("Found Cloud Formation [%s], deleting to avoid "
-                         "collision with Cloudbreak cluster creation...",
-                         cf_stack['StackName'])
-                client_cf.delete_stack(StackName=cf_stack['StackName'])
+        aws_clean_cloudformation(s_boto3)
         images = list_images(
             session,
             filters={
@@ -898,11 +900,14 @@ def list_keypairs(session, filters=None):
 
 
 def list_nodes(session, filters=None):
-    log.info("Fetching Nodes matching Namespace in current session")
+    log.info("Fetching Nodes matching filters in current session")
     nodes = session.list_nodes()
     if not filters:
         return nodes
     for key, val in filters.items():
+        if session.type == 'gce':
+            # Cloudbreak strips the - from resource names for some reason
+            val = val.replace('-', '')
         nodes = [
             x for x in nodes
             if val in utils.get_val(x, key)
@@ -910,12 +915,15 @@ def list_nodes(session, filters=None):
     return nodes
 
 
-def list_all_aws_nodes():
+def list_all_aws_nodes(region_list=None):
     log.info("Fetching descriptions of all nodes in all AWS Regions."
              " This will be slow...")
     b3 = create_boto3_session()
     ec2 = b3.client('ec2')
-    regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
+    if region_list:
+        regions = region_list
+    else:
+        regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
     nodes = []
     for r in regions:
         ec2 = b3.client('ec2', r)
@@ -933,22 +941,25 @@ def get_aws_node_summary(node_list=None):
     summary = []
     node_list = node_list if node_list else list_all_aws_nodes()
     [[summary.append(
-        {p: q for p, q in y.items() if p in ['InstanceId', 'Placement', 'State', 'Tags']})
+        {p: q for p, q in y.items() if p in ['InstanceId', 'Placement',
+                                             'State', 'Tags']})
       for y in x['Instances']] for x in node_list]
     return summary
 
 
-def remove_aws_termination_protection(key_match, node_summary=None, also_terminate=False):
+def aws_terminate_by_tag(key_match, node_summary=None, also_terminate=False):
     ns = node_summary if node_summary else get_aws_node_summary()
     tagged = [x for x in ns if 'Tags' in x.keys()]
     matching = [x for x in tagged if key_match in str(x['Tags'][0])]
     b3 = create_boto3_session()
     for instance in matching:
         i = instance['InstanceId']
-        if instance['State']['Name'] in ['running', 'pending', 'stopping', 'stopped']:
+        if instance['State']['Name'] in ['running', 'pending', 'stopping',
+                                         'stopped']:
             log.info("Handling Instance %s", i)
             try:
-                ec2 = b3.client('ec2', instance['Placement']['AvailabilityZone'][:-1])
+                ec2 = b3.client(
+                    'ec2', instance['Placement']['AvailabilityZone'][:-1])
                 log.info("Removing Termination Protection on %s", i)
                 ec2.modify_instance_attribute(
                     InstanceId=i,
@@ -964,3 +975,18 @@ def remove_aws_termination_protection(key_match, node_summary=None, also_termina
                     log.info("Couldn't terminate %s", i)
         else:
             log.info("Instance %s already killed", i)
+
+
+def nuke_namespace(dry_run=True):
+    log.info("Nuking all nodes in Namespace %s", namespace)
+    log.info("dry_run is %s", str(dry_run))
+    session = create_libcloud_session()
+    instances = list_nodes(session, {'name': namespace})
+    if not instances:
+        log.info("No nodes matching Namespace found")
+    else:
+        log.info("Found %s nodes matching Namespace", str(len(instances)))
+    for i in instances:
+        log.info("Destroying Node %s", i.name)
+        if not dry_run:
+            session.destroy_node(i)

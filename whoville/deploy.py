@@ -20,7 +20,6 @@ from whoville import config, utils, infra, security
 from whoville import cloudbreak as cb
 from whoville import __version__ as proj_ver
 from whoville.cloudbreak.rest import ApiException
-from whoville.infra import namespace
 
 
 __all__ = [
@@ -84,7 +83,7 @@ class Horton:
         self.deps = {}  # Dependencies loaded for a given Definition
         self.seq = {}  # Prioritised list of tasks to execute
         self.cache = {}  # Key:Value store for passing params between Defs
-        self.namespace = config.profile['namespace']
+        self.namespace = utils.get_namespace()
         self.global_purge = config.profile['globalpurge']
 
     def __iter__(self):
@@ -798,7 +797,7 @@ def prep_cluster(def_key, fullname=None):
             )
     if 'auth' in horton.defs[def_key] \
             and 'name' in horton.defs[def_key]['auth']:
-        cluster_req.ldap_config_name = namespace + "auth"
+        cluster_req.ldap_config_name = horton.namespace + "auth"
         cluster_req.proxy_name = None
     if 'rds' in horton.defs[def_key]:
         if len(horton.deps[fullname]['rds']) > 0:
@@ -878,10 +877,10 @@ def prep_instance_groups(def_key, fullname):
         sec_group = horton.cbd.extra['groups'][0]['group_id']
     elif horton.cred.cloud_platform == 'AZURE':
         sec_group = lib_c_session.ex_list_network_security_groups(
-            resource_group=namespace + 'cloudbreak-group')[0].id
+            resource_group=horton.namespace + 'cloudbreak-group')[0].id
     elif horton.cred.cloud_platform == 'GCP':
         sec_group = lib_c_session.ex_get_firewall(
-            name=namespace + 'cloudbreak-secgroup').name
+            name=horton.namespace + 'cloudbreak-secgroup').name
     else:
         raise ValueError("Only Platforms AWS, AZURE, and GCP supported")
     if sec_group:
@@ -1062,9 +1061,9 @@ def prep_stack_specs(def_key, name=None):
         )
         horton.specs[fullname].network = cb.NetworkV2Request(
             parameters={
-                'subnetId': namespace + 'cloudbreak-subnet',
-                'networkId': namespace + 'cloudbreak-network',
-                'resourceGroupName': namespace + 'cloudbreak-group'
+                'subnetId': horton.namespace + 'cloudbreak-subnet',
+                'networkId': horton.namespace + 'cloudbreak-network',
+                'resourceGroupName': horton.namespace + 'cloudbreak-group'
             }
         )
     elif horton.cred.cloud_platform == 'GCP':
@@ -1336,6 +1335,7 @@ def purge_resource(res_name, res_type):
 
 
 def purge_cloudbreak(for_reals, ns=''):
+    horton = Horton()
     if not for_reals:
         raise ValueError("Cowardly not purging Cloudbreak as you didn't say "
                          "for reals. Please check function definition")
@@ -1349,7 +1349,7 @@ def purge_cloudbreak(for_reals, ns=''):
     log.info("Purging Images")
     [delete_image_catalog(x.name)
      for x in list_image_catalogs()
-     if x.used_as_default is False and namespace in x.name]
+     if x.used_as_default is False and horton.namespace in x.name]
     # Blueprints
     log.info("Purging Blueprints")
     [delete_blueprint(x.id)
@@ -1551,7 +1551,7 @@ def add_security_rule(cidr, start, end, protocol):
             rule = {'IPProtocol': 'tcp',
                     'ports': [str(start) + '-' + str(end)]}
             firewall = session.ex_get_firewall(
-                name=namespace + 'cloudbreak-secgroup')
+                name=horton.namespace + 'cloudbreak-secgroup')
             firewall.allowed.append(rule)
             session.ex_update_firewall(firewall)
         else:
@@ -1600,6 +1600,11 @@ def validate_profile():
     if config.profile['profilever'] < config.min_profile_ver:
         raise ValueError("Your Profile is out of date, please recreate your "
                          "Profile from the template")
+    # Check Namespace
+    assert isinstance(horton.namespace, six.string_types),\
+        "Namespace must be string"
+    assert len(horton.namespace) >= 2,\
+        "Namespace must be at least 2 characters"
     # Check Password
     if 'password' in config.profile and config.profile['password']:
         horton.cache['ADMINPASSWORD'] = config.profile['password']
