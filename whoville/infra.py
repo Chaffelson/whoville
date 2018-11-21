@@ -25,7 +25,7 @@ import base64
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
-           'create_node', 'list_images', 'list_sizes', 'list_networks',
+           'create_node', 'list_images', 'list_sizes_aws', 'list_networks',
            'list_subnets', 'list_security_groups', 'list_keypairs',
            'namespace', 'list_nodes']
 
@@ -233,7 +233,7 @@ def create_cloudbreak(session, cbd_name):
             }
         }
         log.info("Fetching list of suitable machine types")
-        machines = list_sizes(
+        machines = list_sizes_aws(
             session, cpu_min=4, cpu_max=4, mem_min=16000, mem_max=20000
         )
         if not machines:
@@ -821,13 +821,13 @@ def list_images(session, filters):
     return session.list_images(ex_filters=filters)
 
 
-def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
-               disk_min=0, disk_max=0):
+def list_sizes_aws(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
+                   disk_min=0, disk_max=0):
     sizes = session.list_sizes()
+    filterable = [x for x in sizes if 'cpu' in x.extra]
     machines = [
-        x for x in sizes
-        if 'cpu' in x.extra
-        and mem_min <= x.ram <= mem_max
+        x for x in filterable
+        if mem_min <= x.ram <= mem_max
         and cpu_min <= x.extra['cpu'] <= cpu_max
         and disk_min <= x.disk <= disk_max
     ]
