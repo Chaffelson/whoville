@@ -25,7 +25,7 @@ import base64
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
-           'create_node', 'list_images', 'list_sizes', 'list_networks',
+           'create_node', 'list_images', 'list_sizes_aws', 'list_networks',
            'list_subnets', 'list_security_groups', 'list_keypairs',
            'namespace', 'list_nodes']
 
@@ -210,6 +210,7 @@ def create_cloudbreak(session, cbd_name):
     if session.type == 'ec2':
         s_boto3 = create_boto3_session()
         aws_clean_cloudformation(s_boto3)
+        log.info("Selecting OS Image for Cloudbreak")
         images = list_images(
             session,
             filters={
@@ -231,13 +232,15 @@ def create_cloudbreak(session, cbd_name):
                 'DeleteOnTermination': True
             }
         }
-        machines = list_sizes(
+        log.info("Fetching list of suitable machine types")
+        machines = list_sizes_aws(
             session, cpu_min=4, cpu_max=4, mem_min=16000, mem_max=20000
         )
         if not machines:
             raise ValueError("Couldn't find a VM of the right size")
         else:
             machine = machines[-1]
+        log.info("Fetching list of available networks")
         networks = list_networks(session)
         network = sorted(networks, key=lambda k: k.extra['is_default'])
         if not network:
@@ -245,6 +248,7 @@ def create_cloudbreak(session, cbd_name):
                              "is rather unexpected")
         else:
             network = network[-1]
+        log.info("Fetching subnets in Network")
         subnets = list_subnets(session, {'extra.vpc_id': network.id})
         subnets = sorted(subnets, key=lambda k: k.state)
         ec2_resource = s_boto3.resource('ec2')
@@ -259,8 +263,10 @@ def create_cloudbreak(session, cbd_name):
                              "one subnet in the default VPC")
         else:
             subnet = subnet[0]
+        log.info("Fetching Security groups matching namespace")
         sec_group = list_security_groups(session, {'name': namespace})
         if not sec_group:
+            log.info("Namespace Security group not found, creating")
             _ = session.ex_create_security_group(
                 name=namespace + 'whoville-default',
                 description=namespace + 'whoville-default Security Group',
@@ -288,6 +294,7 @@ def create_cloudbreak(session, cbd_name):
         )
         for rule in net_rules:
             add_sec_rule_to_ec2_group(session, rule, sec_group.id)
+        log.info("Checking for expected SSH Keypair")
         ssh_key = list_keypairs(
             session, {'name': config.profile['sshkey_name']}
         )
@@ -814,13 +821,13 @@ def list_images(session, filters):
     return session.list_images(ex_filters=filters)
 
 
-def list_sizes(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
-               disk_min=0, disk_max=0):
+def list_sizes_aws(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
+                   disk_min=0, disk_max=0):
     sizes = session.list_sizes()
+    filterable = [x for x in sizes if 'cpu' in x.extra]
     machines = [
-        x for x in sizes
-        if 'cpu' in x.extra
-        and mem_min <= x.ram <= mem_max
+        x for x in filterable
+        if mem_min <= x.ram <= mem_max
         and cpu_min <= x.extra['cpu'] <= cpu_max
         and disk_min <= x.disk <= disk_max
     ]
