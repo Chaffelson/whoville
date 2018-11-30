@@ -21,8 +21,12 @@ input:
   fs.s3a.secret.key: GET:config.profile.platform.secret
 blueprint:
   name: blueprint.json
+recipe:
+- name: anaconda.sh
+  typ: POST_CLUSTER_INSTALL
 group:
   master:
+    recipe: [anaconda]
     machine: 4x28-8x32
 mpack:
 - name: hdf330
