@@ -25,7 +25,7 @@ group:
   master:
     machine: 4x28-8x32
 mpack:
-- name: hdf320
-  desc: HDF 3.2.0
-  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.2.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.2.0.0-520.tar.gz
+- name: hdf330
+  desc: HDF 3.3.0
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.3.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.0.0-165.tar.gz
   purge_on_install: false
