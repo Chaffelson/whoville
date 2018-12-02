@@ -7,23 +7,25 @@ deploywait: 1800
 purge: true
 priority: 
 seq:
-- copy_def: [inf-hdp30-single, cda30-s]
-- merge_def: [inf-cda30-single, cda30-s]
-- prep_deps: [cda30-s, cda30-s]
-- prep_spec: [cda30-s, cda30-s]
-- do_builds: [cda30-s]
+- copy_def: [inf-hdp30-single, t4hack]
+- merge_def: [t4hackathon, t4hack]
+- prep_deps: [t4hack, t4hack]
+- prep_spec: [t4hack, t4hack]
+- do_builds: [t4hack]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 input:
-  yarn.vcores: 12
-  yarn.capacity: 28672
+  yarn.vcores: 16
+  yarn.capacity: 60000
   enable_hive_interactive: false
-  fs.s3a.access.key: GET:config.profile.platform.key
-  fs.s3a.secret.key: GET:config.profile.platform.secret
 blueprint:
   name: blueprint.json
+recipe:
+- name: hackathon.sh
+  typ: POST_CLUSTER_INSTALL
 group:
   master:
-    machine: 4x28-8x32
+    recipe: [hackathon]
+    machine: 14x60-18x68
 mpack:
 - name: hdf330
   desc: HDF 3.3.0
