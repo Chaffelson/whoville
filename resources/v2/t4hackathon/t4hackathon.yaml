@@ -20,11 +20,11 @@ input:
 blueprint:
   name: blueprint.json
 recipe:
-- name: anaconda.sh
+- name: hackathon.sh
   typ: POST_CLUSTER_INSTALL
 group:
   master:
-    recipe: [anaconda]
+    recipe: [hackathon]
     machine: 14x60-18x68
 mpack:
 - name: hdf330
