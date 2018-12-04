@@ -347,6 +347,9 @@ def create_cloudbreak(session, cbd_name):
                 'ex_userdata': script
             }
         )
+        # inserting hard wait to bypass race condition where returned node ID
+        # is not actually available to the list API call yet
+        sleep(5)
         log.info("Waiting for Cloudbreak Instance to be Available...")
         session.wait_until_running(nodes=[cbd])
         log.info("Cloudbreak Infra Booted at [%s]", cbd)

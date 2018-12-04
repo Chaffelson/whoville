@@ -22,7 +22,11 @@ export public_ip=${public_ip:-$(curl -s icanhazptr.com)}
 echo Installing dependencies
 yum clean metadata
 yum clean all
-yum -y install net-tools ntp wget lsof unzip tar iptables-services docker sed yq jq
+yum install -y yum-utils
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum repolist
+yum -y install net-tools ntp wget lsof unzip tar iptables-services sed yq jq device-mapper-persistent-data lvm2 docker-ce
+
 
 # Environment Setup for Cloudbreak
 echo Modifying Environment Settings
