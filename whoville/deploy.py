@@ -367,6 +367,14 @@ def get_custom_params(bp_name, **kwargs):
 def list_stacks(**kwargs):
     return cb.V2stacksApi().get_publics_stack_v2(**kwargs)
 
+def list_stacks_json(**kwargs):
+    return cb.V2stacksApi().get_publics_stack_v2(_preload_content=False,**kwargs)
+
+def list_templates(**kwargs):
+    return cb.V1templatesApi().get_publics_template(**kwargs)
+
+def list_templates_json(**kwargs):
+    return cb.V1templatesApi().get_publics_template(_preload_content=False,**kwargs)
 
 def get_stack_matrix(**kwargs):
     return cb.V1utilApi().get_stack_matrix_util(**kwargs)
@@ -808,6 +816,12 @@ def prep_cluster(def_key, fullname=None):
                     rds_name = rds_config.__getattribute__("name")
                     rds_config_names.append(rds_name)
             cluster_req.rds_config_names = rds_config_names
+    if 'attached' in horton.defs[def_key] and horton.defs[def_key]['attached']:
+        if 'SHAREDSERVICESNAME' in horton.cache:
+            shared_service_cluster_name = horton.cache['SHAREDSERVICESNAME']
+            cluster_req.shared_service = cb.SharedService(shared_cluster=shared_service_cluster_name)
+        else:
+            raise ValueError("attached is set to true but no SHAREDSERVICESNAME key in Horton.cache...")
     if 'proxy' in horton.defs[def_key] and horton.defs[def_key]['proxy']:
         cluster_req.ambari.gateway = cb.GatewayJson(
             enable_gateway=True,
@@ -1011,6 +1025,7 @@ def prep_stack_specs(def_key, name=None):
     horton.specs[fullname] = cb.StackV2Request(
         general='', instance_groups=''
     )
+    
     tags = config.profile.get('tags')
     if tags is not None:
         if 'deployer' not in tags or tags['deployer'] is None:
@@ -1024,8 +1039,18 @@ def prep_stack_specs(def_key, name=None):
             tags['service'] = 'ephemeralhortonworkscluster'
         if 'deploytool' not in tags or tags['deploytool'] is None:
             tags['deploytool'] = 'whoville' + proj_ver
-        horton.specs[fullname].tags = {'userDefinedTags': tags}
-
+        tags['dps'] = 'false'
+        tags['datalake'] = 'false'
+    else:
+        tags = {'datalake': 'false', 'dps': 'false'}
+    
+    if 'dps' in fullname:
+        tags['dps'] = 'true'
+    if 'datalake' in fullname:
+        tags['datalake'] = 'true'
+    
+    horton.specs[fullname].tags = {'userDefinedTags': tags}
+    
     horton.specs[fullname].general = cb.GeneralSettings(
             credential_name=horton.cred.name,
             name=fullname
@@ -1113,6 +1138,11 @@ def prep_stack_specs(def_key, name=None):
                     input_val = input_val.split(':')[-1]
                     import whoville
                     input_val = utils.get_val(whoville, input_val, '.')
+                elif input_val.startswith('GETCACHE:'):
+                    log.info("Input uses Command [%s] for Param [%s]",
+                             input_val, input_key)
+                    input_val = input_val.split(':')[-1]
+                    input_val = horton.cache[input_val]
             horton.specs[fullname].inputs[input_key] = input_val
     else:
         log.info("No Inputs found, skipping...")
@@ -1577,6 +1607,11 @@ def write_cache(name, item, cache_key):
                 instance = [
                     x for x in group.metadata if x.ambari_server is True][0]
                 horton.cache[cache_key] = instance.__getattribute__(item)
+    elif item in ['shared_services']:
+        stack = [x for x in list_stacks()
+                if x.user_defined_tags['datalake'] == 'true'][0]
+        if stack:
+            horton.cache[cache_key] = stack.cluster.name
     else:
         # write literal value to cache
         horton.cache[cache_key] = item
