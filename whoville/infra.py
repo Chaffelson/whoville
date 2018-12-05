@@ -827,7 +827,8 @@ def list_sizes_aws(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
     machines = [
         x for x in sizes
         if mem_min <= x.ram <= mem_max
-        and cpu_min <= int(x.extra['vcpu']) <= cpu_max
+        and 'cpu' in x.extra
+        and cpu_min <= int(x.extra['cpu']) <= cpu_max
         and disk_min <= x.disk <= disk_max
     ]
     return machines
