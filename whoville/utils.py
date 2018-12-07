@@ -143,6 +143,9 @@ def fs_read(file_path):
     try:
         with open(str(file_path), 'r') as f:
             return f.read()
+    except UnicodeDecodeError:
+        with open(str(file_path), 'r', encoding='latin-1') as f:
+            return f.read()
     except IOError as e:
         raise e
 
@@ -375,7 +378,10 @@ def load_resources_from_files(file_path):
         parent = reduce(dict.get, folders[:-1], resources)
         parent[folders[-1]] = subdir
         for file_name in subdir.keys():
-            log.info("loading [%s]", os.path.join(path, file_name))
+            if file_name[0] == '.':
+                log.info("skipping dot file [%s]", file_name)
+            else:
+                log.info("loading [%s]", os.path.join(path, file_name))
             if file_name.rsplit('.')[1] not in ['yaml', 'json']:
                 subdir[file_name] = fs_read(os.path.join(path, file_name))
             else:

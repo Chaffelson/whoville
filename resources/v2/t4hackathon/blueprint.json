@@ -17,6 +17,15 @@
       }
     },
     {
+      "hdfs-site": {
+        "properties_attributes": {},
+        "properties": {
+          "fs.s3a.access.key": "{{{ fs.s3a.access.key }}}",
+          "fs.s3a.secret.key": "{{{ fs.s3a.secret.key }}}"
+        }
+      }
+    },
+    {
       "capacity-scheduler": {
         "properties": {
           "yarn.scheduler.capacity.root.queues": "default",
@@ -25,6 +34,14 @@
           "yarn.scheduler.capacity.root.default.maximum-capacity": "100",
           "yarn.scheduler.capacity.maximum-am-resource-percent": "0.4"
         }
+      }
+    },
+    {
+      "zeppelin-ambari-config": {
+        "zeppelin.executor.mem": "512m",
+        "zeppelin.executor.instances": "2",
+        "zeppelin.install.dir": "/opt",
+        "zeppelin.pyspark.python": "/opt/anaconda/bin/python2.7"
       }
     },
     {
