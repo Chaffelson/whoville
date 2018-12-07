@@ -26,6 +26,11 @@
       }
     },
     {
+      "zeppelin-site": {
+        "zeppelin.pyspark.python": "/opt/anaconda/bin/python2.7"
+      }
+    },
+    {
       "capacity-scheduler": {
         "properties": {
           "yarn.scheduler.capacity.root.queues": "default",
@@ -34,14 +39,6 @@
           "yarn.scheduler.capacity.root.default.maximum-capacity": "100",
           "yarn.scheduler.capacity.maximum-am-resource-percent": "0.4"
         }
-      }
-    },
-    {
-      "zeppelin-ambari-config": {
-        "zeppelin.executor.mem": "512m",
-        "zeppelin.executor.instances": "2",
-        "zeppelin.install.dir": "/opt",
-        "zeppelin.pyspark.python": "/opt/anaconda/bin/python2.7"
       }
     },
     {
