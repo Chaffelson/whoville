@@ -1607,6 +1607,17 @@ def write_cache(name, item, cache_key):
                 instance = [
                     x for x in group.metadata if x.ambari_server is True][0]
                 horton.cache[cache_key] = instance.__getattribute__(item)
+    elif item in ['private_ip']:
+        stack = [x for x in list_stacks()
+                 if x.name == name][0]
+        if stack:
+            group = [
+                x for x in stack.instance_groups
+                if x.type == 'GATEWAY'][0]
+            if group:
+                instance = [
+                    x for x in group.metadata if x.ambari_server is True][0]
+                horton.cache[cache_key] = instance.__getattribute__(item)
     elif item in ['shared_services']:
         stack = [x for x in list_stacks()
                 if x.user_defined_tags['datalake'] == 'true'][0]
