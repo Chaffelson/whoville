@@ -222,6 +222,10 @@ def autorun(def_key=None):
     step_4_build()
     print_intro()
 
+@app.route("/api/whoville/v1/getCB")
+def getCB():
+    return json.dumps(horton.cbd.public_ips)
+
 @app.route("/api/whoville/v1/")
 def apiCheck():
     return "Whoville Rest API is operational..."
