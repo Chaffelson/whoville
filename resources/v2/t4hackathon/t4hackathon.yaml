@@ -17,6 +17,8 @@ input:
   yarn.vcores: 16
   yarn.capacity: 60000
   enable_hive_interactive: false
+  fs.s3a.access.key: GET:config.profile.platform.key
+  fs.s3a.secret.key: GET:config.profile.platform.secret
 blueprint:
   name: blueprint.json
 recipe:

@@ -17,6 +17,20 @@
       }
     },
     {
+      "hdfs-site": {
+        "properties_attributes": {},
+        "properties": {
+          "fs.s3a.access.key": "{{{ fs.s3a.access.key }}}",
+          "fs.s3a.secret.key": "{{{ fs.s3a.secret.key }}}"
+        }
+      }
+    },
+    {
+      "zeppelin-site": {
+        "zeppelin.pyspark.python": "/opt/anaconda/bin/python2.7"
+      }
+    },
+    {
       "capacity-scheduler": {
         "properties": {
           "yarn.scheduler.capacity.root.queues": "default",

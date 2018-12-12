@@ -616,17 +616,18 @@ def prep_images_dependency(def_key, fullname=None):
         stack_version_detail = horton._getr(
             'defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
     except AttributeError:
-        log.info("Custom repo data not provided, will attempt to use, "
-                 "prewarmed image")
+        log.info("Stack version override not set in yaml")
         ambari_version = stack_version_detail = None
     log.info("fetching stack matrix for name:version [%s]:[%s]",
              stack_name, stack_version)
     stack_matrix = get_stack_matrix()
     stack_root = utils.get_val(
         stack_matrix,
-        [stack_name.lower(),
-         bp_content['Blueprints']['stack_version']]
+        [stack_name.lower(), stack_version]
     )
+    if not stack_root:
+        log.warning("Stack %s %s not recognised by Cloudbreak",
+                    stack_name, stack_version)
     images = get_images(
         catalog=cat_name,
         platform=horton.cred.cloud_platform
@@ -649,8 +650,7 @@ def prep_images_dependency(def_key, fullname=None):
             ) if x.stack_details.version[:3] == stack_version
         ]
     if len(images_by_type) == 0 and stack_version_detail:
-        log.info("No matching prewarmed images found but custom repos are "
-                 "defined, using base image...")
+        log.info("No matching prewarmed images found, trying base image...")
         if horton.cred.cloud_platform == 'AWS':
             images_by_type = [
                 x for x in images.base_images if x.os == 'redhat7'
@@ -660,24 +660,27 @@ def prep_images_dependency(def_key, fullname=None):
                 x for x in images.base_images if x.default_image
             ]
     elif len(images_by_type) > 0:
-        log.info("Custom repos are not defined but prewarmed image matching "
-                 "blueprint is available...")
+        log.info("Prewarmed image matching blueprint is available...")
     else:
-        raise ValueError("Cloud not find prewarmed image matching blueprint "
-                         "and no custom repos defined...")
+        raise ValueError("Could not find image matching blueprint ")
     valid_images = []
     for image in images_by_type:
-        if type(image) == cb.BaseImageResponse:
-            ver_check = [
-                x.version for x in image.__getattribute__(
-                    '_'.join([stack_name.lower(), 'stacks'])
-                ) if x.version == stack_root.version
-            ]
-            if ver_check:
-                valid_images.append(image)
-        elif type(image) == cb.ImageResponse:
-            if image.stack_details.version[:3] == stack_version:
-                valid_images.append(image)
+        if stack_root:
+            log.info("Stack recognised by Cloudbreak, checking versions")
+            if type(image) == cb.BaseImageResponse:
+                ver_check = [
+                    x.version for x in image.__getattribute__(
+                        '_'.join([stack_name.lower(), 'stacks'])
+                    ) if x.version == stack_root.version
+                ]
+                if ver_check:
+                    valid_images.append(image)
+            elif type(image) == cb.ImageResponse:
+                if image.stack_details.version[:3] == stack_version:
+                    valid_images.append(image)
+        else:
+            log.info("Stack not recognised by Cloudbreak, using base image")
+            valid_images.append(images_by_type[0])
 
     if valid_images:
         log.info("found [%d] images matching requirements", len(valid_images))
