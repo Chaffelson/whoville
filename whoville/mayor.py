@@ -252,7 +252,6 @@ def deployPackage():
     autorun(def_key=selected)
     return 'done'
     
-
 if __name__ == '__main__':
     mode = 'ui'
     log.info("Name is [%s] running user_menu", __name__)
