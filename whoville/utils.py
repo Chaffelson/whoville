@@ -370,9 +370,11 @@ def load_resources_from_files(file_path):
     resources = {}
     # http://code.activestate.com/recipes/577879-create-a-nested-dictionary-from-oswalk/
     rootdir = file_path.rstrip(os.sep)
+    log.info("Trying path {0}".format(rootdir))
     head = rootdir.rsplit(os.sep)[-1]
     start = rootdir.rfind(os.sep) + 1
     for path, dirs, files in os.walk(rootdir):
+        log.info("Trying path {0}".format(path))
         folders = path[start:].split(os.sep)
         subdir = dict.fromkeys(files)
         parent = reduce(dict.get, folders[:-1], resources)

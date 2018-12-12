@@ -11,6 +11,7 @@ from __future__ import absolute_import as _abs_imp
 import logging
 import re as _re
 import json
+import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
 from whoville import config, utils, security, infra, deploy, actions
@@ -26,6 +27,7 @@ log.setLevel(logging.INFO)
 horton = deploy.Horton()
 app = Flask(__name__)
 
+
 def step_1_init_service():
     init_start_ts = _dt.utcnow()
     log.info("------------- Initialising Whoville Deployment Service at [%s]",
@@ -33,8 +35,11 @@ def step_1_init_service():
     log.info("------------- Validating Profile")
     deploy.validate_profile()
     log.info("------------- Loading Default Resources")
+    default_resources = os.path.abspath(os.path.join(
+        config.ROOT_DIR, os.pardir, 'resources', 'v2'
+    ))
     horton.resources.update(
-        utils.load_resources_from_files('/Users/vvaks/git/whoville/resources/v2')
+        utils.load_resources_from_files(default_resources)
     )
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
