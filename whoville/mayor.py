@@ -36,7 +36,7 @@ def step_1_init_service():
     deploy.validate_profile()
     log.info("------------- Loading Default Resources")
     default_resources = os.path.abspath(os.path.join(
-        config.ROOT_DIR, os.pardir, 'resources', 'v2'
+        os.path.dirname(os.path.abspath(__file__)), 'resources', 'v2'
     ))
     horton.resources.update(
         utils.load_resources_from_files(default_resources)
@@ -270,12 +270,12 @@ def deployPackage():
 
 
 if __name__ == '__main__':
-    mode = utils.get_val(config.profile, 'user_mode')
+    user_mode = utils.get_val(config.profile, 'user_mode')
     log.info("Name is [%s] running user_menu", __name__)
     step_1_init_service()
     step_2_init_infra(create_wait=5)
 
-    if mode == 'ui':   
+    if user_mode:
         app.run(debug=True)
     else:
         print_intro()

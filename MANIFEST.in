@@ -1,4 +1,3 @@
-include docs/history.rst
 include LICENSE
 include README.rst
 include requirements.txt
