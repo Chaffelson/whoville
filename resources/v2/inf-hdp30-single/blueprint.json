@@ -74,6 +74,9 @@
           "name": "MAPREDUCE2_CLIENT"
         },
         {
+          "name": "TEZ_CLIENT"
+        },
+        {
           "name": "HIVE_CLIENT"
         }
       ],

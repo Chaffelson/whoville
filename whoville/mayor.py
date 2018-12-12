@@ -10,10 +10,12 @@ Warnings:
 from __future__ import absolute_import as _abs_imp
 import logging
 import re as _re
+import json
 from time import sleep as _sleep
 from datetime import datetime as _dt
 from whoville import config, utils, security, infra, deploy, actions
-
+from flask import Flask
+from flask import request
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -22,7 +24,7 @@ log.setLevel(logging.INFO)
 # 'horton' is a shared state function to make deployment more readable
 # to non-python users
 horton = deploy.Horton()
-
+app = Flask(__name__)
 
 def step_1_init_service():
     init_start_ts = _dt.utcnow()
@@ -32,7 +34,7 @@ def step_1_init_service():
     deploy.validate_profile()
     log.info("------------- Loading Default Resources")
     horton.resources.update(
-        utils.load_resources_from_files('resources/v2')
+        utils.load_resources_from_files('/Users/vvaks/git/whoville/resources/v2')
     )
     log.info("------------- Fetching Resources from Profile Definitions")
     if config.profile['resources']:
@@ -221,9 +223,55 @@ def autorun(def_key=None):
     print_intro()
 
 
+@app.route("/api/whoville/v1/getCB")
+def getCB():
+    return json.dumps(horton.cbd.public_ips)
+
+
+@app.route("/api/whoville/v1/")
+def apiCheck():
+    return "Whoville Rest API is operational..."
+
+
+@app.route("/api/whoville/v1/getMenu")
+def getDefs():
+    return json.dumps(horton.defs)
+
+
+@app.route("/api/whoville/v1/getCredentials")
+def getCredentials():
+    var = {'platform' : horton.cred.cloud_platform, 
+           'name' : horton.cred.name}
+    return json.dumps(var)
+
+
+@app.route("/api/whoville/v1/getStacks")
+def getStacks():
+    var = json.loads(deploy.list_stacks_json().data.decode())
+    return json.dumps(var)
+
+
+@app.route("/api/whoville/v1/getTemplates")
+def getTemplates():
+    var = json.loads(deploy.list_templates_json().data.decode())
+    return json.dumps(var)
+
+
+@app.route("/api/whoville/v1/deployPackage")
+def deployPackage():
+    selected = request.args.get('clusterType')
+    autorun(def_key=selected)
+    return 'done'
+
+
 if __name__ == '__main__':
+    mode = utils.get_val(config.profile, 'user_mode')
     log.info("Name is [%s] running user_menu", __name__)
     step_1_init_service()
     step_2_init_infra(create_wait=5)
-    print_intro()
-    user_menu()
+
+    if mode == 'ui':   
+        app.run(debug=True)
+    else:
+        print_intro()
+        user_menu()
