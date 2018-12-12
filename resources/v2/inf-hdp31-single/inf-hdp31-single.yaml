@@ -1,0 +1,37 @@
+# Known issues:
+# Hive LLAP will not start on small machines
+# NiFi moved to 9092 to avoid a port clash when everything is on one node
+
+desc: Single node cluster including HDP-3.1 & HDF-3.3
+deploywait: 1800
+purge: true
+priority: 
+seq:
+- copy_def: [inf-hdp30-single, hdp31-s]
+- merge_def: [inf-hdp31-single, hdp31-s]
+- prep_deps: [hdp31-s, hdp31-s]
+- prep_spec: [hdp31-s, hdp31-s]
+- do_builds: [hdp31-s]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
+input:
+  yarn.vcores: 12
+  yarn.capacity: 28672
+  enable_hive_interactive: false
+infra:
+  ambarirepo:
+    version: 2.7.3.0
+    baseUrl: http://s3.amazonaws.com/dev.hortonworks.com/ambari/centos7/2.x/BUILDS/2.7.3.0-139
+    gpgKeyUrl: http://s3.amazonaws.com/dev.hortonworks.com/ambari/centos7/2.x/BUILDS/2.7.3.0-139/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
+  stackrepo:
+    ver: 3.1.0.0-78
+    url: http://s3.amazonaws.com/dev.hortonworks.com/HDP/centos7/3.x/BUILDS/3.1.0.0-78/HDP-3.1.0.0-78.xml
+blueprint:
+  name: blueprint.json
+group:
+  master:
+    machine: 4x28-8x32
+#mpack:
+#- name: hdf330
+#  desc: HDF 3.3.0
+#  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.3.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.0.0-165.tar.gz
+#  purge_on_install: false
