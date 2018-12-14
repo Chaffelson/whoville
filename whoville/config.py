@@ -27,6 +27,10 @@ if not profile_loc:
     profile_loc = 'profile.yml'
 
 
+# --- Project Root -----
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 # --- Profile Versioning ------
 min_profile_ver = 2
 
