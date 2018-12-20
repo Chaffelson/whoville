@@ -209,6 +209,7 @@ def user_menu():
             deploy.purge_cloudbreak(for_reals=True, ns=horton.namespace)
         elif selected in ['nuke']:
             infra.nuke_namespace(dry_run=False)
+            exit(0)
         elif selected in horton.defs.keys():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")
