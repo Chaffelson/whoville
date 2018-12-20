@@ -30,8 +30,7 @@ blueprint:
 group:
   master:
     machine: 4x28-8x32
-#mpack:
-#- name: hdf330
-#  desc: HDF 3.3.0
-#  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.3.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.0.0-165.tar.gz
-#  purge_on_install: false
+mpack:
+- name: hdf331
+  desc: HDF 3.3.1
+  url: http://s3.amazonaws.com/dev.hortonworks.com/HDF/centos7/3.x/BUILDS/3.3.1.0-10/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.1.0-10.tar.gz
