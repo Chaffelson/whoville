@@ -1,13 +1,9 @@
 #!/bin/bash
 
 # Setup the metron rest database 
-
-wget https://dev.mysql.com/get/mysql80-community-release-el7-1.noarch.rpm
-rpm -ivh mysql80-community-release-el7-1.noarch.rpm
-yum-config-manager --disable mysql80-community
-yum-config-manager --enable mysql56-community
-
-yum install -y mysql-server 
+wget http://dev.mysql.com/get/mysql57-community-release-el7-8.noarch.rpm
+yum localinstall mysql57-community-release-el7-8.noarch.rpm
+yum install -y mysql-community-server 
 service mysqld start
 
 cat <<-EOF | mysql -u root
