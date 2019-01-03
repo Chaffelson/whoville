@@ -14,7 +14,7 @@ with open('docs/history.rst') as history_file:
 with open('requirements.txt') as reqs_file:
     requirements = reqs_file.read().splitlines()
 
-proj_version = '0.1.0'
+proj_version = '0.2.0'
 
 setup(
     name='whoville',
