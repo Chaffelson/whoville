@@ -703,7 +703,7 @@ def prep_images_dependency(def_key, fullname=None):
                     valid_images.append(image)
         else:
             log.info("Stack not recognised by Cloudbreak, using base image"
-                     "like [%s]", images_by_type[0])
+                     "like [%s]", images_by_type[0].repo)
             valid_images.append(images_by_type[0])
 
     if valid_images:
