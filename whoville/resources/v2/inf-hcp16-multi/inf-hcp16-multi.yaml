@@ -28,6 +28,8 @@ recipe:
   typ: POST_AMBARI_START
 - name: noexec-tmp.sh
   typ: PRE_AMBARI_START
+infra:
+  baseimage: redhat7
 group:
   master2:
     recipe: [noexec-tmp]
