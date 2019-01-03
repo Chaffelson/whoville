@@ -367,6 +367,14 @@ def get_custom_params(bp_name, **kwargs):
 def list_stacks(**kwargs):
     return cb.V2stacksApi().get_publics_stack_v2(**kwargs)
 
+def list_stacks_json(**kwargs):
+    return cb.V2stacksApi().get_publics_stack_v2(_preload_content=False,**kwargs)
+
+def list_templates(**kwargs):
+    return cb.V1templatesApi().get_publics_template(**kwargs)
+
+def list_templates_json(**kwargs):
+    return cb.V1templatesApi().get_publics_template(_preload_content=False,**kwargs)
 
 def get_stack_matrix(**kwargs):
     return cb.V1utilApi().get_stack_matrix_util(**kwargs)
@@ -604,80 +612,99 @@ def prep_dependencies(def_key, shortname=None):
 def prep_images_dependency(def_key, fullname=None):
     horton = Horton()
     log.info("Prepping valid images for demo spec")
+    base_image_os = horton._getr('defs:' + def_key + ':infra:baseimage')
     cat_name = horton._getr('defs:' + def_key + ':catalog')
-    bp_content = utils.load(
-        horton.deps[fullname]['blueprint'].ambari_blueprint, decode='base64'
-    )
-    stack_name = bp_content['Blueprints']['stack_name']
-    stack_version = bp_content['Blueprints']['stack_version']
-    try:
-        ambari_version = horton._getr(
-            'defs:' + def_key + ':infra:ambarirepo:version')
-        stack_version_detail = horton._getr(
-            'defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
-    except AttributeError:
-        log.info("Custom repo data not provided, will attempt to use, "
-                 "prewarmed image")
-        ambari_version = stack_version_detail = None
-    log.info("fetching stack matrix for name:version [%s]:[%s]",
-             stack_name, stack_version)
-    stack_matrix = get_stack_matrix()
-    stack_root = utils.get_val(
-        stack_matrix,
-        [stack_name.lower(),
-         bp_content['Blueprints']['stack_version']]
-    )
     images = get_images(
         catalog=cat_name,
         platform=horton.cred.cloud_platform
     )
-    log.info("Fetched images from Cloudbreak [%s]",
-             str(images.attribute_map)[:100]
-             )
-    if ambari_version and stack_version_detail:
-        images_by_type = [
-            x for x in
-            images.__getattribute__(stack_name.lower() + '_images')
-            if x.version == ambari_version
-            and x.stack_details.version == stack_version_detail
-        ]
-    else:
-        images_by_type = [
-            x for x in
-            images.__getattribute__(
-                stack_name.lower() + '_images'
-            ) if x.stack_details.version[:3] == stack_version
-        ]
-    if len(images_by_type) == 0 and stack_version_detail:
-        log.info("No matching prewarmed images found but custom repos are "
-                 "defined, using base image...")
-        if horton.cred.cloud_platform == 'AWS':
+    # base_image_os is an override in the yaml definition to select a specific
+    # base image by operating system name
+    # primarily used to force redhat7 instead of amazonlinux
+    if not base_image_os:
+        # if not over ride, try to select a prewarmed image matching stack def
+        bp_content = utils.load(
+            horton.deps[fullname]['blueprint'].ambari_blueprint,
+            decode='base64'
+        )
+        stack_name = bp_content['Blueprints']['stack_name']
+        stack_version = bp_content['Blueprints']['stack_version']
+        try:
+            ambari_version = horton._getr(
+                'defs:' + def_key + ':infra:ambarirepo:version')
+            stack_version_detail = horton._getr(
+                'defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
+        except AttributeError:
+            log.info("Stack version override not set in yaml")
+            ambari_version = stack_version_detail = None
+        log.info("fetching stack matrix for name:version [%s]:[%s]",
+                 stack_name, stack_version)
+        stack_matrix = get_stack_matrix()
+        stack_root = utils.get_val(
+            stack_matrix,
+            [stack_name.lower(), stack_version]
+        )
+        if not stack_root:
+            log.warning("Stack %s %s not recognised by Cloudbreak",
+                        stack_name, stack_version)
+        log.info("Fetched images from Cloudbreak [%s]",
+                 str(images.attribute_map)[:100]
+                 )
+        if ambari_version and stack_version_detail:
             images_by_type = [
-                x for x in images.base_images if x.os == 'redhat7'
+                x for x in
+                images.__getattribute__(stack_name.lower() + '_images')
+                if x.version == ambari_version
+                and x.stack_details.version == stack_version_detail
+            ]
+        else:
+            images_by_type = [
+                x for x in
+                images.__getattribute__(
+                    stack_name.lower() + '_images'
+                ) if x.stack_details.version[:3] == stack_version
+            ]
+    else:
+        images_by_type = []
+        stack_version_detail = ''
+        stack_root = None
+
+    if base_image_os or len(images_by_type) == 0 and stack_version_detail:
+        log.info("No matching prewarmed images found, trying base image...")
+        if horton.cred.cloud_platform == 'AWS':
+            # we will look for redhat7 on AWS over amazonlinux for preference
+            base_image_os = base_image_os if base_image_os else 'redhat7'
+            images_by_type = [
+                x for x in images.base_images if x.os == base_image_os
             ]
         else:
             images_by_type = [
                 x for x in images.base_images if x.default_image
             ]
     elif len(images_by_type) > 0:
-        log.info("Custom repos are not defined but prewarmed image matching "
-                 "blueprint is available...")
+        log.info("Prewarmed image matching blueprint is available...")
     else:
-        raise ValueError("Cloud not find prewarmed image matching blueprint "
-                         "and no custom repos defined...")
+        raise ValueError("Could not find image matching blueprint ")
     valid_images = []
+    assert len(images_by_type) > 0, "No Images found"
     for image in images_by_type:
-        if type(image) == cb.BaseImageResponse:
-            ver_check = [
-                x.version for x in image.__getattribute__(
-                    '_'.join([stack_name.lower(), 'stacks'])
-                ) if x.version == stack_root.version
-            ]
-            if ver_check:
-                valid_images.append(image)
-        elif type(image) == cb.ImageResponse:
-            if image.stack_details.version[:3] == stack_version:
-                valid_images.append(image)
+        if stack_root:
+            log.info("Stack recognised by Cloudbreak, checking versions")
+            if type(image) == cb.BaseImageResponse:
+                ver_check = [
+                    x.version for x in image.__getattribute__(
+                        '_'.join([stack_name.lower(), 'stacks'])
+                    ) if x.version == stack_root.version
+                ]
+                if ver_check:
+                    valid_images.append(image)
+            elif type(image) == cb.ImageResponse:
+                if image.stack_details.version[:3] == stack_version:
+                    valid_images.append(image)
+        else:
+            log.info("Stack not recognised by Cloudbreak, using base image"
+                     "like [%s]", images_by_type[0])
+            valid_images.append(images_by_type[0])
 
     if valid_images:
         log.info("found [%d] images matching requirements", len(valid_images))
@@ -808,6 +835,12 @@ def prep_cluster(def_key, fullname=None):
                     rds_name = rds_config.__getattribute__("name")
                     rds_config_names.append(rds_name)
             cluster_req.rds_config_names = rds_config_names
+    if 'attached' in horton.defs[def_key] and horton.defs[def_key]['attached']:
+        if 'SHAREDSERVICESNAME' in horton.cache:
+            shared_service_cluster_name = horton.cache['SHAREDSERVICESNAME']
+            cluster_req.shared_service = cb.SharedService(shared_cluster=shared_service_cluster_name)
+        else:
+            raise ValueError("attached is set to true but no SHAREDSERVICESNAME key in Horton.cache...")
     if 'proxy' in horton.defs[def_key] and horton.defs[def_key]['proxy']:
         cluster_req.ambari.gateway = cb.GatewayJson(
             enable_gateway=True,
@@ -1011,6 +1044,7 @@ def prep_stack_specs(def_key, name=None):
     horton.specs[fullname] = cb.StackV2Request(
         general='', instance_groups=''
     )
+    
     tags = config.profile.get('tags')
     if tags is not None:
         if 'deployer' not in tags or tags['deployer'] is None:
@@ -1024,8 +1058,18 @@ def prep_stack_specs(def_key, name=None):
             tags['service'] = 'ephemeralhortonworkscluster'
         if 'deploytool' not in tags or tags['deploytool'] is None:
             tags['deploytool'] = 'whoville' + proj_ver
-        horton.specs[fullname].tags = {'userDefinedTags': tags}
-
+        tags['dps'] = 'false'
+        tags['datalake'] = 'false'
+    else:
+        tags = {'datalake': 'false', 'dps': 'false'}
+    
+    if 'dps' in fullname:
+        tags['dps'] = 'true'
+    if 'datalake' in fullname:
+        tags['datalake'] = 'true'
+    
+    horton.specs[fullname].tags = {'userDefinedTags': tags}
+    
     horton.specs[fullname].general = cb.GeneralSettings(
             credential_name=horton.cred.name,
             name=fullname
@@ -1113,6 +1157,11 @@ def prep_stack_specs(def_key, name=None):
                     input_val = input_val.split(':')[-1]
                     import whoville
                     input_val = utils.get_val(whoville, input_val, '.')
+                elif input_val.startswith('GETCACHE:'):
+                    log.info("Input uses Command [%s] for Param [%s]",
+                             input_val, input_key)
+                    input_val = input_val.split(':')[-1]
+                    input_val = horton.cache[input_val]
             horton.specs[fullname].inputs[input_key] = input_val
     else:
         log.info("No Inputs found, skipping...")
@@ -1577,6 +1626,22 @@ def write_cache(name, item, cache_key):
                 instance = [
                     x for x in group.metadata if x.ambari_server is True][0]
                 horton.cache[cache_key] = instance.__getattribute__(item)
+    elif item in ['private_ip']:
+        stack = [x for x in list_stacks()
+                 if x.name == name][0]
+        if stack:
+            group = [
+                x for x in stack.instance_groups
+                if x.type == 'GATEWAY'][0]
+            if group:
+                instance = [
+                    x for x in group.metadata if x.ambari_server is True][0]
+                horton.cache[cache_key] = instance.__getattribute__(item)
+    elif item in ['shared_services']:
+        stack = [x for x in list_stacks()
+                if x.user_defined_tags['datalake'] == 'true'][0]
+        if stack:
+            horton.cache[cache_key] = stack.cluster.name
     else:
         # write literal value to cache
         horton.cache[cache_key] = item

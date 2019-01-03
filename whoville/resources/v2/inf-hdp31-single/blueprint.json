@@ -1,8 +1,8 @@
 {
   "Blueprints": {
-    "blueprint_name": "HDP3 Compact Quickstart",
+    "blueprint_name": "HDP3.1 Compact Quickstart",
     "stack_name": "HDP",
-    "stack_version": "3.0"
+    "stack_version": "3.1"
   },
   "settings": [],
   "configurations": [],

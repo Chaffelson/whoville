@@ -9,7 +9,7 @@ exec 1>/var/log/cbd_bootstrap_centos7.log 2>&1
 
 # Params
 echo Exporting Params
-export cb_ver=${cb_ver:-2.7.2}
+export cb_ver=${cb_ver:-2.8.0}
 export cbd_subdir=${cbd_subdir:-cbdeploy}
 export cb_url=${cb_url:-public-repo-1.hortonworks.com/HDP/cloudbreak/cloudbreak-deployer_${cb_ver}_$(uname)_x86_64.tgz}
 export uaa_secret=${uaa_secret:-VerySecretIndeed!}
@@ -22,7 +22,11 @@ export public_ip=${public_ip:-$(curl -s icanhazptr.com)}
 echo Installing dependencies
 yum clean metadata
 yum clean all
-yum -y install net-tools ntp wget lsof unzip tar iptables-services docker sed yq jq
+yum install -y yum-utils
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum repolist
+yum -y install net-tools ntp wget lsof unzip tar iptables-services sed yq jq device-mapper-persistent-data lvm2 docker-ce
+
 
 # Environment Setup for Cloudbreak
 echo Modifying Environment Settings
