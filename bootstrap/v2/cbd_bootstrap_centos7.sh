@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Version: 0.3.0
+
 sudo -i
 
 exec 3>&1 4>&2
@@ -12,12 +14,13 @@ echo Exporting Params
 export cb_ver=${cb_ver:-2.8.0}
 export cbd_subdir=${cbd_subdir:-cbdeploy}
 export cb_url=${cb_url:-public-repo-1.hortonworks.com/HDP/cloudbreak/cloudbreak-deployer_${cb_ver}_$(uname)_x86_64.tgz}
+export cad_url=${cad_url:-http://archive.cloudera.com/director6/6.1/redhat7/cloudera-director.repo}
 export uaa_secret=${uaa_secret:-VerySecretIndeed!}
 export uaa_default_pw=${uaa_default_pw:-admin-password1}
 export uaa_default_email=${uaa_default_email:-admin@example.com}
 export public_ip=${public_ip:-$(curl -s icanhazptr.com)}
 
- # Install per Cloudbreak 2.7.1
+ # Install per Cloudbreak 2.7.2+
  # https://docs.hortonworks.com/HDPDocuments/Cloudbreak/Cloudbreak-2.7.1/content/aws-launch/index.html
 echo Installing dependencies
 yum clean metadata
@@ -25,10 +28,10 @@ yum clean all
 yum install -y yum-utils
 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 yum repolist
-yum -y install net-tools ntp wget lsof unzip tar iptables-services sed yq jq device-mapper-persistent-data lvm2 docker-ce
+yum -y install net-tools ntp wget lsof unzip tar iptables-services sed device-mapper-persistent-data lvm2 docker-ce java-1.8.0-openjdk
+# yum install -y yq jq  # Packages not found on Centos7 latest versions 
 
-
-# Environment Setup for Cloudbreak
+# Environment Setup 
 echo Modifying Environment Settings
 systemctl enable ntpd
 systemctl start ntpd
@@ -42,12 +45,18 @@ sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 
 systemctl start docker
 systemctl enable docker
-sed -i 's/--log-driver=journald/--log-driver=json-file/g' /etc/sysconfig/docker
-systemctl restart docker
+# sed -i 's/--log-driver=journald/--log-driver=json-file/g' /etc/sysconfig/docker  # No longer necessary with Docker CE 18+
+# systemctl restart docker
 
+# Install Cloudera Director 6+
+echo Installing Cloudera Director
+wget ${cad_url} -O /etc/yum.repos.d/cloudera-director.repo
+yum install -y cloudera-director-server cloudera-director-client
+
+# Install Cloudbreak
 echo Installing Cloudbreak
 curl -Ls ${cb_url} | sudo tar -xz -C /bin cbd
-rmdir -rf ${cbd_subdir} && mkdir ${cbd_subdir} && cd ${cbd_subdir}
+mkdir ${cbd_subdir} && cd ${cbd_subdir}
 cat << EOF > Profile
 export UAA_DEFAULT_SECRET=${uaa_secret}
 export UAA_DEFAULT_USER_PW=${uaa_default_pw}
@@ -64,3 +73,9 @@ cbd pull-parallel
 
 echo Starting Cloudbreak
 cbd start
+
+echo Configuring Director
+sed -i "s/# lp.security.bootstrap.admin.password: admin/lp.security.bootstrap.admin.password: ${uaa_default_pw}/g" /etc/cloudera-director-server/application.properties
+
+echo Starting Cloudera Director
+service cloudera-director-server start
