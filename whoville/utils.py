@@ -238,6 +238,7 @@ def set_endpoint(endpoint_url):
         raise ValueError("Unrecognised API Endpoint")
     try:
         if this_config.api_client:
+            log.info("Found Active API Client, updating...")
             this_config.api_client.host = endpoint_url
     except AttributeError:
         log.info("No Active API Client found to update")

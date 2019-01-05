@@ -79,7 +79,7 @@ keytool -genkeypair -alias director -keyalg RSA \
   -keysize 4096 -dname "CN=${public_ip},O=cloudera.com,ST=CA,C=US" \
   -storepass cloudera -keypass cloudera
 sed -i "s/# lp.security.bootstrap.admin.password: admin/lp.security.bootstrap.admin.password: ${uaa_default_pw}/g" /etc/cloudera-director-server/application.properties
-sed -i "s@# server.ssl.key-store:@server.ssl.key-store: /root/${cad_subdir}@g" /etc/cloudera-director-server/application.properties
+sed -i "s@# server.ssl.key-store:@server.ssl.key-store: /opt/${cad_subdir}/director.jks@g" /etc/cloudera-director-server/application.properties
 sed -i "s/# server.ssl.key-store-password:/server.ssl.key-store-password: cloudera/g" /etc/cloudera-director-server/application.properties
 
 echo Starting Cloudera Director
