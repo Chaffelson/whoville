@@ -13,6 +13,7 @@ import string
 from six.moves.urllib import parse
 from whoville import config
 from whoville.deploy import Horton
+from cloudera.director.common.client import ApiClient
 
 
 log = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ __all__ = ['service_login', 'set_service_auth_token', 'generate_passphrase',
            'generate_password', 'get_secret']
 
 # These are the services that these functions know how to configure
-_valid_services = ['cloudbreak']
+_valid_services = ['cloudbreak', 'director']
 
 
 def service_login(service='cloudbreak', username=None, password=None,
@@ -53,6 +54,7 @@ def service_login(service='cloudbreak', username=None, password=None,
 
     """
     log_args = locals()
+    horton = Horton()
     _ = log_args.pop('password')
     log.info("Called service_login with args %s", log_args)
     assert service in _valid_services
@@ -62,6 +64,8 @@ def service_login(service='cloudbreak', username=None, password=None,
 
     if service == 'cloudbreak':
         configuration = config.cb_config
+    elif service == 'director':
+        configuration = config.cd_config
     else:
         raise ValueError("Unrecognised Service parameter")
 
@@ -69,6 +73,13 @@ def service_login(service='cloudbreak', username=None, password=None,
     assert configuration.host.startswith("https"), \
         "Login is only available when connecting over HTTPS."
 
+    if service == 'director':
+        config.cd_config.username = username
+        config.cd_config.password = password
+        horton.cad = ApiClient(
+            configuration=config.cd_config
+        )
+        return True
     if service == 'cloudbreak':
         url = config.cb_config.host.replace(
             '/cb/api',

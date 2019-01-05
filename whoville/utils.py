@@ -231,10 +231,16 @@ def set_endpoint(endpoint_url):
     if 'cb/api' in endpoint_url:
         log.info("Setting Cloudbreak endpoint to %s", endpoint_url)
         this_config = config.cb_config
+    elif ':7189' in endpoint_url:
+        log.info("Setting Altus Director endpoint to %s", endpoint_url)
+        this_config = config.cd_config
     else:
         raise ValueError("Unrecognised API Endpoint")
-    if this_config.api_client:
-        this_config.api_client.host = endpoint_url
+    try:
+        if this_config.api_client:
+            this_config.api_client.host = endpoint_url
+    except AttributeError:
+        log.info("No Active API Client found to update")
     this_config.host = endpoint_url
     if this_config.host == endpoint_url:
         return True
