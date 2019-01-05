@@ -74,8 +74,9 @@ class Horton:
     Why Horton? Because an Elephant Never Forgets
     """
     def __init__(self):
-        self.cbd = None
+        self.cbd = None  # Server details for orchestration host
         self.cred = None  # Credential for deployments, once loaded in CB
+        self.cad = None  # Client for Altus Director, once created
         self.resources = {}  # all loaded resources from github/files
         self.defs = {}  # deployment definitions, once pulled from resources
         self.specs = {}  # stack specifications, once formulated
