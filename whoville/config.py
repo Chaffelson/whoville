@@ -13,6 +13,7 @@ import os
 import urllib3
 from ruamel.yaml import safe_load
 from whoville.cloudbreak import configuration as cb_config
+from cloudera.director.common.configuration import Configuration as cdConfig
 
 
 MIN_PYTHON = (3, 6)
@@ -38,9 +39,17 @@ min_profile_ver = 2
 logging.basicConfig(level=logging.INFO)
 
 
+# --- Cloudera Director Version
+cad_ver = 'd6.1'
+
+# --- Cloudera Director Configuration explicit import
+cd_config = cdConfig()
+
 # --- Default Host URL -----
 # Set Default Host for Cloudbreak
 cb_config.host = 'https://localhost/cb/api'
+# The Altus Director client appends the api endpoint itself
+cd_config.host = 'https://localhost'
 
 
 # --- Task wait delays ------
@@ -56,6 +65,7 @@ long_max_wait = 120
 
 # --- Cloudbreak Security
 cb_config.verify_ssl = False
+cd_config.verify_ssl = False
 if not cb_config.verify_ssl:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

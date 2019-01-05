@@ -1005,6 +1005,10 @@ def nuke_namespace(dry_run=True):
             log.info("Destroying Node %s", i.name)
             if not dry_run:
                 session.destroy_node(i)
+        while [x for x in list_nodes(session, {'name': namespace}) 
+               if x.state != 'terminated']:
+            log.info("Waiting for nodes to be terminated (sleep10)")
+            sleep(10)
     if not sec_groups:
         log.info("No Security Groups matching Namespace found")
     else:
