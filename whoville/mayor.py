@@ -300,7 +300,7 @@ if __name__ == '__main__':
     step_2_init_infra(create_wait=5)
 
     if user_mode:
-        app.run(debug=True)
+        app.run(host='0.0.0.0', debug=True, port=5000)
     else:
         print_intro()
         user_menu()
