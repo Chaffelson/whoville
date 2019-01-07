@@ -16,7 +16,7 @@
 # under the License.
 #
 
-FROM python:3.7-alpine
+FROM python:3.6-alpine
 
 LABEL maintainer="Dan Chaffelson <chaffelson@gmail.com>"
 LABEL site="https://github.com/Chaffelson/whoville"

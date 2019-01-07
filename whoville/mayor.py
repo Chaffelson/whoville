@@ -201,6 +201,8 @@ def print_intro():
     url = 'https://' + cbd_public_ip + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
     print("\nCloudbreak is available at (browser): " + url)
+    print("\nAltus Director is available at (browser): " + url
+          .replace('/sl', ':7189'))
     print("Currently Deployed Environments: " + str(
         [x.name for x in deploy.list_stacks()])
           )
