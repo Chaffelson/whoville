@@ -991,12 +991,30 @@ def nuke_namespace(dry_run=True):
     log.info("Nuking all nodes in Namespace %s", namespace)
     log.info("dry_run is %s", str(dry_run))
     session = create_libcloud_session()
-    instances = list_nodes(session, {'name': namespace})
-    if not instances:
+    all_instances = list_nodes(session, {'name': namespace})
+    sec_groups = list_security_groups(session, {'name': namespace})
+    if not all_instances:
         log.info("No nodes matching Namespace found")
     else:
+        instances = [
+            x for x in all_instances
+            if x.state != 'terminated'
+        ]
         log.info("Found %s nodes matching Namespace", str(len(instances)))
-    for i in instances:
-        log.info("Destroying Node %s", i.name)
-        if not dry_run:
-            session.destroy_node(i)
+        for i in instances:
+            log.info("Destroying Node %s", i.name)
+            if not dry_run:
+                session.destroy_node(i)
+        while [x for x in list_nodes(session, {'name': namespace}) 
+               if x.state != 'terminated']:
+            log.info("Waiting for nodes to be terminated (sleep10)")
+            sleep(10)
+    if not sec_groups:
+        log.info("No Security Groups matching Namespace found")
+    else:
+        log.info("Found %s Security Group in this Namespace",
+                 str(len(sec_groups)))
+        for i in sec_groups:
+            log.info("Destroying Security Group %s", i.name)
+            if not dry_run:
+                session.ex_delete_security_group(name=i.name)

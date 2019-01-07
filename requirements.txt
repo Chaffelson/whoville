@@ -15,3 +15,4 @@ azure-mgmt-consumption>=1.0.0
 google-api-python-client>=1.7
 pycrypto>=0.1
 Flask>=1.0
+cloudera-director-python-client==6.1.0

@@ -74,8 +74,9 @@ class Horton:
     Why Horton? Because an Elephant Never Forgets
     """
     def __init__(self):
-        self.cbd = None
+        self.cbd = None  # Server details for orchestration host
         self.cred = None  # Credential for deployments, once loaded in CB
+        self.cad = None  # Client for Altus Director, once created
         self.resources = {}  # all loaded resources from github/files
         self.defs = {}  # deployment definitions, once pulled from resources
         self.specs = {}  # stack specifications, once formulated
@@ -608,16 +609,21 @@ def prep_dependencies(def_key, shortname=None):
         raise ValueError("Could not determine GATEWAY Group")
     horton.deps[fullname]['gateway'] = gateway_group_name[0]
 
+
 def prep_images_dependency(def_key, fullname=None):
     horton = Horton()
     log.info("Prepping valid images for demo spec")
-    base_image_os = "redhat7" #horton._getr('defs:' + def_key + ':infra:baseimage')
+    base_image_os = horton._getr('defs:' + def_key + ':infra:baseimage')
     cat_name = horton._getr('defs:' + def_key + ':catalog')
     images = get_images(
         catalog=cat_name,
         platform=horton.cred.cloud_platform
     )
+    # base_image_os is an override in the yaml definition to select a specific
+    # base image by operating system name
+    # primarily used to force redhat7 instead of amazonlinux
     if not base_image_os:
+        # if not over ride, try to select a prewarmed image matching stack def
         bp_content = utils.load(
             horton.deps[fullname]['blueprint'].ambari_blueprint,
             decode='base64'
@@ -667,6 +673,8 @@ def prep_images_dependency(def_key, fullname=None):
     if base_image_os or len(images_by_type) == 0 and stack_version_detail:
         log.info("No matching prewarmed images found, trying base image...")
         if horton.cred.cloud_platform == 'AWS':
+            # we will look for redhat7 on AWS over amazonlinux for preference
+            base_image_os = base_image_os if base_image_os else 'redhat7'
             images_by_type = [
                 x for x in images.base_images if x.os == base_image_os
             ]
@@ -696,7 +704,7 @@ def prep_images_dependency(def_key, fullname=None):
                     valid_images.append(image)
         else:
             log.info("Stack not recognised by Cloudbreak, using base image"
-                     "like [%s]", images_by_type[0])
+                     "like [%s]", images_by_type[0].repo)
             valid_images.append(images_by_type[0])
 
     if valid_images:
@@ -710,6 +718,7 @@ def prep_images_dependency(def_key, fullname=None):
         horton.deps[fullname]['images'] = valid_images
     else:
         raise ValueError("No Valid Images found for stack definition")
+
 
 def prep_cluster(def_key, fullname=None):
     horton = Horton()

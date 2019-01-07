@@ -14,7 +14,7 @@ import json
 import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
-from whoville import config, utils, security, infra, deploy, actions
+from whoville import config, utils, security, infra, deploy, actions, director
 from flask import Flask
 from flask import request
 
@@ -78,33 +78,54 @@ def step_1_init_service():
 
 def step_2_init_infra(create_wait=0):
     init_start_ts = _dt.utcnow()
-    log.info("------------- Getting Cloudbreak Environment at [%s]",
+    log.info("------------- Getting Environment at [%s]",
              init_start_ts)
     horton.cbd = infra.get_cloudbreak(
         purge=horton.global_purge,
         create_wait=create_wait
     )
-    log.info("------------- Connecting to Cloudbreak")
-    cbd_public_ip = horton.cbd.public_ips[0]
-    url = 'https://' + cbd_public_ip + '/cb/api'
-    log.info("Setting endpoint to %s", url)
-    utils.set_endpoint(url)
+    log.info("------------- Connecting to Environment")
+    public_ip = horton.cbd.public_ips[0]
+    cbd_url = 'https://' + public_ip + '/cb/api'
+    cad_url = 'https://' + public_ip + ':7189'
+    log.info("Setting Cloudbreak endpoint to %s", cbd_url)
+    utils.set_endpoint(cbd_url)
+    log.info("Setting Altus Director endpoint to %s", cad_url)
+    utils.set_endpoint(cad_url)
     log.info("------------- Authenticating to Cloudbreak")
-    auth_success = security.service_login(
+    cbd_auth_success = security.service_login(
             service='cloudbreak',
             username=config.profile['email'],
             password=security.get_secret('ADMINPASSWORD'),
             bool_response=False
         )
-    if not auth_success:
+    if not cbd_auth_success:
         raise ConnectionError("Couldn't login to Cloudbreak")
     else:
-        log.info('Logged into Cloudbreak at [%s]', url)
+        log.info('Logged into Cloudbreak at [%s]', cbd_url)
+    log.info("------------- Authenticating to Altus Director")
+    cad_auth_success = security.service_login(
+        service='director',
+        username=config.profile['username'],
+        password=security.get_secret('ADMINPASSWORD'),
+        bool_response=False
+    )
+    if not cad_auth_success:
+        raise ConnectionError("Couldn't login to Director")
+    else:
+        log.info('Logged into Director at [%s]', cad_url)
     # Cloudbreak may have just booted and not be ready for queries yet
-    # Waiting up to an additional minute for query success
     log.info("Waiting for Cloudbreak API Calls to be available")
     utils.wait_to_complete(
         deploy.list_blueprints,
+        bool_response=True,
+        whoville_delay=5,
+        whoville_max_wait=120
+    )
+    # Director may not be ready for queries yet
+    log.info("Waiting for Altus Director API Calls to be available")
+    utils.wait_to_complete(
+        director.list_environments,
         bool_response=True,
         whoville_delay=5,
         whoville_max_wait=120
