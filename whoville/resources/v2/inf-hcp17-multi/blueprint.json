@@ -21,7 +21,7 @@
       "metron-rest-env": {
         "properties": {
           "metron_jdbc_driver": "com.mysql.jdbc.Driver",
-          "metron_jdbc_url":"jdbc:mysql://%HOSTGROUP::ambari%/mysql",
+          "metron_jdbc_url":"jdbc:mysql://localhost:3306/metron",
           "metron_jdbc_username":"metron",
           "metron_jdbc_password":"metron",
           "metron_jdbc_platform":"mysql",

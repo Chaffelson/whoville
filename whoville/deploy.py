@@ -608,60 +608,67 @@ def prep_dependencies(def_key, shortname=None):
         raise ValueError("Could not determine GATEWAY Group")
     horton.deps[fullname]['gateway'] = gateway_group_name[0]
 
-
 def prep_images_dependency(def_key, fullname=None):
     horton = Horton()
     log.info("Prepping valid images for demo spec")
+    base_image_os = "redhat7" #horton._getr('defs:' + def_key + ':infra:baseimage')
     cat_name = horton._getr('defs:' + def_key + ':catalog')
-    bp_content = utils.load(
-        horton.deps[fullname]['blueprint'].ambari_blueprint, decode='base64'
-    )
-    stack_name = bp_content['Blueprints']['stack_name']
-    stack_version = bp_content['Blueprints']['stack_version']
-    try:
-        ambari_version = horton._getr(
-            'defs:' + def_key + ':infra:ambarirepo:version')
-        stack_version_detail = horton._getr(
-            'defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
-    except AttributeError:
-        log.info("Stack version override not set in yaml")
-        ambari_version = stack_version_detail = None
-    log.info("fetching stack matrix for name:version [%s]:[%s]",
-             stack_name, stack_version)
-    stack_matrix = get_stack_matrix()
-    stack_root = utils.get_val(
-        stack_matrix,
-        [stack_name.lower(), stack_version]
-    )
-    if not stack_root:
-        log.warning("Stack %s %s not recognised by Cloudbreak",
-                    stack_name, stack_version)
     images = get_images(
         catalog=cat_name,
         platform=horton.cred.cloud_platform
     )
-    log.info("Fetched images from Cloudbreak [%s]",
-             str(images.attribute_map)[:100]
-             )
-    if ambari_version and stack_version_detail:
-        images_by_type = [
-            x for x in
-            images.__getattribute__(stack_name.lower() + '_images')
-            if x.version == ambari_version
-            and x.stack_details.version == stack_version_detail
-        ]
+    if not base_image_os:
+        bp_content = utils.load(
+            horton.deps[fullname]['blueprint'].ambari_blueprint,
+            decode='base64'
+        )
+        stack_name = bp_content['Blueprints']['stack_name']
+        stack_version = bp_content['Blueprints']['stack_version']
+        try:
+            ambari_version = horton._getr(
+                'defs:' + def_key + ':infra:ambarirepo:version')
+            stack_version_detail = horton._getr(
+                'defs:' + def_key + ':infra:stackrepo:ver').split('-')[0]
+        except AttributeError:
+            log.info("Stack version override not set in yaml")
+            ambari_version = stack_version_detail = None
+        log.info("fetching stack matrix for name:version [%s]:[%s]",
+                 stack_name, stack_version)
+        stack_matrix = get_stack_matrix()
+        stack_root = utils.get_val(
+            stack_matrix,
+            [stack_name.lower(), stack_version]
+        )
+        if not stack_root:
+            log.warning("Stack %s %s not recognised by Cloudbreak",
+                        stack_name, stack_version)
+        log.info("Fetched images from Cloudbreak [%s]",
+                 str(images.attribute_map)[:100]
+                 )
+        if ambari_version and stack_version_detail:
+            images_by_type = [
+                x for x in
+                images.__getattribute__(stack_name.lower() + '_images')
+                if x.version == ambari_version
+                and x.stack_details.version == stack_version_detail
+            ]
+        else:
+            images_by_type = [
+                x for x in
+                images.__getattribute__(
+                    stack_name.lower() + '_images'
+                ) if x.stack_details.version[:3] == stack_version
+            ]
     else:
-        images_by_type = [
-            x for x in
-            images.__getattribute__(
-                stack_name.lower() + '_images'
-            ) if x.stack_details.version[:3] == stack_version
-        ]
-    if len(images_by_type) == 0 and stack_version_detail:
+        images_by_type = []
+        stack_version_detail = ''
+        stack_root = None
+
+    if base_image_os or len(images_by_type) == 0 and stack_version_detail:
         log.info("No matching prewarmed images found, trying base image...")
         if horton.cred.cloud_platform == 'AWS':
             images_by_type = [
-                x for x in images.base_images if x.os == 'redhat7'
+                x for x in images.base_images if x.os == base_image_os
             ]
         else:
             images_by_type = [
@@ -672,6 +679,7 @@ def prep_images_dependency(def_key, fullname=None):
     else:
         raise ValueError("Could not find image matching blueprint ")
     valid_images = []
+    assert len(images_by_type) > 0, "No Images found"
     for image in images_by_type:
         if stack_root:
             log.info("Stack recognised by Cloudbreak, checking versions")
@@ -687,7 +695,8 @@ def prep_images_dependency(def_key, fullname=None):
                 if image.stack_details.version[:3] == stack_version:
                     valid_images.append(image)
         else:
-            log.info("Stack not recognised by Cloudbreak, using base image")
+            log.info("Stack not recognised by Cloudbreak, using base image"
+                     "like [%s]", images_by_type[0])
             valid_images.append(images_by_type[0])
 
     if valid_images:
@@ -701,7 +710,6 @@ def prep_images_dependency(def_key, fullname=None):
         horton.deps[fullname]['images'] = valid_images
     else:
         raise ValueError("No Valid Images found for stack definition")
-
 
 def prep_cluster(def_key, fullname=None):
     horton = Horton()

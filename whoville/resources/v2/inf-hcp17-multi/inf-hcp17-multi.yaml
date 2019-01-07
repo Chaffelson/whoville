@@ -4,6 +4,7 @@ seq:
 - prep_spec: [inf-hcp17-multi, hcp17-m]
 - do_builds: [hcp17-m]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
+- replace_str: [inf-hcp17-multi, create-storm-view.sh, ADMINPASSWORD]
 deploywait: 1800
 purge: true
 input:
@@ -30,6 +31,8 @@ recipe:
   typ: POST_AMBARI_START
 - name: noexec-tmp.sh
   typ: PRE_AMBARI_START
+- name: create-storm-view.sh
+  typ: POST_AMBARI_START
 group:
   master2:
     recipe: [noexec-tmp]
@@ -47,7 +50,7 @@ group:
     machine: 4x14-4x16
     nodes: 1
   ambari:
-    recipe: [noexec-tmp, metron-db-setup, mysql-client, requests-upgrade, allow-renewable]
+    recipe: [noexec-tmp, mysql-client, requests-upgrade, allow-renewable, create-storm-view]
     type: GATEWAY
     machine: 4x28-8x32
     nodes: 1
@@ -57,7 +60,7 @@ group:
     machine: 4x14-4x16
     nodes: 1
   metron:
-    recipe: [noexec-tmp, nodejs, requests-upgrade, mysql-client]
+    recipe: [noexec-tmp, metron-db-setup, nodejs, requests-upgrade, mysql-client]
     type: CORE
     machine: 4x14-4x16
     nodes: 1
