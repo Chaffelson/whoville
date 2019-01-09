@@ -518,6 +518,19 @@ def create_cloudbreak(session, cbd_name):
                             'access': 'Allow',
                             'priority': 103,
                             'direction': 'Inbound'
+                        },
+                        {
+                            'name': 'altus_http_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow Altus HTTP',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '7189',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 104,
+                            'direction': 'Inbound'
                         }
                     ]
                 }
