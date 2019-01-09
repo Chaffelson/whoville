@@ -707,7 +707,7 @@ def create_cloudbreak(session, cbd_name):
             log.info("Creating new firewall definition called: " + firewall_name)
             net_rules = [
                             {'IPProtocol': 'tcp',
-                             'ports': ['22','443','9443']
+                             'ports': ['22','443','9443','7189']
                             }
                         ]
             _ = session.ex_create_firewall(name=firewall_name,
