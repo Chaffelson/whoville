@@ -968,6 +968,8 @@ def prep_instance_groups(def_key, fullname):
                     x for x in machines
                     if ('m' in x.value or 't' in x.value)
                     and 'm3' not in x.value
+                    and 'm2' not in x.value
+                    and 'm1' not in x.value
                 ]
                 machine = machines[0].value
             elif horton.cred.cloud_platform == 'GCP':
