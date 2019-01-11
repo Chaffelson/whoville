@@ -1,9 +1,10 @@
-desc: Multi node cluster including all HCP-1.6 components in independently scalable groups
+desc: Multi node cluster including all HCP-1.7 components in independently scalable groups
 seq:
-- prep_deps: [inf-hcp16-multi, hcp16-m]
-- prep_spec: [inf-hcp16-multi, hcp16-m]
-- do_builds: [hcp16-m]
+- prep_deps: [inf-hcp17-multi, hcp17-m]
+- prep_spec: [inf-hcp17-multi, hcp17-m]
+- do_builds: [hcp17-m]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
+- replace_str: [inf-hcp17-multi, create-storm-view.sh, ADMINPASSWORD]
 deploywait: 1800
 purge: true
 input:
@@ -13,6 +14,8 @@ input:
   nifi.registry.security.encrypt.configuration.password: CALL:security.generate_password
   nifi.registry.sensitive.props.key: CALL:security.generate_passphrase
   ranger.kms.password: CALL:security.generate_password
+infra:
+  baseimage: redhat7
 blueprint:
   name: blueprint.json
 recipe:
@@ -28,8 +31,8 @@ recipe:
   typ: POST_AMBARI_START
 - name: noexec-tmp.sh
   typ: PRE_AMBARI_START
-infra:
-  baseimage: redhat7
+- name: create-storm-view.sh
+  typ: POST_AMBARI_START
 group:
   master2:
     recipe: [noexec-tmp]
@@ -47,7 +50,7 @@ group:
     machine: 4x14-4x16
     nodes: 1
   ambari:
-    recipe: [noexec-tmp, metron-db-setup, mysql-client, requests-upgrade, allow-renewable]
+    recipe: [noexec-tmp, mysql-client, requests-upgrade, allow-renewable, create-storm-view]
     type: GATEWAY
     machine: 4x28-8x32
     nodes: 1
@@ -57,7 +60,7 @@ group:
     machine: 4x14-4x16
     nodes: 1
   metron:
-    recipe: [noexec-tmp, nodejs, requests-upgrade, mysql-client]
+    recipe: [noexec-tmp, metron-db-setup, nodejs, requests-upgrade, mysql-client]
     type: CORE
     machine: 4x14-4x16
     nodes: 1
@@ -96,9 +99,9 @@ mpack:
   desc: HDP Search 3.0.0
   url: http://public-repo-1.hortonworks.com/HDP-SOLR/hdp-solr-ambari-mp/solr-service-mpack-3.0.0.tar.gz
   purge_on_install: false
-- name: hcp-160
-  desc: HCP 1.6.0
-  url: http://public-repo-1.hortonworks.com/HCP/centos6/1.x/updates/1.6.0.0/tars/metron/hcp-ambari-mpack-1.6.0.0-7.tar.gz
+- name: hcp-171
+  desc: HCP 1.7.1
+  url: http://public-repo-1.hortonworks.com/HCP/centos6/1.x/updates/1.7.1.0/tars/metron/hcp-ambari-mpack-1.7.1.0-24.tar.gz 
   purge_on_install: false
 - name: hdf-312
   desc: HDF 3.1.2
