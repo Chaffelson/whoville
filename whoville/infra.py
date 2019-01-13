@@ -507,6 +507,19 @@ def create_cloudbreak(session, cbd_name):
                             'direction': 'Inbound'
                         },
                         {
+                            'name': 'knox_https_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow CB HTTPS',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '8443',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 103,
+                            'direction': 'Inbound'
+                        },
+                        {
                             'name': 'cb_https_rule',
                             'provisioningState': 'Succeeded',
                             'description': 'Allow CB HTTPS',
@@ -516,7 +529,7 @@ def create_cloudbreak(session, cbd_name):
                             'sourceAddressPrefix': 'Internet',
                             'destinationAddressPrefix': '*',
                             'access': 'Allow',
-                            'priority': 103,
+                            'priority': 104,
                             'direction': 'Inbound'
                         },
                         {
@@ -529,7 +542,7 @@ def create_cloudbreak(session, cbd_name):
                             'sourceAddressPrefix': 'Internet',
                             'destinationAddressPrefix': '*',
                             'access': 'Allow',
-                            'priority': 104,
+                            'priority': 105,
                             'direction': 'Inbound'
                         }
                     ]
@@ -720,7 +733,7 @@ def create_cloudbreak(session, cbd_name):
             log.info("Creating new firewall definition called: " + firewall_name)
             net_rules = [
                             {'IPProtocol': 'tcp',
-                             'ports': ['22','443','9443','7189']
+                             'ports': ['22','443','8443','9443','7189']
                             }
                         ]
             _ = session.ex_create_firewall(name=firewall_name,
