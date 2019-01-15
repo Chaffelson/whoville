@@ -32,10 +32,20 @@ if lsblk | grep -q xvd ; then
 fi
 
 if lsblk | grep -q nvme ; then
-    umount /dev/nvme1n1
-    umount /dev/nvme2n1
-    export DOCKER_BLOCK=/dev/nvme1n1
-    export APP_BLOCK=/dev/nvme2n1
+    echo "found NVME disks, processing"
+    BLOCKS=$(lsblk | grep 500G | cut -d' ' -f1)
+    for block in ${BLOCKS}; do
+        echo "processing ${block}"
+        umount /dev/${block}
+        if [[ -z ${DOCKER_BLOCK+x} ]]; then
+            echo "setting ${block} as DOCKER_BLOCK" 
+            DOCKER_BLOCK=/dev/${block} 
+        else
+            echo "setting ${block} as APP_BLOCK"
+            APP_BLOCK=/dev/${block}
+            mkfs -t ext4 /dev/${block}
+        fi
+    done
     sed -i '/hadoopfs/d' /etc/fstab
 fi
 
