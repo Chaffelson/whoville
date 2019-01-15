@@ -966,10 +966,7 @@ def prep_instance_groups(def_key, fullname):
             elif horton.cred.cloud_platform == 'AWS':
                 machines = [
                     x for x in machines
-                    if ('m' in x.value or 't' in x.value)
-                    and 'm3' not in x.value
-                    and 'm2' not in x.value
-                    and 'm1' not in x.value
+                    if 'm4.' in x.value or 'm5.' in x.value
                 ]
                 machine = machines[0].value
             elif horton.cred.cloud_platform == 'GCP':
@@ -1001,12 +998,19 @@ def prep_instance_groups(def_key, fullname):
             vol_type = disk_types[0]
         else:
             vol_type = vol_types[0]
-        root_vol_size = rec.vm_type_meta_json.properties[
-                            'recommendedRootVolumeSize']
+        if 'rootvol' in group_def:
+            root_vol_size = group_def['rootvol']
+        else:
+            root_vol_size = rec.vm_type_meta_json.properties[
+                'recommendedRootVolumeSize']
         log.info("using root vol size [%s]", root_vol_size)
-        vol_count = rec.vm_type_meta_json.properties[
+        if 'vols' in group_def:
+            vol_count = group_def['vols'].split('x')[0]
+            vol_size = group_def['vols'].split('x')[1]
+        else:
+            vol_count = rec.vm_type_meta_json.properties[
                             'recommendedvolumeCount']
-        vol_size = rec.vm_type_meta_json.properties[
+            vol_size = rec.vm_type_meta_json.properties[
                             'recommendedvolumeSizeGB']
         log.info("using [%s] volumes of size [%s]", vol_count, vol_size)
         item = cb.InstanceGroupsV2(

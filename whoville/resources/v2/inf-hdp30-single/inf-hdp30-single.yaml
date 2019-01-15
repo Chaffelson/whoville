@@ -26,4 +26,3 @@ group:
     recipe: [remount-tmpfs, prepare-metastores-30]
     type: GATEWAY
     machine: 4x14-4x16
-    nodes: 1

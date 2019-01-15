@@ -123,13 +123,13 @@ def step_2_init_infra(create_wait=0):
         whoville_max_wait=120
     )
     # Director may not be ready for queries yet
-    log.info("Waiting for Altus Director API Calls to be available")
-    utils.wait_to_complete(
-        director.list_environments,
-        bool_response=True,
-        whoville_delay=5,
-        whoville_max_wait=120
-    )
+    # log.info("Waiting for Altus Director API Calls to be available")
+    # utils.wait_to_complete(
+    #     director.list_environments,
+    #     bool_response=True,
+    #     whoville_delay=5,
+    #     whoville_max_wait=120
+    # )
     log.info("------------- Setting Deployment Credential")
     horton.cred = deploy.get_credential(
         config.profile['namespace'] + 'credential',

@@ -1,4 +1,4 @@
-desc: Single node cluster including HDP-3.1 & HDF-3.3 & CDSW-1.5
+desc: Two node Service including HDP-3.1 & HDF-3.3 & CDSW-1.5
 deploywait: 1800
 purge: true
 priority: 
@@ -10,19 +10,17 @@ seq:
 - prep_spec: [hdp31-cdsw15-s, hdp31-cdsw15-s]
 - do_builds: [hdp31-cdsw15-s]
 input:
-  yarn.vcores: 12
-  yarn.capacity: 28672
+  yarn.vcores: 20
+  yarn.capacity: 60000
 recipe:
-- name: master-postcluster.sh
-  typ: POST_CLUSTER_INSTALL
 - name: cdsw-postcluster.sh
   typ: POST_CLUSTER_INSTALL
 group:
   master:
-    recipe: [master-postcluster]
     machine: 4x28-8x32
   cdsw:
     recipe: [cdsw-postcluster]
     type: CORE
-    machine: 4x28-8x32
-    nodes: 1
+    machine: 8x30-8x34
+    rootvol: 100
+    vols: 2x500
