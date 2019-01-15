@@ -52,9 +52,6 @@ fi
 # Set limits
 sed -i "s@# End of file@*                soft    nofile         1048576\n*                hard    nofile         1048576\nroot             soft    nofile         1048576\nroot             hard    nofile         1048576\n# End of file@g" /etc/security/limits.conf
 
-# CDSW will break default Amazon DNS on 127.0.0.1:53, so we use a different IP
-sed -i "s@127.0.0.1@169.254.169.253@g" /etc/resolv.conf
-
 # Install CDSW
 wget -q --no-check-certificate https://s3.eu-west-2.amazonaws.com/whoville/v2/temp.blob
 mv temp.blob cloudera-data-science-workbench-1.5.0.818361-1.el7.centos.x86_64.rpm
@@ -73,5 +70,8 @@ sed -i "s@DOCKER_BLOCK_DEVICES=\"\"@DOCKER_BLOCK_DEVICES=\"${DOCKER_BLOCK}\"@g" 
 sed -i "s@APPLICATION_BLOCK_DEVICE=\"\"@APPLICATION_BLOCK_DEVICE=\"${APP_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DISTRO=\"\"@DISTRO=\"HDP\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@ANACONDA_DIR=\"\"@ANACONDA_DIR=\"/anaconda/bin\"@g" /etc/cdsw/config/cdsw.conf
+
+# CDSW will break default Amazon DNS on 127.0.0.1:53, so we use a different IP
+sed -i "s@127.0.0.1@169.254.169.253@g" /etc/resolv.conf
 
 cdsw init
