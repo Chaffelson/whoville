@@ -266,6 +266,19 @@ def apiCheck():
 def getDefs():
     return json.dumps(horton.defs)
 
+@app.route("/api/whoville/v1/getPackageInfraBreakdown")
+def getDefsInfraBreakdown():
+    selected = request.args.get('clusterType')
+    packageDef = horton.defs[selected]
+    specList = [
+            x for x in packageDef['seq']
+            if 'prep_spec' in x
+            ]
+    infraList = []
+    for x in specList:
+        infraList.append(x['prep_spec'][0])
+        
+    return json.dumps(infraList)
 
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
