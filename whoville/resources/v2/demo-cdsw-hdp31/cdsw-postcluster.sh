@@ -72,6 +72,6 @@ sed -i "s@DISTRO=\"\"@DISTRO=\"HDP\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@ANACONDA_DIR=\"\"@ANACONDA_DIR=\"/anaconda/bin\"@g" /etc/cdsw/config/cdsw.conf
 
 # CDSW will break default Amazon DNS on 127.0.0.1:53, so we use a different IP
-sed -i "s@127.0.0.1@169.254.169.253@g" /etc/resolv.conf
+sed -i "s@nameserver 127.0.0.1@nameserver 169.254.169.253@g" /etc/dhcp/dhclient-enter-hooks
 
 cdsw init

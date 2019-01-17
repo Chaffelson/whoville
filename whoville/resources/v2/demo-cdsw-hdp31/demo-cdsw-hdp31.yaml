@@ -17,10 +17,10 @@ recipe:
   typ: POST_CLUSTER_INSTALL
 group:
   master:
-    machine: 4x28-8x32
+    machine: 8x28-8x32
   cdsw:
     recipe: [cdsw-postcluster]
     type: CORE
-    machine: 8x30-8x34
+    machine: 16x60-16x66
     rootvol: 100
     vols: 2x500
