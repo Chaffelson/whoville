@@ -276,7 +276,7 @@ def getDefsInfraBreakdown():
             ]
     infraList = []
     for x in specList:
-        infraList.append(x['prep_spec'][0])
+        infraList.append({'packageName':x['prep_spec'][0],'instanceName':x['prep_spec'][1]})
         
     return json.dumps(infraList)
 
@@ -292,12 +292,16 @@ def getStacks():
     var = json.loads(deploy.list_stacks_json().data.decode())
     return json.dumps(var)
 
+@app.route("/api/whoville/v1/deleteStack")
+def deleteStack():
+    cluster_id = request.args.get('clusterId')
+    var = deploy.delete_stack(stack_id=cluster_id, force=True, wait=False)
+    return json.dumps(var)
 
 @app.route("/api/whoville/v1/getTemplates")
 def getTemplates():
     var = json.loads(deploy.list_templates_json().data.decode())
     return json.dumps(var)
-
 
 @app.route("/api/whoville/v1/deployPackage")
 def deployPackage():
