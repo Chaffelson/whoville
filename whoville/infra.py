@@ -22,6 +22,10 @@ import adal
 import boto3
 from whoville import config, utils, security
 import base64
+import pexpect
+from pexpect import pxssh 
+from pexpect.exceptions import EOF
+from pexpect.pxssh import ExceptionPxssh
 
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
@@ -196,12 +200,6 @@ def get_k8s(s_libc=None, create=True, purge=False, create_wait=0):
             cbd = create_k8s(s_libc, cbd_name)
             log.info("Waiting for K8S Cluster Deployment to Complete")
             utils.wait_to_complete(
-                utils.is_endpoint_up,
-                'https://' + cbd.public_ips[0],
-                whoville_delay=30,
-                whoville_max_wait=600
-            )
-            utils.wait_to_complete(
                 utils.is_remote_file_present,
                 cbd.public_ips[0],
                 'centos',
@@ -209,6 +207,7 @@ def get_k8s(s_libc=None, create=True, purge=False, create_wait=0):
                 whoville_delay=30,
                 whoville_max_wait=600
             )
+            
             return cbd
 
 
@@ -1445,6 +1444,46 @@ def create_k8s(session, cbd_name):
         raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, "
                          "and GCE")
 
+def initialize_k8s_services(target_host, user_name, ssh_key_path):
+    log.info("Initializing K8s Node [%s]", nodes)
+    
+    try:
+        s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
+        s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False)
+        s.sendline('sudo systemctl start docker') 
+        s.sendline('sudo systemctl enable docker')
+        s.sendline('sudo systemctl start kubelet')
+        s.sendline('sudo systemctl enable kubelet')
+        #s.sendline('sudo sed -i \'s/cgroup-driver=systemd/cgroup-driver=cgroupfs/g\' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf')
+        s.sendline('sudo systemctl daemon-reload')
+        s.sendline('sudo systemctl restart kubelet')
+
+        log.info("K8S Node [%s] initialized", target_host)
+    except (ExceptionPxssh, EOF):
+        log.info("Could not connect to K8S Node [%s]", target_host)
+        raise ValueError("Something went wrong during node creation")
+
+def initialize_k8s_master(target_host, user_name, ssh_key_path):
+    log.info("Initializing K8s Master [%s]", target_host)
+    try:
+        s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
+        s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False)
+        s.sendline('kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep -Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16')
+        s.prompt()
+        response=s.before.decode()
+        response=response.split('\r\n')
+        if '' in response: 
+            response.remove('')
+        response=response[len(response)-1]
+        if len(response) > 0:
+            log.info("K8S Master initialized, worker registration string: %s", response)
+        else:
+            log.info("Could not find .success file")
+            
+    except (ExceptionPxssh, EOF):
+        log.info("Could not connect to host, %s", n)
+        return False
+    
 
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
     try:

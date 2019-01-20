@@ -21,7 +21,8 @@ from github.GithubException import UnknownObjectException
 from requests.models import Response
 from whoville import config
 import pexpect
-from pexpect import pxssh
+from pexpect import pxssh 
+from pexpect.exceptions import EOF
 from pexpect.pxssh import ExceptionPxssh
 
 __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
@@ -219,17 +220,23 @@ def is_endpoint_up(endpoint_url, verify=False):
 def is_remote_file_present(target_host, user_name='centos', ssh_key_path='/tmp/key.pem', verify=False):
     log.info("Called is_remote_file_present with args %s", locals())
     try:
-        s = pxssh.pxssh()
-        s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False)
+        s = pxssh.pxssh(options={"StrictHostKeyChecking": "no",
+                    "UserKnownHostsFile": "/dev/null"})
+        s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False,)
         s.sendline('cat /tmp/status.success')
         s.prompt()
-        if s.before == ('complete'):
+        response=s.before.decode()
+        response=response.split('\r\n')
+        if '' in response: 
+            response.remove('')
+        response=response[len(response)-1]
+        if len(response) > 0 and response == 'complete':
             log.info("Found .success file, ready to proceed")
             return True
         else:
             log.info("Could not find .success file")
             return False
-    except ExceptionPxssh:
+    except (ExceptionPxssh, EOF):
         log.info("Target host is not ready to accept connections")
         return False
         

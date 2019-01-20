@@ -75,6 +75,14 @@ def step_1_init_service():
     log.info("Completed Service Init at [%s] after [%d] seconds",
              init_finish_ts, diff_ts.seconds)
 
+def step_2_init_k8s(create_wait=0):
+    init_start_ts = _dt.utcnow()
+    log.info("------------- Getting Environment at [%s]",
+             init_start_ts)
+    horton.cbd = infra.get_k8s(
+        purge=horton.global_purge,
+        create_wait=create_wait
+    )
 
 def step_2_init_infra(create_wait=0):
     init_start_ts = _dt.utcnow()
@@ -245,8 +253,10 @@ def autorun(def_key=None):
     # Check output of last step of staging process
     if not horton.defs:
         step_1_init_service()
-    if not horton.cred:
+    if not horton.cred and not config.profile['k8s_mode'] == 'true':
         step_2_init_infra()
+    if config.profile['k8s_mode'] == 'true':
+        step_2_init_k8s(create_wait)
     step_3_sequencing(def_key=def_key)
     step_4_build()
     print_intro()
@@ -312,9 +322,13 @@ def deployPackage():
 
 if __name__ == '__main__':
     user_mode = utils.get_val(config.profile, 'user_mode')
+    k8s_mode = utils.get_val(config.profile, 'k8s_mode')
     log.info("Name is [%s] running user_menu", __name__)
     step_1_init_service()
-    step_2_init_infra(create_wait=5)
+    if not horton.cred and not k8s_mode:
+        step_2_init_infra(create_wait=5)
+    if k8s_mode:
+        step_2_init_k8s(create_wait=5)
 
     if user_mode:
         app.run(host='0.0.0.0', debug=True, port=5000)
