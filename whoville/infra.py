@@ -344,7 +344,7 @@ def create_cloudbreak(session, cbd_name):
                 static_ip
             )
         except BaseHTTPError as e:
-            if 'InvalidParameterCombination' in e:
+            if 'InvalidParameterCombination' in e.message:
                 session.ex_associate_address_with_node(
                     cbd,
                     static_ip,
