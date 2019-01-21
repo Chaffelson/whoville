@@ -1008,7 +1008,8 @@ def get_aws_network(session, create=True):
                 'ec2',
                 region_name=config.profile['platform']['region']
             )
-            ec2client = ec2.meta.client
+            s_boto3 = create_boto3_session()
+            ec2client = s_boto3.client('ec2')
             ec2client.modify_vpc_attribute(
                 VpcId=vpc.id,
                 EnableDnsSupport={'Value': True})
