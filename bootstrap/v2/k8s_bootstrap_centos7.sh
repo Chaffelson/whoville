@@ -40,7 +40,7 @@ cat <<EOF > /tmp/prepare-k8s-service.sh
 #systemctl daemon-reload
 #systemctl restart kubelet
 
-echo "KUBELET_EXTRA_ARGS=--cgroup-driver=cgroupfs --runtime-cgroups=/systemd/system.slice --kubelet-cgroups=/systemd/system.slice" > /etc/sysconfig/kubelet
+sudo echo "KUBELET_EXTRA_ARGS=--cgroup-driver=cgroupfs --runtime-cgroups=/systemd/system.slice --kubelet-cgroups=/systemd/system.slice" > /etc/sysconfig/kubelet
 
 EOF
 chmod 755 /tmp/prepare-k8s-service.sh
@@ -48,11 +48,11 @@ chmod 755 /tmp/prepare-k8s-service.sh
 cat <<EOF > /tmp/initialize-k8s-cluster.sh
 #!/bin/bash
 
-sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep -Po 'inet [0-9.]+'|grep -Po '[0-9.]+') --pod-network-cidr=10.244.0.0/16 > /tmp/k8s-init.log
+#sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep -Po 'inet [0-9.]+'|grep -Po '[0-9.]+') --pod-network-cidr=10.244.0.0/16 > /tmp/k8s-init.log
 
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
+mkdir -p ~/.kube
+sudo cp -if /etc/kubernetes/admin.conf ~/.kube/config
+sudo chown centos:centos ~/.kube/config
 
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 
