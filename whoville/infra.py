@@ -338,7 +338,20 @@ def create_cloudbreak(session, cbd_name):
         session.wait_until_running(nodes=[cbd])
         log.info("Cloudbreak Infra Booted at [%s]", cbd)
         log.info("Assigning Static IP to Cloudbreak")
-        session.ex_associate_address_with_node(cbd, static_ip)
+        try:
+            session.ex_associate_address_with_node(
+                cbd,
+                static_ip
+            )
+        except BaseHTTPError as e:
+            if 'InvalidParameterCombination' in e:
+                session.ex_associate_address_with_node(
+                    cbd,
+                    static_ip,
+                    domain='vpc' # needed for legacy AWS accounts
+                )
+            else:
+                raise e
         # Assign Role ARN
         if 'infraarn' in config.profile['platform']:
             log.info("Found infraarn in Profile, associating with Cloudbreak")
