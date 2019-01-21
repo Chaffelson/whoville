@@ -331,6 +331,12 @@ def create_cloudbreak(session, cbd_name):
                 'ex_userdata': script
             }
         )
+        # Set Instance Tags
+        log.info("Setting Instance Tags")
+        session.ex_create_tags(
+            resource=cbd,
+            tags=config.profile['tags']
+        )
         # inserting hard wait to bypass race condition where returned node ID
         # is not actually available to the list API call yet
         sleep(5)
