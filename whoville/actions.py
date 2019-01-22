@@ -13,7 +13,7 @@ import logging as _logging
 from datetime import datetime as _datetime
 from whoville import deploy, utils
 
-_horton = deploy.Horton()
+_horton = utils.Horton()
 
 log = _logging.getLogger(__name__)
 

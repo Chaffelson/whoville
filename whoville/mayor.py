@@ -24,7 +24,7 @@ log.setLevel(logging.INFO)
 
 # 'horton' is a shared state function to make deployment more readable
 # to non-python users
-horton = deploy.Horton()
+horton = utils.Horton()
 app = Flask(__name__)
 
 
@@ -123,19 +123,20 @@ def step_2_init_infra(create_wait=0):
         whoville_max_wait=120
     )
     # Director may not be ready for queries yet
-    # log.info("Waiting for Altus Director API Calls to be available")
-    # utils.wait_to_complete(
-    #     director.list_environments,
-    #     bool_response=True,
-    #     whoville_delay=5,
-    #     whoville_max_wait=120
-    # )
+    log.info("Waiting for Altus Director API Calls to be available")
+    utils.wait_to_complete(
+        director.list_environments,
+        bool_response=True,
+        whoville_delay=5,
+        whoville_max_wait=120
+    )
     log.info("------------- Setting Deployment Credential")
-    horton.cred = deploy.get_credential(
+    horton.cbcred = deploy.get_credential(
         config.profile['namespace'] + 'credential',
         create=True,
         purge=horton.global_purge
     )
+    horton.cdcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
@@ -245,7 +246,7 @@ def autorun(def_key=None):
     # Check output of last step of staging process
     if not horton.defs:
         step_1_init_service()
-    if not horton.cred:
+    if not horton.cbcred:
         step_2_init_infra()
     step_3_sequencing(def_key=def_key)
     step_4_build()
@@ -269,8 +270,8 @@ def getDefs():
 
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
-    var = {'platform' : horton.cred.cloud_platform, 
-           'name' : horton.cred.name}
+    var = {'platform' : horton.cbcred.cloud_platform, 
+           'name' : horton.cbcred.name}
     return json.dumps(var)
 
 
