@@ -103,17 +103,17 @@ def step_2_init_infra(create_wait=0):
         raise ConnectionError("Couldn't login to Cloudbreak")
     else:
         log.info('Logged into Cloudbreak at [%s]', cbd_url)
-    log.info("------------- Authenticating to Altus Director")
-    cad_auth_success = security.service_login(
-        service='director',
-        username=config.profile['username'],
-        password=security.get_secret('ADMINPASSWORD'),
-        bool_response=False
-    )
-    if not cad_auth_success:
-        raise ConnectionError("Couldn't login to Director")
-    else:
-        log.info('Logged into Director at [%s]', cad_url)
+    # log.info("------------- Authenticating to Altus Director")
+    # cad_auth_success = security.service_login(
+    #     service='director',
+    #     username=config.profile['username'],
+    #     password=security.get_secret('ADMINPASSWORD'),
+    #     bool_response=False
+    # )
+    # if not cad_auth_success:
+    #     raise ConnectionError("Couldn't login to Director")
+    # else:
+    #     log.info('Logged into Director at [%s]', cad_url)
     # Cloudbreak may have just booted and not be ready for queries yet
     log.info("Waiting for Cloudbreak API Calls to be available")
     utils.wait_to_complete(
@@ -122,14 +122,14 @@ def step_2_init_infra(create_wait=0):
         whoville_delay=5,
         whoville_max_wait=120
     )
-    # Director may not be ready for queries yet
-    log.info("Waiting for Altus Director API Calls to be available")
-    utils.wait_to_complete(
-        director.list_environments,
-        bool_response=True,
-        whoville_delay=5,
-        whoville_max_wait=120
-    )
+    # # Director may not be ready for queries yet
+    # log.info("Waiting for Altus Director API Calls to be available")
+    # utils.wait_to_complete(
+    #     director.list_environments,
+    #     bool_response=True,
+    #     whoville_delay=5,
+    #     whoville_max_wait=120
+    # )
     log.info("------------- Setting Deployment Credential")
     horton.cred = deploy.get_credential(
         config.profile['namespace'] + 'credential',
