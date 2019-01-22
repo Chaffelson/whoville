@@ -172,8 +172,18 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
 def get_k8s(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
         s_libc = create_libcloud_session()
-
+        
+    user_name = config.profile['k8s_user']
+    ssh_key_path = config.profile['k8s_ssh_key_path']
     cbd_name = namespace + 'k8s-master'
+    k8s_nodes = []
+    
+    num_minions = config.profile['k8s_minion_count']
+    minion_names = []
+    minion_filter = {}
+    for x in range(num_minions):
+        minion_names.append(namespace+'k8s-minion-'+str(x))
+    
     cbd_nodes = list_nodes(s_libc, {'name': cbd_name})
     cbd = [x for x in cbd_nodes if x.state == 'running']
     if cbd:
@@ -182,8 +192,15 @@ def get_k8s(s_libc=None, create=True, purge=False, create_wait=0):
                      cbd[0].name)
             return cbd[0]
         else:
-            log.info("K8S Master found, Purge is True, destroying...")
+            log.info("K8S Master found, Purge is True, destroying Master and Minions...")
+            log.info("Destroying Master...")
             [s_libc.destroy_node(x) for x in cbd]
+            log.info("Destroying Minions...")
+            for minion in minion_names:
+                minion_filter['name'] = minion
+                minion_nodes = list_nodes(s_libc, minion_filter)
+                minion_nodes = [x for x in minion_nodes if x.state == 'running']
+                [s_libc.destroy_node(x) for x in minion_nodes]
             cbd = None
     if not cbd:
         log.info("K8S Master, [%s] not found", cbd_name)
@@ -198,17 +215,35 @@ def get_k8s(s_libc=None, create=True, purge=False, create_wait=0):
                             "[%s] seconds for abort", create_wait)
                 sleep(create_wait)
             cbd = create_k8s(s_libc, cbd_name)
-            log.info("Waiting for K8S Cluster Deployment to Complete")
+            k8s_nodes.append(cbd)
+            log.info("Waiting for K8S Master [%s] to be created", cbd_name)
             utils.wait_to_complete(
                 utils.is_remote_file_present,
                 cbd.public_ips[0],
-                'centos',
-                '/tmp/key.pem',
+                user_name,
+                ssh_key_path,
                 whoville_delay=30,
                 whoville_max_wait=600
             )
             
-            return cbd
+            cluster_join_string = initialize_k8s_master(cbd.public_ips[0], user_name, ssh_key_path)
+            
+            for x in minion_names:
+                cbd = create_k8s(s_libc, x)
+                log.info("Waiting for K8S Minion [%s] to be created", x)
+                utils.wait_to_complete(
+                    utils.is_remote_file_present,
+                    cbd.public_ips[0],
+                    user_name,
+                    ssh_key_path,
+                    whoville_delay=30,
+                    whoville_max_wait=600
+                )
+                
+                initialize_k8s_minion(cbd.public_ips[0], user_name, ssh_key_path, cluster_join_string)
+                k8s_nodes.append(cbd)
+            
+            return k8s_nodes
 
 
 def aws_clean_cloudformation(s_boto3):
@@ -867,8 +902,7 @@ def create_k8s(session, cbd_name):
     ]
     if session.type == 'ec2':
         s_boto3 = create_boto3_session()
-        aws_clean_cloudformation(s_boto3)
-        log.info("Selecting OS Image for Cloudbreak")
+        log.info("Selecting OS Image for K8S Node")
         images = list_images(
             session,
             filters={
@@ -964,7 +998,7 @@ def create_k8s(session, cbd_name):
         else:
             ssh_key = [x for x in ssh_key
                        if x.name == config.profile['sshkey_name']][0]
-        log.info("Creating Static IP for K8S master")
+        log.info("Creating Static IP for K8S Node")
         try:
             static_ips = [x for x in session.ex_describe_all_addresses()
                           if x.instance_id is None]
@@ -975,7 +1009,7 @@ def create_k8s(session, cbd_name):
         else:
             static_ip = static_ips[0]
         if not static_ip:
-            raise ValueError("Couldn't get a Static IP for K8S Master") 
+            raise ValueError("Couldn't get a Static IP for K8S Node") 
 
         script_lines = [
             "#!/bin/bash",
@@ -1001,14 +1035,14 @@ def create_k8s(session, cbd_name):
         # inserting hard wait to bypass race condition where returned node ID
         # is not actually available to the list API call yet
         sleep(5)
-        log.info("Waiting for K8S Instances to be Available...")
+        log.info("Waiting for K8S Node to be Available...")
         session.wait_until_running(nodes=[cbd])
-        log.info("Cloudbreak Infra Booted at [%s]", cbd)
-        log.info("Assigning Static IP to K8S Master")
+        log.info("K8S Node Booted at [%s]", cbd)
+        log.info("Assigning Static IP to K8S Node")
         session.ex_associate_address_with_node(cbd, static_ip)
         # Assign Role ARN
         if 'infraarn' in config.profile['platform']:
-            log.info("Found infraarn in Profile, associating with K8S Instances")
+            log.info("Found infraarn in Profile, associating with K8S Node")
             infra_arn = config.profile['platform']['infraarn']
             client = s_boto3.client('ec2')
             client.associate_iam_instance_profile(
@@ -1024,7 +1058,7 @@ def create_k8s(session, cbd_name):
         if cbd:
             return cbd[0]
         else:
-            raise ValueError("Failed to create new K8S Instance")
+            raise ValueError("Failed to create new K8S Node")
         
     if session.type == 'azure_arm':
         ssh_key = config.profile['sshkey_pub']
@@ -1444,21 +1478,20 @@ def create_k8s(session, cbd_name):
         raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, "
                          "and GCE")
 
-def initialize_k8s_services(target_host, user_name, ssh_key_path):
-    log.info("Initializing K8s Node [%s]", nodes)
+def initialize_k8s_minion(target_host, user_name, ssh_key_path, join_string):
+    log.info("Joining K8S Minion [%s] to cluster", target_host)
     
     try:
         s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
         s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False)
-        s.sendline('sudo systemctl start docker') 
-        s.sendline('sudo systemctl enable docker')
-        s.sendline('sudo systemctl start kubelet')
-        s.sendline('sudo systemctl enable kubelet')
-        #s.sendline('sudo sed -i \'s/cgroup-driver=systemd/cgroup-driver=cgroupfs/g\' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf')
-        s.sendline('sudo systemctl daemon-reload')
-        s.sendline('sudo systemctl restart kubelet')
-
-        log.info("K8S Node [%s] initialized", target_host)
+        s.sendline('sudo /tmp/prepare-k8s-service.sh')
+        s.sendline("sudo " + join_string)
+        s.prompt()
+        while not 'node has joined the cluster' in s.before.decode():
+            sleep(3)
+            s.prompt()
+            
+        log.info("K8S Minion [%s] initialized", target_host)
     except (ExceptionPxssh, EOF):
         log.info("Could not connect to K8S Node [%s]", target_host)
         raise ValueError("Something went wrong during node creation")
@@ -1468,23 +1501,32 @@ def initialize_k8s_master(target_host, user_name, ssh_key_path):
     try:
         s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
         s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False)
-        s.sendline('kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep -Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16')
+        s.sendline('sudo /tmp/prepare-k8s-service.sh')
+        s.sendline('sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep -Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16')
         s.prompt()
-        response=s.before.decode()
-        response=response.split('\r\n')
-        if '' in response: 
-            response.remove('')
-        response=response[len(response)-1]
-        if len(response) > 0:
-            log.info("K8S Master initialized, worker registration string: %s", response)
-        else:
-            log.info("Could not find .success file")
+        s.sendline('tail -n 2 /tmp/k8s-init.log')
+        s.prompt()
+        
+        while not 'kubeadm join' in s.before.decode():
+            sleep(3)
+            s.prompt()
+            s.sendline('tail -n 2 /tmp/k8s-init.log')
             
+        response = s.before.decode().split('\r\n')
+        response = [x for x in response if 'kubeadm join' in x ]
+        cluster_join_string = response[0].strip()
+        s.sendline('/tmp/initialize-k8s-cluster.sh')
+        s.prompt()
+        
+        while not 'kube-flannel-ds-s390x created' in s.before.decode():
+            sleep(3)
+            s.prompt()
+        
+        return cluster_join_string
+        
     except (ExceptionPxssh, EOF):
-        log.info("Could not connect to host, %s", n)
-        return False
+        raise ValueError("Could not connect to host, %s", n)
     
-
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
     try:
         session.ex_authorize_security_group_ingress(
