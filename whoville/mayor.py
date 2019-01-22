@@ -261,6 +261,9 @@ def getCB():
 def apiCheck():
     return "Whoville Rest API is operational..."
 
+@app.route("/api/whoville/v1/getProfile")
+def getProfile():
+    return json.dumps(config.profile)
 
 @app.route("/api/whoville/v1/getMenu")
 def getDefs():
