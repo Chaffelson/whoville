@@ -14,7 +14,7 @@ import json
 import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
-from whoville import config, utils, security, infra, deploy, actions, director
+from whoville import config, utils, security, infra, deploy, actions
 from flask import Flask
 from flask import request
 
@@ -261,13 +261,16 @@ def getCB():
 def apiCheck():
     return "Whoville Rest API is operational..."
 
+
 @app.route("/api/whoville/v1/getProfile")
 def getProfile():
     return json.dumps(config.profile)
 
+
 @app.route("/api/whoville/v1/getMenu")
 def getDefs():
     return json.dumps(horton.defs)
+
 
 @app.route("/api/whoville/v1/getPackageInfraBreakdown")
 def getDefsInfraBreakdown():
@@ -283,6 +286,7 @@ def getDefsInfraBreakdown():
         
     return json.dumps(infraList)
 
+
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
     var = {'platform' : horton.cred.cloud_platform, 
@@ -295,16 +299,19 @@ def getStacks():
     var = json.loads(deploy.list_stacks_json().data.decode())
     return json.dumps(var)
 
+
 @app.route("/api/whoville/v1/deleteStack")
 def deleteStack():
     cluster_id = request.args.get('clusterId')
     var = deploy.delete_stack(stack_id=cluster_id, force=True, wait=False)
     return json.dumps(var)
 
+
 @app.route("/api/whoville/v1/getTemplates")
 def getTemplates():
     var = json.loads(deploy.list_templates_json().data.decode())
     return json.dumps(var)
+
 
 @app.route("/api/whoville/v1/deployPackage")
 def deployPackage():

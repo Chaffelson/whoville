@@ -86,8 +86,6 @@ def replace_str(args):
     def_key = args[0]
     res_name = args[1]
     cache_key = args[2]
-    log.info("Replacing string [%s] with [%s] in Resource [%s] in def [%s]",
-             cache_key, _horton.cache[cache_key], res_name, def_key)
     resource = _horton.resources[def_key][res_name]
     # Read
     if isinstance(resource, dict):
@@ -95,7 +93,20 @@ def replace_str(args):
     else:
         source = resource
     # Replace String
-    target = source.replace(cache_key, _horton.cache[cache_key])
+    if cache_key in _horton.cache:
+        log.info(
+            "Replacing string [%s] with [%s] in Resource [%s] in def [%s]",
+            cache_key, _horton.cache[cache_key], res_name, def_key)
+        target = source.replace(cache_key, _horton.cache[cache_key])
+    else:
+        if '|' in cache_key:
+            old, new = cache_key.split('|')
+            log.info("Substitution format found in replace value, replacing "
+                     "[%s] with [%s] in resource [%s] in def [%s]",
+                     old, new, res_name, def_key)
+            target = source.replace(old, new)
+        else:
+            raise ValueError("Replacement value not in Cache or bad format")
     # Write
     if isinstance(resource, dict):
         _horton.resources[def_key][res_name] = utils.load(target)

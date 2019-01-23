@@ -239,38 +239,22 @@ def create_cloudbreak(session, cbd_name):
         if not machines:
             raise ValueError("Couldn't find a VM of the right size")
         else:
-            machine = machines[-1]
+            # Filtering to remove fancier machines
+            filtered_machines = [
+                x for x in machines
+                if "m4." in x.id or "m5." in x.id
+            ]
+            machine = filtered_machines[-1]
         log.info("Fetching list of available networks")
-        networks = list_networks(session)
-        network = sorted(networks, key=lambda k: k.extra['is_default'])
-        if not network:
-            raise ValueError("There should be at least one network, this "
-                             "is rather unexpected")
-        else:
-            network = network[-1]
-        log.info("Fetching subnets in Network")
-        subnets = list_subnets(session, {'extra.vpc_id': network.id})
-        subnets = sorted(subnets, key=lambda k: k.state)
-        ec2_resource = s_boto3.resource('ec2')
-        if not subnets:
-            raise ValueError("Expecting at least one subnet on a network")
-        subnet = [x for x in subnets
-                  if ec2_resource.Subnet(x.id).map_public_ip_on_launch]
-        if not subnet:
-            raise ValueError("There are no subnets with auto provisioning of "
-                             "public IPs enabled..."
-                             "enable public IP auto provisioning on at least "
-                             "one subnet in the default VPC")
-        else:
-            subnet = subnet[0]
+        vpc, subnet = get_aws_network(session)
         log.info("Fetching Security groups matching namespace")
         sec_group = list_security_groups(session, {'name': namespace})
         if not sec_group:
             log.info("Namespace Security group not found, creating")
             _ = session.ex_create_security_group(
-                name=namespace + 'whoville-default',
-                description=namespace + 'whoville-default Security Group',
-                vpc_id=network.id
+                name=namespace + 'whoville',
+                description=namespace + 'whoville Security Group',
+                vpc_id=vpc.id
             )
             sec_group = list_security_groups(session, {'name': namespace})[-1]
         else:
@@ -347,6 +331,12 @@ def create_cloudbreak(session, cbd_name):
                 'ex_userdata': script
             }
         )
+        # Set Instance Tags
+        log.info("Setting Instance Tags")
+        session.ex_create_tags(
+            resource=cbd,
+            tags=config.profile['tags']
+        )
         # inserting hard wait to bypass race condition where returned node ID
         # is not actually available to the list API call yet
         sleep(5)
@@ -354,7 +344,20 @@ def create_cloudbreak(session, cbd_name):
         session.wait_until_running(nodes=[cbd])
         log.info("Cloudbreak Infra Booted at [%s]", cbd)
         log.info("Assigning Static IP to Cloudbreak")
-        session.ex_associate_address_with_node(cbd, static_ip)
+        try:
+            session.ex_associate_address_with_node(
+                cbd,
+                static_ip
+            )
+        except BaseHTTPError as e:
+            if 'InvalidParameterCombination' in e.message:
+                session.ex_associate_address_with_node(
+                    cbd,
+                    static_ip,
+                    domain='vpc' # needed for legacy AWS accounts
+                )
+            else:
+                raise e
         # Assign Role ARN
         if 'infraarn' in config.profile['platform']:
             log.info("Found infraarn in Profile, associating with Cloudbreak")
@@ -970,6 +973,183 @@ def list_all_aws_nodes(region_list=None):
             nodes += reservations
     log.info("All known regions checked, returning list")
     return nodes
+
+
+def get_aws_network(session, create=True):
+    # https://gist.github.com/nguyendv/8cfd92fc8ed32ebb78e366f44c2daea6
+    log.info("Requesting VPC for Whoville")
+    networks = list_networks(session, {'name': namespace})
+    if not networks:
+        if create is True:
+            log.info("VPC not found, creating new VPC")
+            vpc = session.ex_create_network(
+                cidr_block='10.0.0.0/16',
+                name=namespace + 'whoville'
+            )
+            if not vpc:
+                raise ValueError("Could not create new VPC")
+            networks = list_networks(session, {'name': namespace})
+            if not networks or networks[0].extra['state'] != 'available':
+                log.info("Waiting for new VPC to be available")
+                sleep(5)
+            vpc = networks[0]
+            log.info("Creating Internet Gateway for VPC")
+            ig = session.ex_create_internet_gateway(
+                name=namespace + 'whoville'
+            )
+            ig_result = session.ex_attach_internet_gateway(
+                gateway=ig,
+                network=vpc
+            )
+            if not ig_result:
+                raise ValueError("Could not attach internet gateway to VPC")
+            log.info("Creating Route Table for VPC")
+            rt = session.ex_create_route_table(
+                network=vpc,
+                name=namespace + 'whoville'
+            )
+            if not rt:
+                raise ValueError("Could not create Route Table")
+            log.info("Setting default route for Route Table")
+            route = session.ex_create_route(
+                route_table=rt,
+                cidr='0.0.0.0/0',
+                internet_gateway=ig
+            )
+            if not route:
+                raise ValueError("Could not create Route for Route Table")
+            log.info("Creating Subnet in VPC")
+            zones = session.ex_list_availability_zones()
+            subnet = session.ex_create_subnet(
+                cidr_block='10.0.1.0/24',
+                vpc_id=vpc.id,
+                name=namespace + 'whoville',
+                availability_zone=zones[-1].name
+            )
+            if not subnet:
+                raise ValueError("Could not create Subnet on EC2")
+            log.info("Associating Subnet with Route Table")
+            subnet_result = session.ex_associate_route_table(
+                route_table=rt,
+                subnet=subnet
+            )
+            if not subnet_result:
+                raise ValueError("Failed to associate subnet with Route Table")
+            log.info("Fixing up DNS")
+            ec2 = boto3.resource(
+                'ec2',
+                region_name=config.profile['platform']['region']
+            )
+            s_boto3 = create_boto3_session()
+            ec2client = s_boto3.client('ec2')
+            ec2client.modify_vpc_attribute(
+                VpcId=vpc.id,
+                EnableDnsSupport={'Value': True})
+            ec2client.modify_vpc_attribute(
+                VpcId=vpc.id,
+                EnableDnsHostnames={'Value': True})
+            log.info("Fixing up auto IP assignment")
+            ec2client.modify_subnet_attribute(
+                SubnetId=subnet.id,
+                MapPublicIpOnLaunch={"Value": True}
+            )
+            log.info('Returning new VPC/Subnet')
+            return list_networks(session, {'name': namespace})[-1], subnet
+        else:
+            log.info("VPC not found, Create is False, returning None/None")
+            return None, None
+    else:
+        log.info("VPC found, returning VPC/Subnet")
+        network = networks[-1]
+        subnets = list_subnets(session, {'extra.vpc_id': network.id})
+        subnets = sorted(subnets, key=lambda k: k.state)
+        return network, subnets[-1]
+
+
+def delete_aws_network(network_id, force=False):
+    # WIP - still issues with dependencies in some cases
+    b3session = create_boto3_session()
+    ec2 = b3session.resource('ec2')
+    ec2client = ec2.meta.client
+    if not force:
+        log.info("Attempting unforced delete of VPC %s", network_id)
+        result = ec2client.delete_vpc(VpcId=network_id)
+    else:
+        # applying prejudice...
+        # https://gist.github.com/alberto-morales/b6d7719763f483185db27289d51f8ec5
+        vpc = ec2.Vpc(network_id)
+        # detach default dhcp_options if associated with the vpc
+        log.info("Attempting FORCED delete of VPC %s", network_id)
+        # detach and delete all gateways associated with the vpc
+        log.info("Trashing IGW setup")
+        for gw in vpc.internet_gateways.all():
+            vpc.detach_internet_gateway(InternetGatewayId=gw.id)
+            gw.delete()
+        # delete all route table associations
+        log.info("Trashing RT setup")
+        for rt in vpc.route_tables.all():
+            for rta in rt.associations:
+                if not rta.main:
+                    rta.delete()
+        # delete any instances
+        log.info("Trashing Subnet setup")
+        for subnet in vpc.subnets.all():
+            for instance in subnet.instances.all():
+                instance.terminate()
+        # delete our endpoints
+        log.info("Trashing Endpoints setup")
+        for ep in ec2client.describe_vpc_endpoints(
+                Filters=[{
+                    'Name': 'vpc-id',
+                    'Values': [network_id]
+                }])['VpcEndpoints']:
+            ec2client.delete_vpc_endpoints(
+                VpcEndpointIds=[ep['VpcEndpointId']])
+        # delete our security groups
+        log.info("Trashing Security Groups setup")
+        for sg in vpc.security_groups.all():
+            if sg.group_name != 'default':
+                sg.delete()
+        # delete any vpc peering connections
+        log.info("Trashing VPC Pairings")
+        for vpcpeer in ec2client.describe_vpc_peering_connections(
+                Filters=[{
+                    'Name': 'requester-vpc-info.vpc-id',
+                    'Values': [network_id]
+                }])['VpcPeeringConnections']:
+            ec2.VpcPeeringConnection(
+                vpcpeer['VpcPeeringConnectionId']).delete()
+        # delete non-default network acls
+        log.info("Trashing non-default Network ACLs")
+        for netacl in vpc.network_acls.all():
+            if not netacl.is_default:
+                netacl.delete()
+        # delete network interfaces
+        log.info("Trashing Network Interfaces")
+        for subnet in vpc.subnets.all():
+            for interface in subnet.network_interfaces.all():
+                interface.delete()
+            subnet.delete()
+        log.info("Handling DHCP")
+        dhcp = vpc.dhcp_options
+        dhcp_id = dhcp.id
+        dhcp_options_default = ec2.DhcpOptions('default')
+        if dhcp_options_default:
+            dhcp_options_default.associate_with_vpc(
+                VpcId=vpc.id
+            )
+        if dhcp_id == 'default':
+            log.info("DHCP is default, skipping trash process")
+        else:
+            log.info("Trashing DHCP setup %s", dhcp_id)
+            dhcp.delete()
+        # finally, delete the vpc
+        log.info("Trashing VPC")
+        try:
+            result = ec2client.delete_vpc(VpcId=network_id)
+        except:
+            log.error("Couldn't delete VPC, please clean up in AWS Console")
+    return result
 
 
 def get_aws_node_summary(node_list=None):

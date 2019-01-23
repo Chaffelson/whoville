@@ -1,0 +1,26 @@
+desc: Two node Service including HDP-3.1 & CDSW-1.5
+deploywait: 1800
+purge: true
+priority: 
+seq:
+- copy_def: [inf-hdp30-single, hdp31-cdsw15-s]
+- merge_def: [inf-hdp31-single, hdp31-cdsw15-s]
+- merge_def: [demo-cdsw-hdp31, hdp31-cdsw15-s]
+- prep_deps: [hdp31-cdsw15-s, hdp31-cdsw15-s]
+- prep_spec: [hdp31-cdsw15-s, hdp31-cdsw15-s]
+- do_builds: [hdp31-cdsw15-s]
+input:
+  yarn.vcores: 20
+  yarn.capacity: 60000
+recipe:
+- name: cdsw-postcluster.sh
+  typ: POST_CLUSTER_INSTALL
+group:
+  master:
+    machine: 8x28-8x32
+  cdsw:
+    recipe: [cdsw-postcluster]
+    type: CORE
+    machine: 16x60-16x66
+    rootvol: 100
+    vols: 2x500
