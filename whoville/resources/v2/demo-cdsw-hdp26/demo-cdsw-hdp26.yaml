@@ -1,0 +1,31 @@
+desc: Two node Service including HDP-2.6 & CDSW-1.5
+deploywait: 1800
+purge: true
+priority: 
+seq:
+- copy_def: [inf-hdp30-single, hdp26-cdsw15-s]
+- merge_def: [demo-cdsw-hdp31, hdp26-cdsw15-s]
+- merge_def: [demo-cdsw-hdp26, hdp26-cdsw15-s]
+- prep_deps: [hdp26-cdsw15-s, hdp26-cdsw15-s]
+- prep_spec: [hdp26-cdsw15-s, hdp26-cdsw15-s]
+- do_builds: [hdp26-cdsw15-s]
+input:
+  yarn.vcores: 20
+  yarn.capacity: 60000
+infra:
+  ambarirepo:
+    version: 2.6.2.2
+    baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.6.2.2
+    gpgKeyUrl: http://public-repo-1.hortonworks.com/ambari/centos7/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
+  stackrepo:
+    ver: 2.6.5.1050-37
+    url: http://public-repo-1.hortonworks.com/HDP/centos7/2.x/updates/2.6.5.1050/HDP-2.6.5.1050-37.xml
+group:
+  master:
+    machine: 8x28-8x32
+  cdsw:
+    recipe: [cdsw-postcluster]
+    type: CORE
+    machine: 16x60-16x66
+    rootvol: 100
+    vols: 2x500

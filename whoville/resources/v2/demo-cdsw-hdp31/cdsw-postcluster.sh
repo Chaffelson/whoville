@@ -2,11 +2,10 @@
 
 # WARNING: This script is only for RHEL7 on EC2
 
-#yum -y install iptables-services nfs-utils libseccomp lvm2 bridge-utils libtool-ltdl ebtables rsync policycoreutils-python ntp bind-utils nmap-ncat openssl e2fsprogs redhat-lsb-core socat selinux-policy-base selinux-policy-targeted 
+# Some of these installs may be unecessary but are included for completeness against documentation
 yum -y install nfs-utils libseccomp lvm2 bridge-utils libtool-ltdl ebtables rsync policycoreutils-python ntp bind-utils nmap-ncat openssl e2fsprogs redhat-lsb-core socat selinux-policy-base selinux-policy-targeted 
 
-#systemctl enable iptables
-#systemctl restart iptables
+# CDSW wants a pristine IPTables setup
 iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
@@ -14,14 +13,15 @@ iptables -t nat -F
 iptables -t mangle -F
 iptables -F
 iptables -X
-#systemctl restart iptables
 
 # set java_home on centos7
 export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") >> /etc/profile
 
 # Fetch public IP
-#export PUBLIC_IP=$(curl -s https://ipv4.icanhazip.com)
 export MASTER_IP=$(hostname --ip-address)
+
+# Fetch public FQDN for Domain
+export DOMAIN=$(curl https://icanhazptr.com)
 
 # unmount  vols - Cloudbreak will always mount presented volumes but this isn't a datanode
 if lsblk | grep -q xvd ; then
@@ -66,7 +66,7 @@ chmod +x ./Anaconda2-5.2.0-Linux-x86_64.sh
 # CDSW Setup
 sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${MASTER_IP}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@JAVA_HOME=\"/usr/java/default\"@JAVA_HOME=\"$(echo ${JAVA_HOME})\"@g" /etc/cdsw/config/cdsw.conf
-sed -i "s@DOMAIN=\"cdsw.company.com\"@DOMAIN=\"${MASTER_IP}.nip.io\"@g" /etc/cdsw/config/cdsw.conf
+sed -i "s@DOMAIN=\"cdsw.company.com\"@DOMAIN=\"${DOMAIN}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DOCKER_BLOCK_DEVICES=\"\"@DOCKER_BLOCK_DEVICES=\"${DOCKER_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@APPLICATION_BLOCK_DEVICE=\"\"@APPLICATION_BLOCK_DEVICE=\"${APP_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DISTRO=\"\"@DISTRO=\"HDP\"@g" /etc/cdsw/config/cdsw.conf
@@ -76,3 +76,7 @@ sed -i "s@ANACONDA_DIR=\"\"@ANACONDA_DIR=\"/anaconda/bin\"@g" /etc/cdsw/config/c
 sed -i "s@nameserver 127.0.0.1@nameserver 169.254.169.253@g" /etc/dhcp/dhclient-enter-hooks
 
 cdsw init
+
+echo "CDSW will shortly be available on ${DOMAIN}"
+
+exit 0
