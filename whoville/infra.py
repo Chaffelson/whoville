@@ -199,14 +199,18 @@ def create_cloudbreak(session, cbd_name):
             'from_port': 443,
             'to_port': 443,
             'cidr_ips': ['0.0.0.0/0']
-        },
-        {
-            'protocol': 'tcp',
-            'from_port': 22,
-            'to_port': 22,
-            'cidr_ips': ['0.0.0.0/0']
         }
     ]
+    if 'cidr_whitelist' in config.profile:
+        for whitelist_cidr in config.profile['cidr_whitelist']:
+            net_rules.append(
+                {
+                    'protocol': -1,
+                    'cidr_ips': [whitelist_cidr],
+                    'from_port': 0,
+                    'to_port': 0
+                }
+            )
     if session.type == 'ec2':
         s_boto3 = create_boto3_session()
         aws_clean_cloudformation(s_boto3)
