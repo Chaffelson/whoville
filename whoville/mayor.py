@@ -103,17 +103,17 @@ def step_2_init_infra(create_wait=0):
         raise ConnectionError("Couldn't login to Cloudbreak")
     else:
         log.info('Logged into Cloudbreak at [%s]', cbd_url)
-    # log.info("------------- Authenticating to Altus Director")
-    # cad_auth_success = security.service_login(
-    #     service='director',
-    #     username=config.profile['username'],
-    #     password=security.get_secret('ADMINPASSWORD'),
-    #     bool_response=False
-    # )
-    # if not cad_auth_success:
-    #     raise ConnectionError("Couldn't login to Director")
-    # else:
-    #     log.info('Logged into Director at [%s]', cad_url)
+    log.info("------------- Authenticating to Altus Director")
+    cad_auth_success = security.service_login(
+        service='director',
+        username=config.profile['username'],
+        password=security.get_secret('ADMINPASSWORD'),
+        bool_response=False
+    )
+    if not cad_auth_success:
+        raise ConnectionError("Couldn't login to Director")
+    else:
+        log.info('Logged into Director at [%s]', cad_url)
     # Cloudbreak may have just booted and not be ready for queries yet
     log.info("Waiting for Cloudbreak API Calls to be available")
     utils.wait_to_complete(
@@ -123,19 +123,21 @@ def step_2_init_infra(create_wait=0):
         whoville_max_wait=120
     )
     # # Director may not be ready for queries yet
-    # log.info("Waiting for Altus Director API Calls to be available")
-    # utils.wait_to_complete(
-    #     director.list_environments,
-    #     bool_response=True,
-    #     whoville_delay=5,
-    #     whoville_max_wait=120
-    # )
+    log.info("Waiting for Altus Director API Calls to be available")
+    utils.wait_to_complete(
+        director.list_environments,
+        bool_response=True,
+        whoville_delay=5,
+        whoville_max_wait=120
+    )
     log.info("------------- Setting Deployment Credential")
+    log.info("Ensuring Credential for Cloudbreak")
     horton.cbcred = deploy.get_credential(
         config.profile['namespace'] + 'credential',
         create=True,
         purge=horton.global_purge
     )
+    log.info("Ensuring Environment Credential for Director")
     horton.cdcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
@@ -262,13 +264,16 @@ def getCB():
 def apiCheck():
     return "Whoville Rest API is operational..."
 
+
 @app.route("/api/whoville/v1/getProfile")
 def getProfile():
     return json.dumps(config.profile)
 
+
 @app.route("/api/whoville/v1/getMenu")
 def getDefs():
     return json.dumps(horton.defs)
+
 
 @app.route("/api/whoville/v1/getPackageInfraBreakdown")
 def getDefsInfraBreakdown():
@@ -281,13 +286,13 @@ def getDefsInfraBreakdown():
     infraList = []
     for x in specList:
         infraList.append({'packageName':x['prep_spec'][0],'instanceName':x['prep_spec'][1]})
-        
     return json.dumps(infraList)
+
 
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
-    var = {'platform' : horton.cbcred.cloud_platform, 
-           'name' : horton.cbcred.name}
+    var = {'platform': horton.cbcred.cloud_platform,
+           'name': horton.cbcred.name}
     return json.dumps(var)
 
 
@@ -296,16 +301,19 @@ def getStacks():
     var = json.loads(deploy.list_stacks_json().data.decode())
     return json.dumps(var)
 
+
 @app.route("/api/whoville/v1/deleteStack")
 def deleteStack():
     cluster_id = request.args.get('clusterId')
     var = deploy.delete_stack(stack_id=cluster_id, force=True, wait=False)
     return json.dumps(var)
 
+
 @app.route("/api/whoville/v1/getTemplates")
 def getTemplates():
     var = json.loads(deploy.list_templates_json().data.decode())
     return json.dumps(var)
+
 
 @app.route("/api/whoville/v1/deployPackage")
 def deployPackage():

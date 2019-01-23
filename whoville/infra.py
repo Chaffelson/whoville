@@ -183,27 +183,21 @@ def create_cloudbreak(session, cbd_name):
     public_ip = requests.get('https://ipv4.icanhazip.com').text.rstrip()
     net_rules = [
         {
-            'protocol': 'tcp',
+            'protocol': 'tcp',  # required for Cloudbreak
             'from_port': 9443,
             'to_port': 9443,
             'cidr_ips': ['0.0.0.0/0']
         },
         {
-            'protocol': -1,
+            'protocol': -1,  # initiators public IP
             'from_port': 1,
             'to_port': 65535,
             'cidr_ips': [public_ip + '/32']
         },
         {
-            'protocol': 'tcp',
+            'protocol': 'tcp',  # general secured access
             'from_port': 443,
             'to_port': 443,
-            'cidr_ips': ['0.0.0.0/0']
-        },
-        {
-            'protocol': 'tcp',
-            'from_port': 22,
-            'to_port': 22,
             'cidr_ips': ['0.0.0.0/0']
         }
     ]
