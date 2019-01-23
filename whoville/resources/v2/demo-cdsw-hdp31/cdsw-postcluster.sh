@@ -2,10 +2,11 @@
 
 # WARNING: This script is only for RHEL7 on EC2
 
-yum -y install iptables-services nfs-utils libseccomp lvm2 bridge-utils libtool-ltdl ebtables rsync policycoreutils-python ntp bind-utils nmap-ncat openssl e2fsprogs redhat-lsb-core socat selinux-policy-base selinux-policy-targeted 
+#yum -y install iptables-services nfs-utils libseccomp lvm2 bridge-utils libtool-ltdl ebtables rsync policycoreutils-python ntp bind-utils nmap-ncat openssl e2fsprogs redhat-lsb-core socat selinux-policy-base selinux-policy-targeted 
+yum -y install nfs-utils libseccomp lvm2 bridge-utils libtool-ltdl ebtables rsync policycoreutils-python ntp bind-utils nmap-ncat openssl e2fsprogs redhat-lsb-core socat selinux-policy-base selinux-policy-targeted 
 
-systemctl enable iptables
-systemctl restart iptables
+#systemctl enable iptables
+#systemctl restart iptables
 iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
@@ -13,7 +14,7 @@ iptables -t nat -F
 iptables -t mangle -F
 iptables -F
 iptables -X
-systemctl restart iptables
+#systemctl restart iptables
 
 # set java_home on centos7
 export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") >> /etc/profile
