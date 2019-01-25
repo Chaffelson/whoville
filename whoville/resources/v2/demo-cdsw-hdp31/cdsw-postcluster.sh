@@ -65,7 +65,7 @@ chmod +x ./Anaconda2-5.2.0-Linux-x86_64.sh
 ./Anaconda2-5.2.0-Linux-x86_64.sh -b -p /anaconda
 
 # CDSW Setup
-sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${MASTER_IP}\"@g" /etc/cdsw/config/cdsw.conf
+sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${PUBLIC_IP}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@JAVA_HOME=\"/usr/java/default\"@JAVA_HOME=\"$(echo ${JAVA_HOME})\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DOMAIN=\"cdsw.company.com\"@DOMAIN=\"${PUBLIC_IP}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DOCKER_BLOCK_DEVICES=\"\"@DOCKER_BLOCK_DEVICES=\"${DOCKER_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
