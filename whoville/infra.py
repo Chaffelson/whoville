@@ -186,19 +186,22 @@ def create_cloudbreak(session, cbd_name):
             'protocol': 'tcp',  # required for Cloudbreak
             'from_port': 9443,
             'to_port': 9443,
-            'cidr_ips': ['0.0.0.0/0']
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Cloudbreak'
         },
         {
             'protocol': -1,  # initiators public IP
             'from_port': 1,
             'to_port': 65535,
-            'cidr_ips': [public_ip + '/32']
+            'cidr_ips': [public_ip + '/32'],
+            'description': 'Deployer'
         },
         {
             'protocol': 'tcp',  # general secured access
             'from_port': 443,
             'to_port': 443,
-            'cidr_ips': ['0.0.0.0/0']
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Secured Access'
         }
     ]
     if session.type == 'ec2':
@@ -258,7 +261,8 @@ def create_cloudbreak(session, cbd_name):
                 'protocol': -1,
                 'group_pairs': [{'group_id': sec_group.id}],
                 'from_port': 0,
-                'to_port': 0
+                'to_port': 0,
+                'description': 'Loopback SG'
             }
         )
         # security group loopback doesn't work well on AWS, need to use subnet
@@ -267,7 +271,8 @@ def create_cloudbreak(session, cbd_name):
                 'protocol': -1,
                 'cidr_ips': [subnet.extra['cidr_block']],
                 'from_port': 0,
-                'to_port': 0
+                'to_port': 0,
+                'description': 'loopback IP'
             }
         )
         for rule in net_rules:

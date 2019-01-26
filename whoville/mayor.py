@@ -138,7 +138,7 @@ def step_2_init_infra(create_wait=0):
         purge=horton.global_purge
     )
     log.info("Ensuring Environment Credential for Director")
-    horton.cdcred = director.get_environment()
+    horton.cadcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
@@ -214,17 +214,19 @@ def print_intro():
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
         print("        " + horton.defs[def_key].get('desc'))
+    print("\nTo deploy a CDH cluster, type 'cdh-' followed by the version "
+          "number, e.g. 'cdh-5.12.2'")
 
 
 def user_menu():
     while True:
         print("\nPlease enter a Definition Name to deploy it: ")
         print("e.g.")
-        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+        print('\033[1m' + "inf-cda30-single\n" + '\033[0m')
         print("\nAlternately type 'help' to see the Definitions again, 'purge'"
               " to remove all deployed environments from cloudbreak, 'nuke' "
-              "to remove everything including Cloudbreak, or 'exit' to exit "
-              "gracefully")
+              "to remove everything including Cloudbreak/Director, or 'exit' "
+              "to exit gracefully")
         selected = str(input(">> "))
         if selected in ['list', 'help']:
             print_intro()
@@ -240,6 +242,8 @@ def user_menu():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")
             _sleep(5)
+        elif 'cdh-' in selected:
+            director.chain_deploy(cdh_ver=selected.split('-')[-1])
         else:
             print("Sorry, that is not recognised, please try again")
 
