@@ -1222,4 +1222,4 @@ def nuke_namespace(dry_run=True):
         for i in sec_groups:
             log.info("Destroying Security Group %s", i.name)
             if not dry_run:
-                session.ex_delete_security_group(name=i.name)
+                session.ex_delete_security_group_by_id(group_id=i.id)
