@@ -183,19 +183,21 @@ def create_cloudbreak(session, cbd_name):
     public_ip = requests.get('https://ipv4.icanhazip.com').text.rstrip()
     net_rules = [
         {
-            'protocol': 'tcp',
+            'protocol': 'tcp',  # required for Cloudbreak
             'from_port': 9443,
             'to_port': 9443,
-            'cidr_ips': ['0.0.0.0/0']
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Cloudbreak'
         },
         {
-            'protocol': -1,
+            'protocol': -1,  # initiators public IP
             'from_port': 1,
             'to_port': 65535,
-            'cidr_ips': [public_ip + '/32']
+            'cidr_ips': [public_ip + '/32'],
+            'description': 'Deployer'
         },
         {
-            'protocol': 'tcp',
+            'protocol': 'tcp',  # general secured access
             'from_port': 443,
             'to_port': 443,
             'cidr_ips': ['0.0.0.0/0']
@@ -268,7 +270,8 @@ def create_cloudbreak(session, cbd_name):
                 'protocol': -1,
                 'group_pairs': [{'group_id': sec_group.id}],
                 'from_port': 0,
-                'to_port': 0
+                'to_port': 0,
+                'description': 'Loopback SG'
             }
         )
         # security group loopback doesn't work well on AWS, need to use subnet
@@ -277,7 +280,8 @@ def create_cloudbreak(session, cbd_name):
                 'protocol': -1,
                 'cidr_ips': [subnet.extra['cidr_block']],
                 'from_port': 0,
-                'to_port': 0
+                'to_port': 0,
+                'description': 'loopback IP'
             }
         )
         for rule in net_rules:
@@ -514,6 +518,19 @@ def create_cloudbreak(session, cbd_name):
                             'direction': 'Inbound'
                         },
                         {
+                            'name': 'knox_https_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow CB HTTPS',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '8443',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 103,
+                            'direction': 'Inbound'
+                        },
+                        {
                             'name': 'cb_https_rule',
                             'provisioningState': 'Succeeded',
                             'description': 'Allow CB HTTPS',
@@ -523,7 +540,7 @@ def create_cloudbreak(session, cbd_name):
                             'sourceAddressPrefix': 'Internet',
                             'destinationAddressPrefix': '*',
                             'access': 'Allow',
-                            'priority': 103,
+                            'priority': 104,
                             'direction': 'Inbound'
                         },
                         {
@@ -536,7 +553,7 @@ def create_cloudbreak(session, cbd_name):
                             'sourceAddressPrefix': 'Internet',
                             'destinationAddressPrefix': '*',
                             'access': 'Allow',
-                            'priority': 104,
+                            'priority': 105,
                             'direction': 'Inbound'
                         }
                     ]
@@ -727,7 +744,7 @@ def create_cloudbreak(session, cbd_name):
             log.info("Creating new firewall definition called: " + firewall_name)
             net_rules = [
                             {'IPProtocol': 'tcp',
-                             'ports': ['22','443','9443','7189']
+                             'ports': ['22','443','8443','9443','7189']
                             }
                         ]
             _ = session.ex_create_firewall(name=firewall_name,
@@ -1214,4 +1231,4 @@ def nuke_namespace(dry_run=True):
         for i in sec_groups:
             log.info("Destroying Security Group %s", i.name)
             if not dry_run:
-                session.ex_delete_security_group(name=i.name)
+                session.ex_delete_security_group_by_id(group_id=i.id)

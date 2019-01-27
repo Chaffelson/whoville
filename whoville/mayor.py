@@ -24,7 +24,7 @@ log.setLevel(logging.INFO)
 
 # 'horton' is a shared state function to make deployment more readable
 # to non-python users
-horton = deploy.Horton()
+horton = utils.Horton()
 app = Flask(__name__)
 
 
@@ -122,20 +122,23 @@ def step_2_init_infra(create_wait=0):
         whoville_delay=5,
         whoville_max_wait=120
     )
-    # Director may not be ready for queries yet
-    # log.info("Waiting for Altus Director API Calls to be available")
-    # utils.wait_to_complete(
-    #     director.list_environments,
-    #     bool_response=True,
-    #     whoville_delay=5,
-    #     whoville_max_wait=120
-    # )
+    # # Director may not be ready for queries yet
+    log.info("Waiting for Altus Director API Calls to be available")
+    utils.wait_to_complete(
+        director.list_environments,
+        bool_response=True,
+        whoville_delay=5,
+        whoville_max_wait=120
+    )
     log.info("------------- Setting Deployment Credential")
-    horton.cred = deploy.get_credential(
+    log.info("Ensuring Credential for Cloudbreak")
+    horton.cbcred = deploy.get_credential(
         config.profile['namespace'] + 'credential',
         create=True,
         purge=horton.global_purge
     )
+    log.info("Ensuring Environment Credential for Director")
+    horton.cadcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
@@ -211,17 +214,19 @@ def print_intro():
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
         print("        " + horton.defs[def_key].get('desc'))
+    print("\nTo deploy a CDH cluster, type 'cdh-' followed by the version "
+          "number, e.g. 'cdh-5.12.2'")
 
 
 def user_menu():
     while True:
         print("\nPlease enter a Definition Name to deploy it: ")
         print("e.g.")
-        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+        print('\033[1m' + "inf-cda30-single\n" + '\033[0m')
         print("\nAlternately type 'help' to see the Definitions again, 'purge'"
               " to remove all deployed environments from cloudbreak, 'nuke' "
-              "to remove everything including Cloudbreak, or 'exit' to exit "
-              "gracefully")
+              "to remove everything including Cloudbreak/Director, or 'exit' "
+              "to exit gracefully")
         selected = str(input(">> "))
         if selected in ['list', 'help']:
             print_intro()
@@ -237,6 +242,8 @@ def user_menu():
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")
             _sleep(5)
+        elif 'cdh-' in selected:
+            director.chain_deploy(cdh_ver=selected.split('-')[-1])
         else:
             print("Sorry, that is not recognised, please try again")
 
@@ -245,7 +252,7 @@ def autorun(def_key=None):
     # Check output of last step of staging process
     if not horton.defs:
         step_1_init_service()
-    if not horton.cred:
+    if not horton.cbcred:
         step_2_init_infra()
     step_3_sequencing(def_key=def_key)
     step_4_build()
@@ -262,21 +269,47 @@ def apiCheck():
     return "Whoville Rest API is operational..."
 
 
+@app.route("/api/whoville/v1/getProfile")
+def getProfile():
+    return json.dumps(config.profile)
+
+
 @app.route("/api/whoville/v1/getMenu")
 def getDefs():
     return json.dumps(horton.defs)
 
 
+@app.route("/api/whoville/v1/getPackageInfraBreakdown")
+def getDefsInfraBreakdown():
+    selected = request.args.get('clusterType')
+    packageDef = horton.defs[selected]
+    specList = [
+            x for x in packageDef['seq']
+            if 'prep_spec' in x
+            ]
+    infraList = []
+    for x in specList:
+        infraList.append({'packageName':x['prep_spec'][0],'instanceName':x['prep_spec'][1]})
+    return json.dumps(infraList)
+
+
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
-    var = {'platform' : horton.cred.cloud_platform, 
-           'name' : horton.cred.name}
+    var = {'platform': horton.cbcred.cloud_platform,
+           'name': horton.cbcred.name}
     return json.dumps(var)
 
 
 @app.route("/api/whoville/v1/getStacks")
 def getStacks():
     var = json.loads(deploy.list_stacks_json().data.decode())
+    return json.dumps(var)
+
+
+@app.route("/api/whoville/v1/deleteStack")
+def deleteStack():
+    cluster_id = request.args.get('clusterId')
+    var = deploy.delete_stack(stack_id=cluster_id, force=True, wait=False)
     return json.dumps(var)
 
 

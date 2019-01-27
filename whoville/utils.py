@@ -23,7 +23,8 @@ from whoville import config
 
 __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
            'is_endpoint_up', 'set_endpoint', 'get_val',
-           'load_resources_from_files', 'load_resources_from_github']
+           'load_resources_from_files', 'load_resources_from_github', 'Horton'
+           ]
 
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
@@ -419,3 +420,48 @@ def get_namespace():
         return config.profile['namespace']
     else:
         return 'wv2-'
+
+
+@singleton
+class Horton:
+    """
+    Borg Singleton to share state between the various processes.
+    Looks complicated, but it makes the rest of the code more readable for
+    Non-Python natives.
+    ...
+    Why Horton? Because an Elephant Never Forgets
+    """
+    def __init__(self):
+        self.cbd = None  # Server details for orchestration host
+        self.cbcred = None  # Credential for deployments, once loaded in CB
+        self.cdcred = None  # Credential for deployments, once loaded in CD
+        self.cad = None  # Client for Altus Director, once created
+        self.resources = {}  # all loaded resources from github/files
+        self.defs = {}  # deployment definitions, once pulled from resources
+        self.specs = {}  # stack specifications, once formulated
+        self.stacks = {}  # stacks deployed, once submitted
+        self.deps = {}  # Dependencies loaded for a given Definition
+        self.seq = {}  # Prioritised list of tasks to execute
+        self.cache = {}  # Key:Value store for passing params between Defs
+        self.namespace = get_namespace()
+        self.global_purge = config.profile['globalpurge']
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+    def _getr(self, keys, sep=':', **kwargs):
+        """
+        Convenience function to retrieve params in a very readable method
+
+        Args:
+            keys (str): dot notation string of the key for the value to be
+                retrieved. e.g 'secret.cloudbreak.hostname'
+
+        Returns:
+            The value if found, or None if not
+        """
+        return get_val(self, keys, sep, **kwargs)
+
+    def _setr(self, keys, val, sep=':', **kwargs):
+        set_val(self, keys, val, sep, **kwargs)
