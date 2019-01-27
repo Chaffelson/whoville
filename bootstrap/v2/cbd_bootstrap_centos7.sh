@@ -60,6 +60,7 @@ export UAA_DEFAULT_SECRET=${uaa_secret}
 export UAA_DEFAULT_USER_PW=${uaa_default_pw}
 export UAA_DEFAULT_USER_EMAIL=${uaa_default_email}
 export PUBLIC_IP=${public_ip}
+export CB_MAX_SALT_RECIPE_EXECUTION_RETRY=900
 EOF
 
 # Startup
