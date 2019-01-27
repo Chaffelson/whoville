@@ -192,7 +192,9 @@ def step_4_build(def_key=None):
                          action, str(args), _dt.utcnow())
                 getattr(actions, action)(args)
                 log.info("----- Completed Action [%s] with Args [%s] at [%s]",
-                     action, str(args), _dt.utcnow())
+                         action, str(args), _dt.utcnow())
+            else:
+                log.error("Action %s not valid, skipping", action)
     finish_ts = _dt.utcnow()
     diff_ts = finish_ts - start_ts
     log.info("Completed Deployment Sequence at [%s] after [%d] seconds",

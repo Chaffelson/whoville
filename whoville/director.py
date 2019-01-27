@@ -105,13 +105,15 @@ def list_deployments(env_name=None):
     return cd.DeploymentsApi(horton.cad).list(environment=env_name)
 
 
-def create_deployment(cm_ver, env_name=None, tem_name=None):
+def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
+                      tls_start=False):
     assert isinstance(cm_ver, six.string_types)
     env_name = env_name if env_name else horton.cadcred.name
     log.info("Using Environment [%s]", env_name)
     tem_name = tem_name if tem_name else horton.cadcred.name
     log.info("Using Virtual Template [%s]", tem_name)
-    dep_name = env_name + '-' + str(cm_ver).replace('.', '-')
+    dep_name = dep_name if dep_name else env_name + '-' + str(cm_ver).replace(
+        '.', '-')
     template = get_instance_template(tem_name=tem_name)
     if not template:
         log.info("Template [%s] not found, creating from defaults", tem_name)
@@ -143,7 +145,8 @@ def create_deployment(cm_ver, env_name=None, tem_name=None):
                 password=security.get_secret('ADMINPASSWORD'),
                 enable_enterprise_trial=True,
                 repository_key_url=repo_key,
-                repository=repo
+                repository=repo,
+                tls_enabled=tls_start
             )
         )
     except ApiException as e:
@@ -185,10 +188,17 @@ def get_deployment_status(dep_name=None, env_name=None):
     env_name = env_name if env_name else horton.cadcred.name
     dep_name = dep_name if dep_name else horton.cadcred.name
     log.info("Fetching Deployment status for [%s]", dep_name)
-    return cd.DeploymentsApi(horton.cad).get_status(
-        environment=env_name,
-        deployment=dep_name
-    )
+    try:
+        return cd.DeploymentsApi(horton.cad).get_status(
+            environment=env_name,
+            deployment=dep_name
+        )
+    except ApiException as e:
+        if e.status == 404:
+            log.error("Deployment %s not found", dep_name)
+            return None
+        else:
+            raise e
 
 
 def list_clusters(env_name=None, dep_name=None):
@@ -242,20 +252,50 @@ def get_instance_template(env_name=None, tem_name=None):
 
 
 def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
-                   dep_name=None):
+                   dep_name=None, clus_name=None):
     env_name = env_name if env_name else horton.cadcred.name
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
     services = services if services else ['HDFS', 'YARN']
     master_setups = {}
+    master_configs = {}
     worker_setups = {}
-    # if 'HDFS' in services:
-    #     master_setups['HDFS'] = ['NAMENODE', 'SECONDARYNAMENODE']
-    #     worker_setups['HDFS'] = ['DATANODE']
-    # if 'YARN' in services:
-    #     master_setups['YARN'] = ['RESOURCEMANAGER', 'JOBHISTORY']
-    #     worker_setups['YARN'] = ['NODEMANAGER']
-    clus_name = horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
+    worker_configs = {}
+    if 'HDFS' in services:
+        master_setups['HDFS'] = ['NAMENODE', 'SECONDARYNAMENODE']
+        worker_setups['HDFS'] = ['DATANODE']
+    if 'YARN' in services:
+        master_setups['YARN'] = ['RESOURCEMANAGER', 'JOBHISTORY']
+        worker_setups['YARN'] = ['NODEMANAGER']
+    if 'ZOOKEEPER' in services:
+        master_setups['ZOOKEEPER'] = ['SERVER']
+    if 'HBASE' in services:
+        master_setups['HBASE'] = ['MASTER']
+        worker_setups['HBASE'] = ['REGIONSERVER']
+    if 'HIVE' in services:
+        master_setups['HIVE'] = ['HIVESERVER2', 'HIVEMETASTORE']
+    if 'HUE' in services:
+        master_setups['HUE'] = ['HUE_SERVER']
+    if 'KUDU' in services:
+        master_setups['KUDU'] = ['KUDU_MASTER']
+        worker_setups['KUDU'] = ['KUDU_TSERVER']
+        master_configs['KUDU'] = {
+            'KUDU_MASTER': {
+                'fs_wal_dir': "/data0/kudu/masterwal",
+                'fs_data_dirs': "/data1/kudu/master"
+            }
+        }
+        worker_configs['KUDU'] = {
+            'KUDU_TSERVER': {
+                'fs_wal_dir': "/data0/kudu/tabletwal",
+                'fs_data_dirs': "/data1/kudu/tablet"
+            }
+        }
+    if 'IMPALA' in services:
+        master_setups['IMPALA'] = ['CATALOGSERVER', 'STATESTORE']
+        worker_setups['IMPALA'] = ['IMPALAD']
+    clus_name = clus_name if clus_name else \
+        horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
     if cdh_ver[0] == '5':
         parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
                    cdh_ver + '/']
@@ -281,14 +321,14 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
                         name='masters',
                         min_count=1,
                         service_type_to_role_types=master_setups,
-                        role_types_configs={},
+                        role_types_configs=master_configs,
                         virtual_instances=[create_virtual_instance()]
                     ),
                     'workers': cd.VirtualInstanceGroup(
                         name='workers',
                         min_count=workers,
                         service_type_to_role_types=worker_setups,
-                        role_types_configs={},
+                        role_types_configs=worker_configs,
                         virtual_instances=[
                             create_virtual_instance()
                             for _ in range(0, workers)
@@ -349,37 +389,44 @@ def create_virtual_instance(tem_name=None):
     )
 
 
-def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None):
+def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
+                 clus_name=None, tls_start=False):
     env_name = env_name if env_name else horton.cadcred.name
     assert isinstance(cdh_ver, six.string_types)
     assert services is None or isinstance(services, list)
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
+    clus_name = clus_name if clus_name else dep_name
     cm = get_deployment(dep_name=dep_name)
     if not cm:
-        create_deployment(cm_ver=cdh_ver)
+        create_deployment(cm_ver=cdh_ver, dep_name=dep_name,
+                          tls_start=tls_start)
         sleep(3)
-        cm_status = get_deployment_status(dep_name).stage
-        while cm_status not in ['READY', 'BOOTSTRAP_FAILED']:
+        cm_status = get_deployment_status(dep_name)
+        while cm_status is None or \
+                cm_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
             log.info("Waiting 15s for Cloudera Manager [%s] to Deploy",
                      cdh_ver)
             sleep(15)
-            cm_status = get_deployment_status(dep_name).stage
+            cm_status = get_deployment_status(dep_name)
         cm = get_deployment(dep_name=dep_name)
     log.info("Cloudera Manager [%s] is available at %s:7180",
              cdh_ver, cm.manager_instance.properties['publicIpAddress'])
-    cluster = get_cluster(clus_name=dep_name, dep_name=dep_name)
+    cluster = get_cluster(clus_name=clus_name, dep_name=dep_name)
     if not cluster:
         log.info("Cluster not found, creating...")
-        create_cluster(cdh_ver=cdh_ver, services=services)
+        create_cluster(cdh_ver=cdh_ver, services=services, clus_name=clus_name,
+                       dep_name=dep_name)
         clus_status = get_cluster_status(
-            clus_name=dep_name, dep_name=dep_name
+            clus_name=clus_name, dep_name=dep_name
         )
         while clus_status is None or \
                 clus_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
             log.info("Waiting 15s for Cluster [%s] to Deploy", cdh_ver)
             sleep(15)
             clus_status = get_cluster_status(
-                clus_name=dep_name, dep_name=dep_name
+                clus_name=clus_name, dep_name=dep_name
             )
     log.info("Cluster is deployed for %s", cdh_ver)
+    log.info("Cloudera Manager [%s] is available at %s:7180",
+             cdh_ver, cm.manager_instance.properties['publicIpAddress'])
