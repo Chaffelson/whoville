@@ -44,7 +44,7 @@ def prep_spec(args):
 def do_builds(args):
     for spec_key in args:
         fullname = _horton.namespace + spec_key
-        if 'ambari_version' in _horton.specs[fullname]:
+        if 'ambari_version' in _horton.specs[fullname].to_dict():
             # Default to Cloudbreak deploy
             deploy.create_stack(
                 fullname,

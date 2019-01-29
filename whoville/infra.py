@@ -194,13 +194,21 @@ def create_cloudbreak(session, cbd_name):
             'from_port': 1,
             'to_port': 65535,
             'cidr_ips': [public_ip + '/32'],
-            'description': 'Deployer'
+            'description': 'DeployerConnect'
         },
         {
             'protocol': 'tcp',  # general secured access
             'from_port': 443,
             'to_port': 443,
-            'cidr_ips': ['0.0.0.0/0']
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'SSL'
+        },
+        {
+            'protocol': 'tcp',  # general secured access
+            'from_port': 8443,
+            'to_port': 8443,
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Dataplane PublicIP'
         }
     ]
     if 'cidr_whitelist' in config.profile:
