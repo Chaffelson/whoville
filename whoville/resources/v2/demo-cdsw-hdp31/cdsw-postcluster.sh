@@ -53,10 +53,11 @@ fi
 # Set limits
 sed -i "s@# End of file@*                soft    nofile         1048576\n*                hard    nofile         1048576\nroot             soft    nofile         1048576\nroot             hard    nofile         1048576\n# End of file@g" /etc/security/limits.conf
 
-## Install CDSW
-wget -q --no-check-certificate https://s3.eu-west-2.amazonaws.com/whoville/v2/temp.blob
-mv temp.blob cloudera-data-science-workbench-1.5.0.818361-1.el7.centos.x86_64.rpm
-yum install -y cloudera-data-science-workbench-1.5.0.818361-1.el7.centos.x86_64.rpm
+# Install CDSW
+#wget -q --no-check-certificate https://s3.eu-west-2.amazonaws.com/whoville/v2/temp.blob
+#mv temp.blob cloudera-data-science-workbench-1.5.0.818361-1.el7.centos.x86_64.rpm
+wget -q https://archive.cloudera.com/cdsw1/1.5.0/redhat7/yum/RPMS/x86_64/cloudera-data-science-workbench-1.5.0.849870-1.el7.centos.x86_64.rpm
+yum install -y cloudera-data-science-workbench-1.5.0.849870-1.el7.centos.x86_64.rpm
 
 # Install Anaconda
 curl -Ok https://repo.anaconda.com/archive/Anaconda2-5.2.0-Linux-x86_64.sh
