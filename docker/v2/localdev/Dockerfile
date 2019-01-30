@@ -31,7 +31,7 @@ RUN apk update && apk upgrade \
     && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \
     libressl-dev ca-certificates python3-dev linux-headers tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
-    && pip install --no-cache -r requirements.txt \  
+    && pip install --no-cache --no-use-pep517 -r requirements.txt \
     && apk del .build-deps 
     
 
@@ -45,3 +45,4 @@ CMD ["whoville/mayor.py"]
 
 # Build & Run Example from project root /whoville
 # docker build -f="./docker/v2/localdev/Dockerfile" -t whoville:next . && docker run -v /whoville:/whoville --env PROFILE=/whoville/profile.yml --name whovillenext whoville:next
+# --no-use-pep517 required for bug in pip 19.0+
