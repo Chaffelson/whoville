@@ -218,7 +218,8 @@ def create_cloudbreak(session, cbd_name):
                     'protocol': -1,
                     'cidr_ips': [whitelist_cidr],
                     'from_port': 0,
-                    'to_port': 0
+                    'to_port': 0,
+                    'description': 'fromProfileWhitelist'
                 }
             )
     if session.type == 'ec2':

@@ -89,11 +89,14 @@ def open_port(args):
     start_port = args[1]
     end_port = args[2]
     cidr = args[3]
+    if 'CDSWIP' in cidr:
+        cidr = _horton.cache['CDSWIP'] + '/32'
     deploy.add_security_rule(
         protocol=protocol,
         start=start_port,
         end=end_port,
-        cidr=cidr
+        cidr=cidr,
+        description='FromDemoSeq'
     )
 
 

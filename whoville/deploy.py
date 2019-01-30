@@ -1487,8 +1487,11 @@ def wait_for_event(name, field, state, start_ts, wait):
     )
 
 
-def add_security_rule(cidr, start, end, protocol):
+def add_security_rule(cidr, start, end, protocol, description=None):
     horton = utils.Horton()
+    description = description if description else 'None'
+    log.info("Adding Security Rule with: %s %s %s %s",
+             str(protocol), str(start), str(end), str(cidr))
     if horton.cbcred.cloud_platform == 'AWS':
         infra.add_sec_rule_to_ec2_group(
             session=infra.create_libcloud_session(),
@@ -1496,7 +1499,8 @@ def add_security_rule(cidr, start, end, protocol):
                 'protocol': protocol,
                 'from_port': start,
                 'to_port': end,
-                'cidr_ips': [cidr]
+                'cidr_ips': [cidr],
+                'description': description
             },
             sec_group_id=horton.cbd.extra['groups'][0]['group_id']
         )
@@ -1605,6 +1609,21 @@ def write_cache(name, item, cache_key):
                 if x.user_defined_tags['datalake'] == 'true'][0]
         if stack:
             horton.cache[cache_key] = stack.cluster.name
+    elif item in ['cdsw_ip']:
+        stack = [x for x in list_stacks()
+                 if x.name == name][0]
+        if stack:
+            group = [
+                x for x in stack.instance_groups
+                if 'cdsw' in x.group][0]
+            if group:
+                instance = [
+                    x for x in group.metadata if 'cdsw' in x.instance_group][0]
+                horton.cache[cache_key] = instance.__getattribute__('public_ip')
+            else:
+                log.error("CDSWIP requested but not found")
+        else:
+            log.error("CDSWIP requested but not found")
     else:
         # write literal value to cache
         horton.cache[cache_key] = item

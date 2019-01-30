@@ -9,6 +9,9 @@ seq:
 - prep_deps: [hdp26-cdsw15-s, hdp26-cdsw15-s]
 - prep_spec: [hdp26-cdsw15-s, hdp26-cdsw15-s]
 - do_builds: [hdp26-cdsw15-s]
+- wait_event: [hdp26-cdsw15-s, hdp26-cdsw15-s, cluster_status, BILLING_STARTED]
+- write_cache: [hdp26-cdsw15-s, cdsw_ip, CDSWIP]
+- open_port: [-1, 1, 65534, 'CDSWIP']
 input:
   yarn.vcores: 20
   yarn.capacity: 60000
