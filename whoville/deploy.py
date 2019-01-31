@@ -1641,12 +1641,12 @@ def validate_profile():
         raise ValueError("whoville Config Profile is not populated with"
                          "deployment controls, cannot proceed")
     # Check Profile version
-    if not 'profilever' in config.profile:
+    if 'profilever' not in config.profile:
         raise ValueError("Your Profile is out of date, please recreate your "
                          "Profile from the template")
     if config.profile['profilever'] < config.min_profile_ver:
         raise ValueError("Your Profile is out of date, please recreate your "
-                         "Profile from the template")
+                         "Profile from the template. Profile v3 requires an ssh private key.")
     # Check Namespace
     assert isinstance(horton.namespace, six.string_types),\
         "Namespace must be string"

@@ -57,6 +57,12 @@ def list_environments(bool_response=False):
 def create_environment():
     platform = config.profile.get('platform')
     env_name = horton.namespace + 'whoville'
+    if 'ssh_key_priv' in config.profile:
+        priv_key = config.profile['ssh_key_priv']
+    elif 'sshkey_priv' in config.profile:
+        priv_key = config.profile['sshkey_priv']
+    else:
+        raise ValueError("SSH Private Key is required in your Profile, please update from the Template")
     if platform['provider'] == 'EC2':
         cad_env = cd.Environment(
             name=env_name,
