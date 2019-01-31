@@ -240,12 +240,10 @@ def user_menu():
         elif selected in ['nuke']:
             infra.nuke_namespace(dry_run=False)
             exit(0)
-        elif selected in horton.defs.keys():
+        elif selected in horton.defs.keys() or selected.startswith('cdh-'):
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")
             _sleep(5)
-        elif 'cdh-' in selected:
-            director.chain_deploy(cdh_ver=selected.split('-')[-1])
         else:
             print("Sorry, that is not recognised, please try again")
 
@@ -256,8 +254,11 @@ def autorun(def_key=None):
         step_1_init_service()
     if not horton.cbcred:
         step_2_init_infra()
-    step_3_sequencing(def_key=def_key)
-    step_4_build()
+    if def_key in horton.defs.keys():
+        step_3_sequencing(def_key=def_key)
+        step_4_build()
+    else:
+        director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     print_intro()
 
 

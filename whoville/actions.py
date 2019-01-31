@@ -12,6 +12,7 @@ from __future__ import absolute_import as _absolute_import
 import logging as _logging
 from datetime import datetime as _datetime
 from whoville import deploy, utils, director
+from whoville import cloudbreak as _cb
 
 _horton = utils.Horton()
 
@@ -44,8 +45,7 @@ def prep_spec(args):
 def do_builds(args):
     for spec_key in args:
         fullname = _horton.namespace + spec_key
-        if 'ambari_version' in _horton.specs[fullname].to_dict():
-            # Default to Cloudbreak deploy
+        if isinstance(_horton.specs[fullname], _cb.StackV2Request):  # Cloudbreak only Type
             deploy.create_stack(
                 fullname,
                 purge=False
