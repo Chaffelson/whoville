@@ -35,7 +35,7 @@ log.setLevel(logging.INFO)
 # ADAL for Azure is verbose, reducing output
 adal.log.set_logging_options({'level': 'WARNING'})
 
-namespace = utils.get_namespace()
+_horton = utils.Horton()
 preferred_cb_ver = '2.7.2'
 
 
@@ -131,7 +131,7 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
         s_libc = create_libcloud_session()
 
-    cbd_name = namespace + 'cloudbreak'
+    cbd_name = _horton.namespace + 'cloudbreak'
     cbd_nodes = list_nodes(s_libc, {'name': cbd_name})
     cbd = [x for x in cbd_nodes if x.state == 'running']
     if cbd:
@@ -170,9 +170,9 @@ def aws_clean_cloudformation(s_boto3):
     client_cf = s_boto3.client('cloudformation')
     cf_stacks = client_cf.list_stacks()
     log.info("Looking for existing Cloud Formation stacks within namespace"
-             " [%s]", namespace)
+             " [%s]", _horton.namespace)
     for cf_stack in cf_stacks['StackSummaries']:
-        if namespace in cf_stack['StackName']:
+        if _horton.namespace in cf_stack['StackName']:
             log.info("Found Cloud Formation [%s], deleting to avoid "
                      "collision with Cloudbreak cluster creation...",
                      cf_stack['StackName'])
@@ -263,15 +263,15 @@ def create_cloudbreak(session, cbd_name):
         log.info("Fetching list of available networks")
         vpc, subnet = get_aws_network(session)
         log.info("Fetching Security groups matching namespace")
-        sec_group = list_security_groups(session, {'name': namespace})
+        sec_group = list_security_groups(session, {'name': _horton.namespace})
         if not sec_group:
             log.info("Namespace Security group not found, creating")
             _ = session.ex_create_security_group(
-                name=namespace + 'whoville',
-                description=namespace + 'whoville Security Group',
+                name=_horton.namespace + 'whoville',
+                description=_horton.namespace + 'whoville Security Group',
                 vpc_id=vpc.id
             )
-            sec_group = list_security_groups(session, {'name': namespace})[-1]
+            sec_group = list_security_groups(session, {'name': _horton.namespace})[-1]
         else:
             sec_group = sec_group[-1]
         net_rules.append(
@@ -396,13 +396,13 @@ def create_cloudbreak(session, cbd_name):
             raise ValueError("Failed to create new Cloubreak Instance")
     if session.type == 'azure_arm':
         ssh_key = config.profile['sshkey_pub']
-        resource_group = namespace + 'cloudbreak-group'
-        network_name = namespace + 'cloudbreak-network'
-        subnet_name = namespace + 'cloudbreak-subnet'
-        sec_group_name = namespace + 'cloudbreak-secgroup'
-        public_ip_name = namespace + 'cloudbreak-ip'
-        nic_name = namespace + 'cloudbreak-nic'
-        disk_account_name = namespace + 'diskaccount'
+        resource_group = _horton.namespace + 'cloudbreak-group'
+        network_name = _horton.namespace + 'cloudbreak-network'
+        subnet_name = _horton.namespace + 'cloudbreak-subnet'
+        sec_group_name = _horton.namespace + 'cloudbreak-secgroup'
+        public_ip_name = _horton.namespace + 'cloudbreak-ip'
+        nic_name = _horton.namespace + 'cloudbreak-nic'
+        disk_account_name = _horton.namespace + 'diskaccount'
         disk_account_name = disk_account_name.replace('-', '')
         # ToDo: examine cleaning Azure Resource Groups
         log.info("Creating Resource Group...")
@@ -667,10 +667,10 @@ def create_cloudbreak(session, cbd_name):
             raise ValueError("Failed to create new Cloubreak Instance")
     elif session.type == 'gce':
         region = config.profile['platform']['region']
-        cbd_name = namespace+'cloudbreak'
-        public_ip_name = namespace+'cloudbreak-public-ip'
-        subnet_name = namespace+'cloudbreak-subnet'
-        firewall_name = namespace+'cloudbreak-secgroup'
+        cbd_name = _horton.namespace+'cloudbreak'
+        public_ip_name = _horton.namespace+'cloudbreak-public-ip'
+        subnet_name = _horton.namespace+'cloudbreak-subnet'
+        firewall_name = _horton.namespace+'cloudbreak-secgroup'
         ssh_key = config.profile['sshkey_pub']
 
         log.info("Looking for existing network...")
@@ -995,24 +995,24 @@ def list_all_aws_nodes(region_list=None):
 def get_aws_network(session, create=True):
     # https://gist.github.com/nguyendv/8cfd92fc8ed32ebb78e366f44c2daea6
     log.info("Requesting VPC for Whoville")
-    networks = list_networks(session, {'name': namespace})
+    networks = list_networks(session, {'name': _horton.namespace})
     if not networks:
         if create is True:
             log.info("VPC not found, creating new VPC")
             vpc = session.ex_create_network(
                 cidr_block='10.0.0.0/16',
-                name=namespace + 'whoville'
+                name=_horton.namespace + 'whoville'
             )
             if not vpc:
                 raise ValueError("Could not create new VPC")
-            networks = list_networks(session, {'name': namespace})
+            networks = list_networks(session, {'name': _horton.namespace})
             if not networks or networks[0].extra['state'] != 'available':
                 log.info("Waiting for new VPC to be available")
                 sleep(5)
             vpc = networks[0]
             log.info("Creating Internet Gateway for VPC")
             ig = session.ex_create_internet_gateway(
-                name=namespace + 'whoville'
+                name=_horton.namespace + 'whoville'
             )
             ig_result = session.ex_attach_internet_gateway(
                 gateway=ig,
@@ -1023,7 +1023,7 @@ def get_aws_network(session, create=True):
             log.info("Creating Route Table for VPC")
             rt = session.ex_create_route_table(
                 network=vpc,
-                name=namespace + 'whoville'
+                name=_horton.namespace + 'whoville'
             )
             if not rt:
                 raise ValueError("Could not create Route Table")
@@ -1040,7 +1040,7 @@ def get_aws_network(session, create=True):
             subnet = session.ex_create_subnet(
                 cidr_block='10.0.1.0/24',
                 vpc_id=vpc.id,
-                name=namespace + 'whoville',
+                name=_horton.namespace + 'whoville',
                 availability_zone=zones[-1].name
             )
             if not subnet:
@@ -1071,7 +1071,7 @@ def get_aws_network(session, create=True):
                 MapPublicIpOnLaunch={"Value": True}
             )
             log.info('Returning new VPC/Subnet')
-            return list_networks(session, {'name': namespace})[-1], subnet
+            return list_networks(session, {'name': _horton.namespace})[-1], subnet
         else:
             log.info("VPC not found, Create is False, returning None/None")
             return None, None
@@ -1211,11 +1211,11 @@ def aws_terminate_by_tag(key_match, node_summary=None, also_terminate=False):
 
 
 def nuke_namespace(dry_run=True):
-    log.info("Nuking all nodes in Namespace %s", namespace)
+    log.info("Nuking all nodes in Namespace %s", _horton.namespace)
     log.info("dry_run is %s", str(dry_run))
     session = create_libcloud_session()
-    all_instances = list_nodes(session, {'name': namespace})
-    sec_groups = list_security_groups(session, {'name': namespace})
+    all_instances = list_nodes(session, {'name': _horton.namespace})
+    sec_groups = list_security_groups(session, {'name': _horton.namespace})
     if not all_instances:
         log.info("No nodes matching Namespace found")
     else:
@@ -1228,7 +1228,7 @@ def nuke_namespace(dry_run=True):
             log.info("Destroying Node %s", i.name)
             if not dry_run:
                 session.destroy_node(i)
-        while [x for x in list_nodes(session, {'name': namespace}) 
+        while [x for x in list_nodes(session, {'name': _horton.namespace})
                if x.state != 'terminated']:
             log.info("Waiting for nodes to be terminated (sleep10)")
             sleep(10)
