@@ -474,7 +474,18 @@ def validate_profile():
                          "Profile from the template")
     if config.profile['profilever'] < config.min_profile_ver:
         raise ValueError("Your Profile is out of date, please recreate your "
-                         "Profile from the template. Profile v3 requires an ssh private key.")
+                         "Profile from the template. Profile v3 requires an ssh private key or pem file.")
+    # Handle SSH
+    if 'sshkey_file' in config.profile and config.profile['sshkey_file']:
+        assert config.profile['sshkey_file'].endswith('.pem')
+        from Crypto.PublicKey import RSA
+        pem_key = RSA.importKey(fs_read(config.profile['sshkey_file']))
+        config.profile['sshkey_pub'] = pem_key.publickey().exportKey().decode()
+        config.profile['sshkey_priv'] = pem_key.exportKey().decode()
+        config.profile['sshkey_name'] = os.path.basename(config.profile['sshkey_file']).split('.')[0]
+    else:
+        assert any(k in config.profile for k in ['ssh_key_priv', 'sshkey_priv'])
+        assert all(k in config.profile for k in ['sshkey_pub', 'sshkey_name'])
     # Check Namespace
     assert isinstance(horton.namespace, six.string_types),\
         "Namespace must be string"
