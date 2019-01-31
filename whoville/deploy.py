@@ -1189,7 +1189,7 @@ def create_stack(name, wait=False, purge=False, **kwargs):
 
 def delete_stack(stack_id, force=False, wait=True, **kwargs):
     log.info("Requesting delete of Stack [%d] params Force [%s] and Wait "
-             "[%s]", stack_id, force, wait)
+             "[%s]", int(stack_id), str(force), str(wait))
     start_ts = datetime.utcnow()
     resp = cb.V2stacksApi().delete_stack_v2(
         id=stack_id,
