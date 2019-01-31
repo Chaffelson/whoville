@@ -69,7 +69,7 @@ def create_environment():
             credentials=cd.SshCredentials(
                 username='centos',
                 port=22,
-                private_key=config.profile['ssh_key_priv']
+                private_key=priv_key
             ),
             provider=cd.InstanceProviderConfig(
                 type='aws',
