@@ -8,6 +8,7 @@ Convenience utility functions for whoville, not really intended for external use
 from __future__ import absolute_import, unicode_literals
 import logging
 import json
+import re
 import time
 import copy
 import base64
@@ -19,7 +20,7 @@ import requests
 from github import Github
 from github.GithubException import UnknownObjectException
 from requests.models import Response
-from whoville import config
+from whoville import config, security
 
 __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
            'is_endpoint_up', 'set_endpoint', 'get_val',
@@ -415,13 +416,6 @@ def singleton(cls, *args, **kw):
     return _singleton
 
 
-def get_namespace():
-    if 'namespace' in config.profile and config.profile['namespace']:
-        return config.profile['namespace']
-    else:
-        return 'wv2-'
-
-
 @singleton
 class Horton:
     """
@@ -443,7 +437,7 @@ class Horton:
         self.deps = {}  # Dependencies loaded for a given Definition
         self.seq = {}  # Prioritised list of tasks to execute
         self.cache = {}  # Key:Value store for passing params between Defs
-        self.namespace = get_namespace()
+        self.namespace = config.profile['namespace']
         self.global_purge = config.profile['globalpurge']
 
     def __iter__(self):
@@ -465,3 +459,54 @@ class Horton:
 
     def _setr(self, keys, val, sep=':', **kwargs):
         set_val(self, keys, val, sep, **kwargs)
+
+
+def validate_profile():
+    log.info("Validating provided profile.yml")
+    horton = Horton()
+    # Check Profile is imported
+    if not config.profile:
+        raise ValueError("whoville Config Profile is not populated with"
+                         "deployment controls, cannot proceed")
+    # Check Profile version
+    if 'profilever' not in config.profile:
+        raise ValueError("Your Profile is out of date, please recreate your "
+                         "Profile from the template")
+    if config.profile['profilever'] < config.min_profile_ver:
+        raise ValueError("Your Profile is out of date, please recreate your "
+                         "Profile from the template. Profile v3 requires an ssh private key.")
+    # Check Namespace
+    assert isinstance(horton.namespace, six.string_types),\
+        "Namespace must be string"
+    assert len(horton.namespace) >= 2,\
+        "Namespace must be at least 2 characters"
+    # Check Password
+    if 'password' in config.profile and config.profile['password']:
+        horton.cache['ADMINPASSWORD'] = config.profile['password']
+    else:
+        horton.cache['ADMINPASSWORD'] = security.get_secret('ADMINPASSWORD')
+    password_test = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d-]{12,}$')
+    if not bool(password_test.match(horton.cache['ADMINPASSWORD'])):
+        raise ValueError("Password doesn't match Platform spec."
+                         "Requires 12+ characters, at least 1 letter and "
+                         "number, may also contain -")
+    # Check Provider
+    provider = config.profile.get('platform')['provider']
+    assert provider in ['EC2', 'AZURE_ARM', 'GCE']
+    # TODO: Read in the profile template, check it has all matching keys
+    # Check Profile Namespace is validate
+    ns_test = re.compile(r'[a-z0-9-]')
+    if not bool(ns_test.match(horton.namespace)):
+        raise ValueError("Namespace must only contain 0-9 a-z -")
+    # Check storage bucket matches expected format
+    if 'bucket' in config.profile:
+        if provider == 'EC2':
+            bucket_test = re.compile(r'[a-z0-9.-]')
+        elif provider == 'AZURE_ARM':
+            bucket_test = re.compile(r'[a-z0-9@]')
+        elif provider == 'GCE':
+            bucket_test = re.compile(r'[a-z0-9.-]')
+        else:
+            raise ValueError("Platform Provider not supported")
+        if not bool(bucket_test.match(config.profile['bucket'])):
+            raise ValueError("Bucket name doesn't match Platform spec")

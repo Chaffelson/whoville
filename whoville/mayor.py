@@ -14,6 +14,8 @@ import json
 import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
+
+import whoville.utils
 from whoville import config, utils, security, infra, deploy, actions, director
 from flask import Flask
 from flask import request
@@ -33,7 +35,7 @@ def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service at [%s]",
              init_start_ts)
     log.info("------------- Validating Profile")
-    deploy.validate_profile()
+    whoville.utils.validate_profile()
     log.info("------------- Loading Default Resources")
     default_resources = os.path.abspath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'resources', 'v2'
