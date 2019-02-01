@@ -349,6 +349,7 @@ def create_cloudbreak(session, cbd_name):
             }
         )
         # Set Instance Tags
+        sleep(5)
         log.info("Setting Instance Tags")
         session.ex_create_tags(
             resource=cbd,

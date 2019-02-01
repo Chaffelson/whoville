@@ -26,9 +26,19 @@ infra:
 group:
   master:
     machine: 8x28-8x32
-  cdsw:
+  cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
     machine: 16x60-16x66
     rootvol: 100
     vols: 2x500
+  hdpworkers:
+    type: CORE
+    recipe: [remount-tmpfs]
+    machine: 4x28-8x32
+    nodes: 3
+mpack:
+- name: hdf331
+  desc: HDF 3.3.1
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
+  purge_on_install: false

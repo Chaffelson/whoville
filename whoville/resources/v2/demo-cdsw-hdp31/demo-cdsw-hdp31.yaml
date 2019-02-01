@@ -21,9 +21,18 @@ recipe:
 group:
   master:
     machine: 8x28-8x32
-  cdsw:
+  cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
     machine: 16x60-16x66
     rootvol: 100
     vols: 2x500
+  hdpworkers:
+    type: CORE
+    recipe: [remount-tmpfs]
+    machine: 4x28-8x32
+    nodes: 3
+mpack:
+- name: hdpsearch400
+  desc: HDP Search 4.0.0
+  url: http://public-repo-1.hortonworks.com/HDP-SOLR/hdp-solr-ambari-mp/solr-service-mpack-4.0.0.tar.gz

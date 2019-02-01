@@ -15,7 +15,8 @@ iptables -F
 iptables -X
 
 # set java_home on centos7
-export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") >> /etc/profile
+echo 'export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")' >> /etc/profile
+export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 
 # Fetch public IP
 export MASTER_IP=$(hostname --ip-address)
