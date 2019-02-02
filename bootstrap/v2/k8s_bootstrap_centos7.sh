@@ -29,6 +29,8 @@ EOF
 
 yum install -y kubelet kubeadm kubectl
 
+cp -Rf /home/centos/.kube ./
+
 echo "complete" > /tmp/status.success
 
 cat <<EOF > /tmp/prepare-k8s-service.sh
@@ -52,8 +54,9 @@ cat <<EOF > /tmp/initialize-k8s-cluster.sh
 
 mkdir -p ~/.kube
 sudo cp -if /etc/kubernetes/admin.conf ~/.kube/config
+sudo cp -if /etc/kubernetes/admin.conf /root/.kube/config
 sudo chown centos:centos ~/.kube/config
-
+	
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 
 EOF
