@@ -132,6 +132,11 @@ def step_2_init_infra(create_wait=0):
         whoville_delay=5,
         whoville_max_wait=120
     )
+    # Validating Cloudbreak version
+    if not deploy.check_cloudbreak_version():
+        raise ValueError("Cloudbreak server is older than configured minimum version of %s",
+                         str(config.cb_ver))
+    # Creating Environment Credentials
     log.info("------------- Setting Deployment Credential")
     log.info("Ensuring Credential for Cloudbreak")
     horton.cbcred = deploy.get_credential(

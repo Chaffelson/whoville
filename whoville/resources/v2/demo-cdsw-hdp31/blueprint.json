@@ -116,6 +116,9 @@
           "name": "ZOOKEEPER_CLIENT"
         },
         {
+          "name": "TEZ_CLIENT"
+        },
+        {
           "name": "YARN_CLIENT"
         },
         {
@@ -135,6 +138,12 @@
         },
         {
           "name": "NIFI_REGISTRY_MASTER"
+        },
+        {
+          "name": "INFRA_SOLR_CLIENT"
+        },
+        {
+          "name": "INFRA_SOLR"
         }
       ],
       "cardinality": "1"
@@ -162,6 +171,9 @@
         },
         {
           "name": "HIVE_CLIENT"
+        },
+        {
+          "name": "TEZ_CLIENT"
         }
       ],
       "cardinality": "1"
@@ -202,6 +214,12 @@
         },
         {
           "name": "ZOOKEEPER_SERVER"
+        },
+        {
+          "name": "METRICS_MONITOR"
+        },
+        {
+          "name": "TEZ_CLIENT"
         }
       ]
     }

@@ -39,6 +39,9 @@ min_profile_ver = 3
 logging.basicConfig(level=logging.INFO)
 
 
+# Cloudbreak Version
+cb_ver = '2.9.0-rc.63'
+
 # --- Cloudera Director Version
 cad_ver = 'd6.1'
 

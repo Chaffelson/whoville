@@ -26,8 +26,7 @@ import base64
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
            'create_cloudbreak', 'add_sec_rule_to_ec2_group', 'deploy_node',
            'create_node', 'list_images', 'list_sizes_aws', 'list_networks',
-           'list_subnets', 'list_security_groups', 'list_keypairs',
-           'namespace', 'list_nodes']
+           'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -36,7 +35,6 @@ log.setLevel(logging.INFO)
 adal.log.set_logging_options({'level': 'WARNING'})
 
 _horton = utils.Horton()
-preferred_cb_ver = '2.7.2'
 
 
 def create_libcloud_session():
@@ -321,7 +319,7 @@ def create_cloudbreak(session, cbd_name):
             raise ValueError("Couldn't get a Static IP for Cloudbreak") 
         # This is just a tidy way of specifying a script
         cb_ver = config.profile.get('cloudbreak_ver')
-        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
+        cb_ver = str(cb_ver) if cb_ver else config.cb_ver
         script_lines = [
             "#!/bin/bash",
             "cd /root",

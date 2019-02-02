@@ -1632,3 +1632,8 @@ def write_cache(name, item, cache_key):
 def replace_string_in_resource(name, target, cache_key):
     horton = utils.Horton()
     horton.resources[name][target].replace(cache_key, horton.cache[cache_key])
+
+
+def check_cloudbreak_version(version=None):
+    version = version if version else config.cb_ver
+    return cb.V1utilApi().check_client_version(version)

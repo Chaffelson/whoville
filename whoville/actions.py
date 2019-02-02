@@ -10,6 +10,7 @@ Warnings:
 
 from __future__ import absolute_import as _absolute_import
 import logging as _logging
+import copy
 from datetime import datetime as _datetime
 from whoville import deploy, utils, director
 from whoville import cloudbreak as _cb
@@ -154,8 +155,9 @@ def copy_def(args):
         )
     s_def = args[0] + '.yaml'
     t_def = args[1] + '.yaml'
-    log.debug("source [%s] target [%s]", s_def, t_def)
-    _horton.resources[t][t_def] = _horton.resources[s].pop(s_def)
+    log.info("Copying definition from def %s resource %s to def %s resource %s",
+             s, s_def, t, t_def)
+    _horton.resources[t][t_def] = copy.deepcopy(_horton.resources[s][s_def])
 
 
 def merge_def(args):
