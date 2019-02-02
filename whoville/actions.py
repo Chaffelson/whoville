@@ -11,9 +11,10 @@ Warnings:
 from __future__ import absolute_import as _absolute_import
 import logging as _logging
 from datetime import datetime as _datetime
-from whoville import deploy, utils
+from whoville import deploy, utils, director
+from whoville import cloudbreak as _cb
 
-_horton = deploy.Horton()
+_horton = utils.Horton()
 
 log = _logging.getLogger(__name__)
 
@@ -27,23 +28,45 @@ def prep_deps(args):
 def prep_spec(args):
     def_key = args[0]
     shortname = args[1]
-    deploy.prep_stack_specs(def_key, shortname)
+    if 'orchestrator' not in _horton.defs[def_key]:
+        # Default to Cloudbreak deploy
+        deploy.prep_stack_specs(def_key, shortname)
+    elif 'director' in _horton.defs[def_key]['orchestrator']:
+        fullname = _horton.namespace + shortname
+        _horton.specs[fullname] = {
+            'cdh_ver': _horton.defs[def_key]['version'],
+            'services': _horton.defs[def_key]['services'],
+            'tls_start': _horton.defs[def_key]['tls_start']
+        }
+    else:
+        raise ValueError("Orchestrator not supported")
 
 
 def do_builds(args):
     for spec_key in args:
         fullname = _horton.namespace + spec_key
-        deploy.create_stack(
-            fullname,
-            purge=False
-        )
-        deploy.wait_for_event(
-            fullname,
-            'event_type',
-            'BILLING_STARTED',
-            _datetime.utcnow(),
-            600
-        )
+        if isinstance(_horton.specs[fullname], _cb.StackV2Request):  # Cloudbreak only Type
+            deploy.create_stack(
+                fullname,
+                purge=False
+            )
+            deploy.wait_for_event(
+                fullname,
+                'event_type',
+                'BILLING_STARTED',
+                _datetime.utcnow(),
+                600
+            )
+        elif 'cdh_ver' in _horton.specs[fullname]:
+            # Using Director
+            director.chain_deploy(
+                cdh_ver=str(_horton.specs[fullname]['cdh_ver']),
+                dep_name=fullname,
+                services=_horton.specs[fullname]['services'],
+                tls_start=_horton.specs[fullname]['tls_start'],
+            )
+        else:
+            raise ValueError("Orchestrator not supported")
 
 
 def wait_event(args):
@@ -66,11 +89,14 @@ def open_port(args):
     start_port = args[1]
     end_port = args[2]
     cidr = args[3]
+    if 'CDSWIP' in cidr:
+        cidr = _horton.cache['CDSWIP'] + '/32'
     deploy.add_security_rule(
         protocol=protocol,
         start=start_port,
         end=end_port,
-        cidr=cidr
+        cidr=cidr,
+        description='FromDemoSeq'
     )
 
 

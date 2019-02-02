@@ -11,8 +11,7 @@ import requests
 import secrets
 import string
 from six.moves.urllib import parse
-from whoville import config
-from whoville.deploy import Horton
+from whoville import config, utils
 from cloudera.director.common.client import ApiClient
 
 
@@ -54,7 +53,7 @@ def service_login(service='cloudbreak', username=None, password=None,
 
     """
     log_args = locals()
-    horton = Horton()
+    horton = utils.Horton()
     _ = log_args.pop('password')
     log.info("Called service_login with args %s", log_args)
     assert service in _valid_services
@@ -169,7 +168,7 @@ def generate_password(length=50):
 
 
 def get_secret(key='ADMINPASSWORD', create=True):
-    horton = Horton()
+    horton = utils.Horton()
     assert key in ['ADMINPASSWORD', 'MASTERKEY']
     if key in horton.cache and horton.cache[key]:
         return horton.cache[key]

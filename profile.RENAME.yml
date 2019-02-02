@@ -13,8 +13,6 @@ platform:
     key: CHANGEME
     secret: CHANGEME
     region: eu-west-2
-    infraarn: arn:aws:iam::CHANGEME:instance-profile/CHANGEME
-    credarn: arn:aws:iam::CHANGEME:role/CHANGEME
 
 
 # Please set a unique Namespace for yourself, your initials followed by a - are fine
@@ -32,9 +30,16 @@ sshkey_name: CHANGEME
 sshkey_pub: ssh-rsa CHANGEME
 
 
+# Private key path to your SSH key. This is necessary if you want to init
+# services using Director, or do remote SSH work to K8s infrastructure, etc.
+ssh_key_priv: | 
+  -----BEGIN RSA PRIVATE KEY-----
+  ...
+  -----END RSA PRIVATE KEY-----
+
 
 # ------------ DEFAULTS ---------------
-profilever: 2
+profilever: 3
 # URIs for additional resources to be loaded and processed by the orchestrator.
 # Loc's can be either local or github
 # URI should point to the folder root of the resources
@@ -51,8 +56,6 @@ tags:
   deploytool: whoville
   service: whovilleephemeralcluster
   businessunit: se
-  startdate:
-  enddate:
 
 
 # The base name of your objectsore bucket if using objectstore definitions, 

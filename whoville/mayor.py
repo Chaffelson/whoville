@@ -14,7 +14,9 @@ import json
 import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
-from whoville import config, utils, security, infra, deploy, actions
+
+import whoville.utils
+from whoville import config, utils, security, infra, deploy, actions, director
 from flask import Flask
 from flask import request
 
@@ -24,7 +26,7 @@ log.setLevel(logging.INFO)
 
 # 'horton' is a shared state function to make deployment more readable
 # to non-python users
-horton = deploy.Horton()
+horton = utils.Horton()
 app = Flask(__name__)
 
 
@@ -33,7 +35,7 @@ def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service at [%s]",
              init_start_ts)
     log.info("------------- Validating Profile")
-    deploy.validate_profile()
+    whoville.utils.validate_profile()
     log.info("------------- Loading Default Resources")
     default_resources = os.path.abspath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'resources', 'v2'
@@ -103,17 +105,17 @@ def step_2_init_infra(create_wait=0):
         raise ConnectionError("Couldn't login to Cloudbreak")
     else:
         log.info('Logged into Cloudbreak at [%s]', cbd_url)
-    # log.info("------------- Authenticating to Altus Director")
-    # cad_auth_success = security.service_login(
-    #     service='director',
-    #     username=config.profile['username'],
-    #     password=security.get_secret('ADMINPASSWORD'),
-    #     bool_response=False
-    # )
-    # if not cad_auth_success:
-    #     raise ConnectionError("Couldn't login to Director")
-    # else:
-    #     log.info('Logged into Director at [%s]', cad_url)
+    log.info("------------- Authenticating to Altus Director")
+    cad_auth_success = security.service_login(
+        service='director',
+        username=config.profile['username'],
+        password=security.get_secret('ADMINPASSWORD'),
+        bool_response=False
+    )
+    if not cad_auth_success:
+        raise ConnectionError("Couldn't login to Director")
+    else:
+        log.info('Logged into Director at [%s]', cad_url)
     # Cloudbreak may have just booted and not be ready for queries yet
     log.info("Waiting for Cloudbreak API Calls to be available")
     utils.wait_to_complete(
@@ -123,19 +125,22 @@ def step_2_init_infra(create_wait=0):
         whoville_max_wait=120
     )
     # # Director may not be ready for queries yet
-    # log.info("Waiting for Altus Director API Calls to be available")
-    # utils.wait_to_complete(
-    #     director.list_environments,
-    #     bool_response=True,
-    #     whoville_delay=5,
-    #     whoville_max_wait=120
-    # )
+    log.info("Waiting for Altus Director API Calls to be available")
+    utils.wait_to_complete(
+        director.list_environments,
+        bool_response=True,
+        whoville_delay=5,
+        whoville_max_wait=120
+    )
     log.info("------------- Setting Deployment Credential")
-    horton.cred = deploy.get_credential(
+    log.info("Ensuring Credential for Cloudbreak")
+    horton.cbcred = deploy.get_credential(
         config.profile['namespace'] + 'credential',
         create=True,
         purge=horton.global_purge
     )
+    log.info("Ensuring Environment Credential for Director")
+    horton.cadcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
@@ -189,7 +194,9 @@ def step_4_build(def_key=None):
                          action, str(args), _dt.utcnow())
                 getattr(actions, action)(args)
                 log.info("----- Completed Action [%s] with Args [%s] at [%s]",
-                     action, str(args), _dt.utcnow())
+                         action, str(args), _dt.utcnow())
+            else:
+                log.error("Action %s not valid, skipping", action)
     finish_ts = _dt.utcnow()
     diff_ts = finish_ts - start_ts
     log.info("Completed Deployment Sequence at [%s] after [%d] seconds",
@@ -211,17 +218,19 @@ def print_intro():
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
         print("        " + horton.defs[def_key].get('desc'))
+    print("\nTo deploy a CDH cluster, type 'cdh-' followed by the version "
+          "number, e.g. 'cdh-5.12.2'")
 
 
 def user_menu():
     while True:
         print("\nPlease enter a Definition Name to deploy it: ")
         print("e.g.")
-        print('\033[1m' + "  inf-cda30-single\n" + '\033[0m')
+        print('\033[1m' + "inf-cda30-single\n" + '\033[0m')
         print("\nAlternately type 'help' to see the Definitions again, 'purge'"
               " to remove all deployed environments from cloudbreak, 'nuke' "
-              "to remove everything including Cloudbreak, or 'exit' to exit "
-              "gracefully")
+              "to remove everything including Cloudbreak/Director, or 'exit' "
+              "to exit gracefully")
         selected = str(input(">> "))
         if selected in ['list', 'help']:
             print_intro()
@@ -233,7 +242,7 @@ def user_menu():
         elif selected in ['nuke']:
             infra.nuke_namespace(dry_run=False)
             exit(0)
-        elif selected in horton.defs.keys():
+        elif selected in horton.defs.keys() or selected.startswith('cdh-'):
             autorun(def_key=selected)
             print("\n    Deployment Completed!\n Menu reload in 5 seconds")
             _sleep(5)
@@ -245,10 +254,13 @@ def autorun(def_key=None):
     # Check output of last step of staging process
     if not horton.defs:
         step_1_init_service()
-    if not horton.cred:
+    if not horton.cbcred:
         step_2_init_infra()
-    step_3_sequencing(def_key=def_key)
-    step_4_build()
+    if def_key in horton.defs.keys():
+        step_3_sequencing(def_key=def_key)
+        step_4_build()
+    else:
+        director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     print_intro()
 
 
@@ -283,14 +295,13 @@ def getDefsInfraBreakdown():
     infraList = []
     for x in specList:
         infraList.append({'packageName':x['prep_spec'][0],'instanceName':x['prep_spec'][1]})
-        
     return json.dumps(infraList)
 
 
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
-    var = {'platform' : horton.cred.cloud_platform, 
-           'name' : horton.cred.name}
+    var = {'platform': horton.cbcred.cloud_platform,
+           'name': horton.cbcred.name}
     return json.dumps(var)
 
 

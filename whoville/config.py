@@ -33,7 +33,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 # --- Profile Versioning ------
-min_profile_ver = 2
+min_profile_ver = 3
 
 # --- Logging ------
 logging.basicConfig(level=logging.INFO)

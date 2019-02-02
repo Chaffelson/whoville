@@ -8,6 +8,7 @@ Convenience utility functions for whoville, not really intended for external use
 from __future__ import absolute_import, unicode_literals
 import logging
 import json
+import re
 import time
 import copy
 import base64
@@ -19,11 +20,12 @@ import requests
 from github import Github
 from github.GithubException import UnknownObjectException
 from requests.models import Response
-from whoville import config
+from whoville import config, security
 
 __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
            'is_endpoint_up', 'set_endpoint', 'get_val',
-           'load_resources_from_files', 'load_resources_from_github']
+           'load_resources_from_files', 'load_resources_from_github', 'Horton'
+           ]
 
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
@@ -414,8 +416,108 @@ def singleton(cls, *args, **kw):
     return _singleton
 
 
-def get_namespace():
-    if 'namespace' in config.profile and config.profile['namespace']:
-        return config.profile['namespace']
+@singleton
+class Horton:
+    """
+    Borg Singleton to share state between the various processes.
+    Looks complicated, but it makes the rest of the code more readable for
+    Non-Python natives.
+    ...
+    Why Horton? Because an Elephant Never Forgets
+    """
+    def __init__(self):
+        self.cbd = None  # Server details for orchestration host
+        self.cbcred = None  # Credential for deployments, once loaded in CB
+        self.cdcred = None  # Credential for deployments, once loaded in CD
+        self.cad = None  # Client for Altus Director, once created
+        self.resources = {}  # all loaded resources from github/files
+        self.defs = {}  # deployment definitions, once pulled from resources
+        self.specs = {}  # stack specifications, once formulated
+        self.stacks = {}  # stacks deployed, once submitted
+        self.deps = {}  # Dependencies loaded for a given Definition
+        self.seq = {}  # Prioritised list of tasks to execute
+        self.cache = {}  # Key:Value store for passing params between Defs
+        self.namespace = config.profile['namespace']
+        self.global_purge = config.profile['globalpurge']
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+    def _getr(self, keys, sep=':', **kwargs):
+        """
+        Convenience function to retrieve params in a very readable method
+
+        Args:
+            keys (str): dot notation string of the key for the value to be
+                retrieved. e.g 'secret.cloudbreak.hostname'
+
+        Returns:
+            The value if found, or None if not
+        """
+        return get_val(self, keys, sep, **kwargs)
+
+    def _setr(self, keys, val, sep=':', **kwargs):
+        set_val(self, keys, val, sep, **kwargs)
+
+
+def validate_profile():
+    log.info("Validating provided profile.yml")
+    horton = Horton()
+    # Check Profile is imported
+    if not config.profile:
+        raise ValueError("whoville Config Profile is not populated with"
+                         "deployment controls, cannot proceed")
+    # Check Profile version
+    if 'profilever' not in config.profile:
+        raise ValueError("Your Profile is out of date, please recreate your "
+                         "Profile from the template")
+    if config.profile['profilever'] < config.min_profile_ver:
+        raise ValueError("Your Profile is out of date, please recreate your "
+                         "Profile from the template. Profile v3 requires an ssh private key or pem file.")
+    # Handle SSH
+    if 'sshkey_file' in config.profile and config.profile['sshkey_file']:
+        assert config.profile['sshkey_file'].endswith('.pem')
+        from Crypto.PublicKey import RSA
+        pem_key = RSA.importKey(fs_read(config.profile['sshkey_file']))
+        config.profile['sshkey_pub'] = pem_key.publickey().exportKey().decode()
+        config.profile['sshkey_priv'] = pem_key.exportKey().decode()
+        config.profile['sshkey_name'] = os.path.basename(config.profile['sshkey_file']).split('.')[0]
     else:
-        return 'wv2-'
+        assert any(k in config.profile for k in ['ssh_key_priv', 'sshkey_priv'])
+        assert all(k in config.profile for k in ['sshkey_pub', 'sshkey_name'])
+    # Check Namespace
+    assert isinstance(horton.namespace, six.string_types),\
+        "Namespace must be string"
+    assert len(horton.namespace) >= 2,\
+        "Namespace must be at least 2 characters"
+    # Check Password
+    if 'password' in config.profile and config.profile['password']:
+        horton.cache['ADMINPASSWORD'] = config.profile['password']
+    else:
+        horton.cache['ADMINPASSWORD'] = security.get_secret('ADMINPASSWORD')
+    password_test = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d-]{12,}$')
+    if not bool(password_test.match(horton.cache['ADMINPASSWORD'])):
+        raise ValueError("Password doesn't match Platform spec."
+                         "Requires 12+ characters, at least 1 letter and "
+                         "number, may also contain -")
+    # Check Provider
+    provider = config.profile.get('platform')['provider']
+    assert provider in ['EC2', 'AZURE_ARM', 'GCE']
+    # TODO: Read in the profile template, check it has all matching keys
+    # Check Profile Namespace is validate
+    ns_test = re.compile(r'[a-z0-9-]')
+    if not bool(ns_test.match(horton.namespace)):
+        raise ValueError("Namespace must only contain 0-9 a-z -")
+    # Check storage bucket matches expected format
+    if 'bucket' in config.profile:
+        if provider == 'EC2':
+            bucket_test = re.compile(r'[a-z0-9.-]')
+        elif provider == 'AZURE_ARM':
+            bucket_test = re.compile(r'[a-z0-9@]')
+        elif provider == 'GCE':
+            bucket_test = re.compile(r'[a-z0-9.-]')
+        else:
+            raise ValueError("Platform Provider not supported")
+        if not bool(bucket_test.match(config.profile['bucket'])):
+            raise ValueError("Bucket name doesn't match Platform spec")
