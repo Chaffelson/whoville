@@ -87,4 +87,12 @@ cdsw init
 
 echo "CDSW will shortly be available on ${DOMAIN}"
 
+wait 10
+
+curl -X POST \
+  http://${DOMAIN}.nip.io/api/v1/users/ \
+  -H 'Content-Type: application/json' \
+  -H 'cache-control: no-cache' \
+  -d '{"email":"whoville@whoville.com","name":"whoville","username":"whoville","password":"whoville-password","type":"user","admin":true}'
+
 exit 0
