@@ -15,7 +15,7 @@ iptables -F
 iptables -X
 
 # set java_home on centos7
-export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") >> /etc/profile
+export JAVA_HOME="/usr/lib/jvm/java" >> /etc/profile
 
 # Fetch public IP
 export MASTER_IP=$(hostname --ip-address)
@@ -63,6 +63,13 @@ yum install -y cloudera-data-science-workbench-1.5.0.849870-1.el7.centos.x86_64.
 curl -Ok https://repo.anaconda.com/archive/Anaconda2-5.2.0-Linux-x86_64.sh
 chmod +x ./Anaconda2-5.2.0-Linux-x86_64.sh
 ./Anaconda2-5.2.0-Linux-x86_64.sh -b -p /anaconda
+
+# create unix user
+useradd whoville
+echo "whoville-password" | passwd --stdin whoville
+
+su - hdfs -c 'hdfs dfs -mkdir /user/whoville' 
+su - hdfs -c 'hdfs dfs -chown whoville:hdfs /user/whoville' 
 
 # CDSW Setup
 sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${MASTER_IP}\"@g" /etc/cdsw/config/cdsw.conf
