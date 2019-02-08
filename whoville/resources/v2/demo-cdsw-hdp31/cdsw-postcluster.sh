@@ -87,12 +87,16 @@ cdsw init
 
 echo "CDSW will shortly be available on ${DOMAIN}"
 
-wait 10
 
-curl -X POST \
-  http://${DOMAIN}.nip.io/api/v1/users/ \
-  -H 'Content-Type: application/json' \
-  -H 'cache-control: no-cache' \
-  -d '{"email":"whoville@whoville.com","name":"whoville","username":"whoville","password":"whoville-password","type":"user","admin":true}'
+# after the init, we wait until we are able to create the whoville user
+export respCode=404
+
+while (( $respCode != 201 ))
+
+do
+    sleep 10
+	export respCode=$(curl -iX POST http://${DOMAIN}.nip.io/api/v1/users/ -H 'Content-Type: application/json' -d '{"email":"whoville@whoville.com","name":"whoville","username":"whoville","password":"whoville-password","type":"user","admin":true}' | grep HTTP | awk '{print $2}')
+
+done
 
 exit 0
