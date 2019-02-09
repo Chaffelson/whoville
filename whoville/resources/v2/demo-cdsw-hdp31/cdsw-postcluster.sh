@@ -15,7 +15,7 @@ iptables -F
 iptables -X
 
 # set java_home on centos7
-export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") >> /etc/profile
+export JAVA_HOME="/usr/lib/jvm/java" >> /etc/profile
 
 # Fetch public IP
 export MASTER_IP=$(hostname --ip-address)
@@ -64,6 +64,13 @@ curl -Ok https://repo.anaconda.com/archive/Anaconda2-5.2.0-Linux-x86_64.sh
 chmod +x ./Anaconda2-5.2.0-Linux-x86_64.sh
 ./Anaconda2-5.2.0-Linux-x86_64.sh -b -p /anaconda
 
+# create unix user
+useradd whoville
+echo "whoville-password" | passwd --stdin whoville
+
+su - hdfs -c 'hdfs dfs -mkdir /user/whoville' 
+su - hdfs -c 'hdfs dfs -chown whoville:hdfs /user/whoville' 
+
 # CDSW Setup
 sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${MASTER_IP}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@JAVA_HOME=\"/usr/java/default\"@JAVA_HOME=\"$(echo ${JAVA_HOME})\"@g" /etc/cdsw/config/cdsw.conf
@@ -79,5 +86,17 @@ sed -i "s@nameserver 127.0.0.1@nameserver 169.254.169.253@g" /etc/dhcp/dhclient-
 cdsw init
 
 echo "CDSW will shortly be available on ${DOMAIN}"
+
+
+# after the init, we wait until we are able to create the whoville user
+export respCode=404
+
+while (( $respCode != 201 ))
+
+do
+    sleep 10
+	export respCode=$(curl -iX POST http://${DOMAIN}.nip.io/api/v1/users/ -H 'Content-Type: application/json' -d '{"email":"whoville@whoville.com","name":"whoville","username":"whoville","password":"whoville-password","type":"user","admin":true}' | grep HTTP | awk '{print $2}')
+
+done
 
 exit 0
