@@ -39,8 +39,11 @@ min_profile_ver = 3
 logging.basicConfig(level=logging.INFO)
 
 
-# Cloudbreak Version
-cb_ver = '2.9.0-rc.63'
+# Cloudbreak default Version
+# Can be overridden by user profile
+cb_ver = '2.9.0'
+
+cb_min_ver = '2.9.0'
 
 # --- Cloudera Director Version
 cad_ver = 'd6.1'

@@ -1635,5 +1635,5 @@ def replace_string_in_resource(name, target, cache_key):
 
 
 def check_cloudbreak_version(version=None):
-    version = version if version else config.cb_ver
+    version = version if version else config.cb_min_ver
     return cb.V1utilApi().check_client_version(version)

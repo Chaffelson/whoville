@@ -264,8 +264,10 @@ def autorun(def_key=None):
     if def_key in horton.defs.keys():
         step_3_sequencing(def_key=def_key)
         step_4_build()
-    else:
+    elif 'cdh-' in def_key:
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])
+    else:
+        log.info("Definition %s not recognised, please retry", def_key)
     print_intro()
 
 
