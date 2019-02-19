@@ -17,14 +17,6 @@ input:
   yarn.vcores: 12
   yarn.capacity: 28672
   enable_hive_interactive: false
-infra:
-  ambarirepo:
-    version: 2.7.3.0
-    baseUrl: http://s3.amazonaws.com/dev.hortonworks.com/ambari/centos7/2.x/BUILDS/2.7.3.0-139
-    gpgKeyUrl: http://s3.amazonaws.com/dev.hortonworks.com/ambari/centos7/2.x/BUILDS/2.7.3.0-139/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
-  stackrepo:
-    ver: 3.1.0.0-78
-    url: http://s3.amazonaws.com/dev.hortonworks.com/HDP/centos7/3.x/BUILDS/3.1.0.0-78/HDP-3.1.0.0-78.xml
 blueprint:
   name: blueprint.json
 group:

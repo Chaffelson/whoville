@@ -16,6 +16,7 @@ input:
   yarn.vcores: 20
   yarn.capacity: 60000
 infra:
+  baseimage: redhat7
   ambarirepo:
     version: 2.6.2.2
     baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.6.2.2
