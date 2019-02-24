@@ -2,16 +2,16 @@
 # Hive LLAP will not start on small machines
 # NiFi moved to 9092 to avoid a port clash when everything is on one node
 
-desc: Single node cluster including HDP-3.0.1 & HDF-3.3
+desc: Single node cluster including HDP-3.1 & HDF-3.3.0
 deploywait: 1800
 purge: true
 priority: 
 seq:
-- copy_def: [inf-hdp30-single, t4hack]
-- merge_def: [t4hackathon, t4hack]
-- prep_deps: [t4hack, t4hack]
-- prep_spec: [t4hack, t4hack]
-- do_builds: [t4hack]
+- copy_def: [inf-hdp31-single, citibike-demo]
+- merge_def: [citibike-demo, citibike-demo]
+- prep_deps: [citibike-demo, citibike-demo]
+- prep_spec: [citibike-demo, citibike-demo]
+- do_builds: [citibike-demo]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 input:
   yarn.vcores: 16
@@ -22,11 +22,11 @@ input:
 blueprint:
   name: blueprint.json
 recipe:
-- name: hackathon.sh
+- name: post-cluster-configs.sh
   typ: POST_CLUSTER_INSTALL
 group:
   master:
-    recipe: [hackathon]
+    recipe: [post-cluster-configs]
     machine: 14x60-18x68
 mpack:
 - name: hdf330

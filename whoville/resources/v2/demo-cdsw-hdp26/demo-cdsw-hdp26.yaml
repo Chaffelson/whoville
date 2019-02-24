@@ -3,7 +3,7 @@ deploywait: 1800
 purge: true
 priority: 
 seq:
-- copy_def: [inf-hdp30-single, hdp26-cdsw15-s]
+- copy_def: [inf-hdp31-single, hdp26-cdsw15-s]
 - merge_def: [demo-cdsw-hdp31, hdp26-cdsw15-s]
 - merge_def: [demo-cdsw-hdp26, hdp26-cdsw15-s]
 - prep_deps: [hdp26-cdsw15-s, hdp26-cdsw15-s]
