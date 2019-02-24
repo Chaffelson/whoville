@@ -14,8 +14,6 @@ import json
 import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
-
-import whoville.utils
 from whoville import config, utils, security, infra, deploy, actions, director
 from flask import Flask
 from flask import request
@@ -35,7 +33,7 @@ def step_1_init_service():
     log.info("------------- Initialising Whoville Deployment Service at [%s]",
              init_start_ts)
     log.info("------------- Validating Profile")
-    whoville.utils.validate_profile()
+    utils.validate_profile()
     log.info("------------- Loading Default Resources")
     default_resources = os.path.abspath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'resources', 'v2'
@@ -77,6 +75,14 @@ def step_1_init_service():
     log.info("Completed Service Init at [%s] after [%d] seconds",
              init_finish_ts, diff_ts.seconds)
 
+def step_2_init_k8s(create_wait=0):
+    init_start_ts = _dt.utcnow()
+    log.info("------------- Getting Environment at [%s]",
+             init_start_ts)
+    horton.cbd = infra.get_k8s(
+        purge=horton.global_purge,
+        create_wait=create_wait
+    )
 
 def step_2_init_infra(create_wait=0):
     init_start_ts = _dt.utcnow()
@@ -124,7 +130,7 @@ def step_2_init_infra(create_wait=0):
         whoville_delay=5,
         whoville_max_wait=120
     )
-    # # Director may not be ready for queries yet
+    # Director may not be ready for queries yet
     log.info("Waiting for Altus Director API Calls to be available")
     utils.wait_to_complete(
         director.list_environments,
@@ -259,11 +265,13 @@ def autorun(def_key=None):
     # Check output of last step of staging process
     if not horton.defs:
         step_1_init_service()
-    if not horton.cbcred:
+    if not horton.cbcred and not config.profile['k8s_mode'] == 'true':
         step_2_init_infra()
     if def_key in horton.defs.keys():
         step_3_sequencing(def_key=def_key)
         step_4_build()
+    elif config.profile['k8s_mode'] == 'true':
+        step_2_init_k8s()
     elif 'cdh-' in def_key:
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     else:
@@ -340,12 +348,18 @@ def deployPackage():
 
 if __name__ == '__main__':
     user_mode = utils.get_val(config.profile, 'user_mode')
+    k8s_mode = utils.get_val(config.profile, 'k8s_mode')
     log.info("Name is [%s] running user_menu", __name__)
     step_1_init_service()
-    step_2_init_infra(create_wait=5)
+    if not horton.cbcred and not k8s_mode:
+        step_2_init_infra(create_wait=5)
+    if k8s_mode:
+        step_2_init_k8s(create_wait=5)
 
-    if user_mode:
+    if user_mode == 'ui':
         app.run(host='0.0.0.0', debug=True, port=5000)
+    elif k8s_mode:
+        print('K8S Cluster is ready...')
     else:
         print_intro()
         user_menu()
