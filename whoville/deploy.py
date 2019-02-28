@@ -870,7 +870,7 @@ def prep_instance_groups(def_key, fullname):
             resource_group=horton.namespace + 'cloudbreak-group')[0].id
     elif horton.cbcred.cloud_platform == 'GCP':
         sec_group = lib_c_session.ex_get_firewall(
-            name=horton.namespace + 'cloudbreak-secgroup').name
+            name=horton.namespace + 'cloudbreak-firewall').name
     else:
         raise ValueError("Only Platforms AWS, AZURE, and GCP supported")
     if sec_group:
@@ -1567,7 +1567,7 @@ def add_security_rule(cidr, start, end, protocol, description=None):
             rule = {'IPProtocol': 'tcp',
                     'ports': [str(start) + '-' + str(end)]}
             firewall = session.ex_get_firewall(
-                name=horton.namespace + 'cloudbreak-secgroup')
+                name=horton.namespace + 'cloudbreak-firewall')
             firewall.allowed.append(rule)
             session.ex_update_firewall(firewall)
         else:

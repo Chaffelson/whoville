@@ -139,8 +139,9 @@ def step_2_init_infra(create_wait=0):
         create=True,
         purge=horton.global_purge
     )
-    log.info("Ensuring Environment Credential for Director")
-    horton.cadcred = director.get_environment()
+    if config.profile['platform']['provider'] == 'EC2':
+        log.info("Ensuring Environment Credential for Director")
+        horton.cadcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
