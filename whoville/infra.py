@@ -749,7 +749,7 @@ def create_cloudbreak(session, cbd_name):
         cbd_name = _horton.namespace+'cloudbreak'
         public_ip_name = _horton.namespace+'cloudbreak-public-ip'
         subnet_name = _horton.namespace+'cloudbreak-subnet'
-        firewall_name = _horton.namespace+'cloudbreak-secgroup'
+        firewall_name = _horton.namespace+'cloudbreak-firewall'
         ssh_key = config.profile['sshkey_pub']
 
         log.info("Looking for existing network...")
@@ -816,7 +816,7 @@ def create_cloudbreak(session, cbd_name):
             image = image[-1]
 
         machines = list_sizes_gce(
-            session, location=region, cpu_min=4, cpu_max=4, mem_min=13000,
+            session, location=zone, cpu_min=4, cpu_max=4, mem_min=13000,
             mem_max=20000
         )
         if not machines:
@@ -824,7 +824,7 @@ def create_cloudbreak(session, cbd_name):
         else:
             machine = machines[-1]
 
-        log.info("Creating Security Group...")
+        log.info("Creating Firewall...")
         try:
             _ = session.ex_get_firewall(name=firewall_name)
             log.info("Found existing firewall definition called: " + firewall_name)
@@ -1634,7 +1634,6 @@ def list_sizes_gce(session, location=None, cpu_min=2, cpu_max=16,
         x for x in sizes
         if mem_min <= x.ram <= mem_max
         and cpu_min <= x.extra['guestCpus'] <= cpu_max
-        and location in x.extra['zone'].extra['description'] 
     ]
     return machines
 
@@ -1665,7 +1664,11 @@ def list_subnets(session, filters=None):
 
 
 def list_security_groups(session, filters=None):
-    sec_groups = session.ex_get_security_groups()
+    provider = config.profile.get('platform')['provider']
+    if provider == 'GCE':
+        sec_groups = session.ex_list_firewalls()
+    else:
+        sec_groups = session.ex_get_security_groups()
     if not filters:
         return sec_groups
     for key, val in filters.items():
@@ -1694,9 +1697,6 @@ def list_nodes(session, filters=None):
     if not filters:
         return nodes
     for key, val in filters.items():
-        if session.type == 'gce':
-            # Cloudbreak strips the - from resource names for some reason
-            val = val.replace('-', '')
         nodes = [
             x for x in nodes
             if val in utils.get_val(x, key)
@@ -1944,11 +1944,15 @@ def aws_terminate_by_tag(key_match, node_summary=None, also_terminate=False):
 
 
 def nuke_namespace(dry_run=True):
-    log.info("Nuking all nodes in Namespace %s", _horton.namespace)
+    provider = config.profile.get('platform')['provider']
+    namespace=_horton.namespace
+    if provider == 'GCE':
+        # Cloudbreak creates vms with the - stripped from the name for some reason
+        namespace = namespace.replace('-', '')
+    log.info("Nuking all nodes in Namespace %s", namespace)
     log.info("dry_run is %s", str(dry_run))
     session = create_libcloud_session()
-    all_instances = list_nodes(session, {'name': _horton.namespace})
-    sec_groups = list_security_groups(session, {'name': _horton.namespace})
+    all_instances = list_nodes(session, {'name': namespace})
     if not all_instances:
         log.info("No nodes matching Namespace found")
     else:
@@ -1956,21 +1960,31 @@ def nuke_namespace(dry_run=True):
             x for x in all_instances
             if x.state != 'terminated'
         ]
-        log.info("Found %s nodes matching Namespace", str(len(instances)))
-        for i in instances:
-            log.info("Destroying Node %s", i.name)
-            if not dry_run:
-                session.destroy_node(i)
-        while [x for x in list_nodes(session, {'name': _horton.namespace})
-               if x.state != 'terminated']:
-            log.info("Waiting for nodes to be terminated (sleep10)")
-            sleep(10)
+        log.info("Destroying nodes: %s", ", ".join(x.name for x in instances))
+        if provider == 'GCE':
+            session.ex_destroy_multiple_nodes(instances, ignore_errors=True, destroy_boot_disk=True, poll_interval=2, timeout=180)
+        else:
+            for i in instances:
+                log.info("Destroying Node %s", i.name)
+                if not dry_run:
+                    session.destroy_node(i)
+            while [x for x in list_nodes(session, {'name': _horton.namespace})
+                   if x.state != 'terminated']:
+                log.info("Waiting for nodes to be terminated (sleep10)")
+                sleep(10)
+
+    sec_groups = list_security_groups(session, {'name': _horton.namespace})
     if not sec_groups:
         log.info("No Security Groups matching Namespace found")
     else:
         log.info("Found %s Security Group in this Namespace",
                  str(len(sec_groups)))
         for i in sec_groups:
-            log.info("Destroying Security Group %s", i.name)
-            if not dry_run:
-                session.ex_delete_security_group_by_id(group_id=i.id)
+            if provider == 'GCE':
+                log.info("Destroying firewall %s", i.name)
+                if not dry_run:
+                    session.ex_destroy_firewall(i)
+            else:
+                log.info("Destroying Security Group %s", i.name)
+                if not dry_run:
+                    session.ex_delete_security_group_by_id(group_id=i.id)
