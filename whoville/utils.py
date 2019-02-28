@@ -506,8 +506,6 @@ def validate_profile():
         assert config.profile['sshkey_file'].endswith('.pem')
         from Crypto.PublicKey import RSA
         pem_key = RSA.importKey(fs_read(config.profile['sshkey_file']))
-        # public key needs to be in OpenSSH format but pycrypto has a bug.  need to require pycryptodome instead
-        # and then we can uncomment the following.  Until then, for GCP, you must put sshkey_pub in profile.
         config.profile['sshkey_pub'] = pem_key.publickey().exportKey(format="OpenSSH").decode()
         config.profile['sshkey_priv'] = pem_key.exportKey().decode()
         config.profile['sshkey_name'] = os.path.basename(config.profile['sshkey_file']).split('.')[0]
