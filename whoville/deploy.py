@@ -34,7 +34,7 @@ __all__ = [
     'prep_images_dependency', 'prep_stack_specs', 'purge_resource',
     'prep_instance_groups', 'create_stack', 'delete_stack',
     'delete_credential', 'get_events', 'monitor_event_stream',
-    'create_auth_conf', 'delete_auth_conf', 'list_auth_confs'
+    'create_auth_conf', 'delete_auth_conf', 'list_auth_confs', 'list_dependencies'
 ]
 
 log = logging.getLogger(__name__)
@@ -324,14 +324,18 @@ def get_custom_params(bp_name, **kwargs):
 def list_stacks(**kwargs):
     return cb.V2stacksApi().get_publics_stack_v2(**kwargs)
 
+
 def list_stacks_json(**kwargs):
     return cb.V2stacksApi().get_publics_stack_v2(_preload_content=False,**kwargs)
+
 
 def list_templates(**kwargs):
     return cb.V1templatesApi().get_publics_template(**kwargs)
 
+
 def list_templates_json(**kwargs):
     return cb.V1templatesApi().get_publics_template(_preload_content=False,**kwargs)
+
 
 def get_stack_matrix(**kwargs):
     return cb.V1utilApi().get_stack_matrix_util(**kwargs)
@@ -381,13 +385,8 @@ def delete_mpack(name, **kwargs):
     )
 
 
-def prep_dependencies(def_key, shortname=None):
-    log.info("---- Preparing Dependencies for Definition [%s] with Name "
-             "override [%s]", def_key, shortname)
-    horton = utils.Horton()
-    supported_resouces = ['recipe', 'blueprint', 'catalog', 'mpack', 'auth',
-                          'rds']
-    current = {
+def list_dependencies():
+    return {
         'blueprint': list_blueprints(),
         'recipe': list_recipes(),
         'catalog': list_image_catalogs(),
@@ -395,6 +394,14 @@ def prep_dependencies(def_key, shortname=None):
         'auth': list_auth_confs(),
         'rds': list_rds_confs()
     }
+
+
+def prep_dependencies(def_key, shortname=None):
+    log.info("---- Preparing Dependencies for Definition [%s] with Name "
+             "override [%s]", def_key, shortname)
+    horton = utils.Horton()
+    supported_resouces = ['recipe', 'blueprint', 'catalog', 'mpack', 'auth',
+                          'rds']
 
     if horton.global_purge:
         purge = True
@@ -415,6 +422,7 @@ def prep_dependencies(def_key, shortname=None):
         for res in res_defs:
             log.debug("resource like [%s]", json.dumps(res))
             dep = None
+            current = list_dependencies()
             if not res:
                 # resource in def, but not populated
                 log.info("Resource for res_type [%s] not in demo [%s], "
@@ -443,6 +451,9 @@ def prep_dependencies(def_key, shortname=None):
                 if dep:
                     log.info("Resource [%s]:[%s] already loaded and Purge "
                              "not set, skipping...",
+                             res_type, res_name)
+                else:
+                    log.info("Resource [%s]:[%s] not found already loaded, loading...",
                              res_type, res_name)
             else:
                 purge_resource(res_name, res_type)
@@ -680,9 +691,17 @@ def prep_cluster(def_key, fullname=None):
     horton = utils.Horton()
     log.info("prepping stack cluster settings")
     tgt_os_name = horton.deps[fullname]['images'][0].os
-    mpacks = [{'name': '-'.join([fullname, x['name']])}
-              for x in horton.defs[def_key]['mpack']
-              ] if 'mpack' in horton.defs[def_key] else []
+    # cloning bundles can introduce duplicate mpack listings, so cleaning here and in loading deps
+    if 'mpack' in horton.defs[def_key]:
+        mpack_names = list(set(
+            [
+                x['name'] for x in horton.defs[def_key]['mpack']
+            ]
+        ))
+        mpacks = [{'name': '-'.join([fullname, x])}
+                  for x in mpack_names]
+    else:
+        mpacks = []
     bp_content = utils.load(
         horton.deps[fullname]['blueprint'].ambari_blueprint, decode='base64'
     )
@@ -935,7 +954,9 @@ def prep_instance_groups(def_key, fullname):
                 machine = machines[0].value
 
         if 'recipe' in group_def and group_def['recipe'] is not None:
-            recipes = ['-'.join([fullname, x]) for x in group_def['recipe']]
+            # convert to set and back again to only use unique list of recipes as duplicates may be introduced during
+            # merging of demos
+            recipes = list(set(['-'.join([fullname, x]) for x in group_def['recipe']]))
         else:
             recipes = []
         log.info("Using Recipe list [%s]", str(recipes))

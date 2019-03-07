@@ -27,8 +27,6 @@ recipe:
 - name: cdsw-postcluster.sh
   typ: POST_CLUSTER_INSTALL
 group:
-  master:
-    machine: 8x28-8x32
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
@@ -37,10 +35,12 @@ group:
     vols: 2x500
   hdpworkers:
     type: CORE
-    recipe: [remount-tmpfs]
     machine: 4x28-8x32
     nodes: 3
 mpack:
+- name: hdf331
+  desc: HDF 3.3.1
+  url: http://public-repo-1.hortonworks.com/HDF/amazonlinux2/3.x/updates/3.3.1.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.1.0-10.tar.gz
 - name: hdpsearch400
   desc: HDP Search 4.0.0
   url: http://public-repo-1.hortonworks.com/HDP-SOLR/hdp-solr-ambari-mp/solr-service-mpack-4.0.0.tar.gz

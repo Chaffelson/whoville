@@ -12,9 +12,6 @@ seq:
 - wait_event: [hdp26-cdsw15-s, hdp26-cdsw15-s, cluster_status, BILLING_STARTED]
 - write_cache: [hdp26-cdsw15-s, cdsw_ip, CDSWIP]
 - open_port: [-1, 1, 65534, 'CDSWIP']
-input:
-  yarn.vcores: 20
-  yarn.capacity: 60000
 infra:
   baseimage: redhat7
   ambarirepo:
@@ -24,22 +21,10 @@ infra:
   stackrepo:
     ver: 2.6.5.1050-37
     url: http://public-repo-1.hortonworks.com/HDP/centos7/2.x/updates/2.6.5.1050/HDP-2.6.5.1050-37.xml
-group:
-  master:
-    machine: 8x28-8x32
-  cdswmaster:
-    recipe: [cdsw-postcluster]
-    type: CORE
-    machine: 16x60-16x66
-    rootvol: 100
-    vols: 2x500
-  hdpworkers:
-    type: CORE
-    recipe: [remount-tmpfs]
-    machine: 4x28-8x32
-    nodes: 3
 mpack:
-- name: hdf331
-  desc: HDF 3.3.1
+- name: hdf312
+  desc: HDF 3.1.2
   url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
-  purge_on_install: false
+- name: hdp-search
+  desc: HDP Search 3.0.0
+  url: http://public-repo-1.hortonworks.com/HDP-SOLR/hdp-solr-ambari-mp/solr-service-mpack-3.0.0.tar.gz

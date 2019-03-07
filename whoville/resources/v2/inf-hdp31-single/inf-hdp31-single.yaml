@@ -21,10 +21,7 @@ group:
   master:
     machine: 4x28-8x32
     recipe: [pre-ambari-configs]
+    type: GATEWAY
 recipe:
 - name: pre-ambari-configs.sh
   typ: PRE_AMBARI_START
-mpack:
-- name: hdf331
-  desc: HDF 3.3.1
-  url: http://s3.amazonaws.com/dev.hortonworks.com/HDF/centos7/3.x/BUILDS/3.3.1.0-10/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.1.0-10.tar.gz

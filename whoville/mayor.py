@@ -66,14 +66,18 @@ def step_1_init_service():
         log.warning("Found no additional Resources to load!")
     key_test = _re.compile(r'[a-z0-9-.]')
     for def_key, res_list in horton.resources.items():
-        for res_filename, res_content in res_list.items():
-            if not bool(key_test.match(res_filename)):
-                raise ValueError("Resource Name must only contain 0-9 a-z - .")
-        horton.defs[def_key] = res_list[def_key + '.yaml']
+        log.debug('def_key [%s] res_list [%s]', def_key, res_list)
+        if not def_key[0] == '.':
+            # Skipping any dot files or directories as unsafe
+            for res_filename, res_content in res_list.items():
+                if not bool(key_test.match(res_filename)):
+                    raise ValueError("Resource Name must only contain 0-9 a-z - .")
+            horton.defs[def_key] = res_list[def_key + '.yaml']
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Service Init at [%s] after [%d] seconds",
              init_finish_ts, diff_ts.seconds)
+
 
 def step_2_init_k8s(create_wait=0):
     init_start_ts = _dt.utcnow()
@@ -83,6 +87,7 @@ def step_2_init_k8s(create_wait=0):
         purge=horton.global_purge,
         create_wait=create_wait
     )
+
 
 def step_2_init_infra(create_wait=0):
     init_start_ts = _dt.utcnow()
@@ -265,13 +270,17 @@ def autorun(def_key=None):
     # Check output of last step of staging process
     if not horton.defs:
         step_1_init_service()
-    if not horton.cbcred and not config.profile['k8s_mode'] == 'true':
-        step_2_init_infra()
+    if 'k8s_mode' in config.profile:
+        if config.profile['k8s_mode'] == 'true':
+            step_2_init_k8s()
+        elif not horton.cbcred:
+            step_2_init_infra()
+    else:
+        if not horton.cbcred:
+            step_2_init_infra()
     if def_key in horton.defs.keys():
         step_3_sequencing(def_key=def_key)
         step_4_build()
-    elif config.profile['k8s_mode'] == 'true':
-        step_2_init_k8s()
     elif 'cdh-' in def_key:
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     else:
