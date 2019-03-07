@@ -568,6 +568,8 @@ def prep_dependencies(def_key, shortname=None):
                              "available, skipping...")
     horton.deps[fullname] = deps
     prep_images_dependency(def_key, fullname)
+    log.info("Finding Gateway group from available groups like: %s",
+             str(horton.defs[def_key]['group'].items()))
     gateway_group_name = [
         x for x, y in horton.defs[def_key]['group'].items()
         if y['type'] == 'GATEWAY'

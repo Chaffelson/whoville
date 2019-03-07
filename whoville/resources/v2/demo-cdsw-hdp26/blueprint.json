@@ -202,7 +202,7 @@
       "cardinality": "1"
     },
     {
-      "name": "hdpworkers",
+      "name": "worker",
       "cardinality": "1+",
       "components": [
         {
