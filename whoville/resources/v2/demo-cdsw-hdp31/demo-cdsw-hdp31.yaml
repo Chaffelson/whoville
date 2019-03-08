@@ -19,9 +19,10 @@ recipe:
 - name: cdsw-postcluster.sh
   typ: POST_CLUSTER_INSTALL
 group:
-  master:
+  master1:
     machine: 8x28-8x32
-  cdsw:
+    type: GATEWAY
+  cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
     machine: 16x60-16x66
