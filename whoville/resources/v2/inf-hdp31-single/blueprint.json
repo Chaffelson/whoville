@@ -8,7 +8,7 @@
   "configurations": [],
   "host_groups": [
     {
-      "name": "master",
+      "name": "master1",
       "configurations": [
         
       ],
