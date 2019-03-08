@@ -366,7 +366,7 @@ if __name__ == '__main__':
     if k8s_mode:
         step_2_init_k8s(create_wait=5)
 
-    if user_mode == 'ui':
+    if user_mode.lower() == 'ui':
         app.run(host='0.0.0.0', debug=True, port=5000)
     elif k8s_mode:
         print('K8S Cluster is ready...')
