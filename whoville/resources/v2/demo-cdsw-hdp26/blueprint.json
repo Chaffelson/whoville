@@ -50,6 +50,39 @@
       "yarn-site": {
         "yarn.acl.enable": "true"
       }
+    },
+    {
+      "kafka-broker": {
+        "properties_attributes": {},
+        "properties": {
+          "default.replication.factor": "2",
+          "offsets.topic.replication.factor": "2"
+        }
+      }
+    },
+    {
+      "nifi-ambari-config": {
+        "nifi.sensitive.props.key": "{{{ general.password }}}",
+        "nifi.security.encrypt.configuration.password": "{{{ general.password }}}",
+        "nifi.max_mem": "4g"
+      }
+    },
+    {
+      "nifi-properties": {
+        "nifi.sensitive.props.key": "{{{ general.password }}}",
+        "nifi.security.user.login.identity.provider": ""
+      }
+    },
+    {
+      "nifi-registry-ambari-config": {
+        "nifi.registry.security.encrypt.configuration.password": "{{{ general.password }}}"
+      }
+    },
+    {
+      "nifi-registry-properties": {
+        "nifi.registry.sensitive.props.key": "{{{ general.password }}}",
+        "nifi.registry.db.password": "{{{ general.password }}}"
+      }
     }
   ],
   "host_groups": [
@@ -91,6 +124,9 @@
           "name": "METRICS_MONITOR"
         },
         {
+          "name": "METRICS_GRAFANA"
+        },
+        {
           "name": "NAMENODE"
         },
         {
@@ -128,12 +164,18 @@
         },
         {
           "name": "DATANODE"
+        },
+        {
+          "name": "SOLR_SERVER"
+        },
+        {
+          "name": "NIFI_REGISTRY_MASTER"
         }
       ],
       "cardinality": "1"
     },
     {
-      "name": "cdsw",
+      "name": "cdswmaster",
       "configurations": [
         
       ],
@@ -158,6 +200,48 @@
         }
       ],
       "cardinality": "1"
+    },
+    {
+      "name": "worker",
+      "cardinality": "1+",
+      "components": [
+        {
+          "name": "SPARK2_CLIENT"
+        },
+        {
+          "name": "ZOOKEEPER_CLIENT"
+        },
+        {
+          "name": "YARN_CLIENT"
+        },
+        {
+          "name": "HDFS_CLIENT"
+        },
+        {
+          "name": "MAPREDUCE2_CLIENT"
+        },
+        {
+          "name": "HIVE_CLIENT"
+        },
+        {
+          "name": "NODEMANAGER"
+        },
+        {
+          "name": "DATANODE"
+        },
+        {
+          "name": "KAFKA_BROKER"
+        },
+        {
+          "name": "NIFI_MASTER"
+        },
+        {
+          "name": "ZOOKEEPER_SERVER"
+        },
+        {
+          "name": "METRICS_MONITOR"
+        }
+      ]
     }
   ]
 }

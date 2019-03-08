@@ -1,0 +1,35 @@
+# Known issues:
+# Hive LLAP will not start on small machines
+# NiFi moved to 9092 to avoid a port clash when everything is on one node
+
+desc: Single node cluster including HDP-3.1 & HDF-3.3.0
+deploywait: 1800
+purge: true
+priority: 
+seq:
+- copy_def: [inf-hdp31-single, citibike-demo]
+- merge_def: [citibike-demo, citibike-demo]
+- prep_deps: [citibike-demo, citibike-demo]
+- prep_spec: [citibike-demo, citibike-demo]
+- do_builds: [citibike-demo]
+- open_port: [tcp, 8080, 8080, '0.0.0.0/0']
+input:
+  yarn.vcores: 16
+  yarn.capacity: 60000
+  enable_hive_interactive: false
+  fs.s3a.access.key: GET:config.profile.platform.key
+  fs.s3a.secret.key: GET:config.profile.platform.secret
+blueprint:
+  name: blueprint.json
+recipe:
+- name: post-cluster-configs.sh
+  typ: POST_CLUSTER_INSTALL
+group:
+  master:
+    recipe: [post-cluster-configs]
+    machine: 14x60-18x68
+mpack:
+- name: hdf330
+  desc: HDF 3.3.0
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.3.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.0.0-165.tar.gz
+  purge_on_install: false

@@ -15,7 +15,8 @@ iptables -F
 iptables -X
 
 # set java_home on centos7
-export JAVA_HOME="/usr/lib/jvm/java" >> /etc/profile
+echo 'export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")' >> /etc/profile
+export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 
 # Fetch public IP
 export MASTER_IP=$(hostname --ip-address)
@@ -68,8 +69,8 @@ chmod +x ./Anaconda2-5.2.0-Linux-x86_64.sh
 useradd whoville
 echo "whoville-password" | passwd --stdin whoville
 
-su - hdfs -c 'hdfs dfs -mkdir /user/whoville' 
-su - hdfs -c 'hdfs dfs -chown whoville:hdfs /user/whoville' 
+su - hdfs -c 'hdfs dfs -mkdir /user/whoville'
+su - hdfs -c 'hdfs dfs -chown whoville:hdfs /user/whoville'
 
 # CDSW Setup
 sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${MASTER_IP}\"@g" /etc/cdsw/config/cdsw.conf
