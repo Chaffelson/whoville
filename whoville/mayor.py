@@ -221,17 +221,17 @@ def step_4_build(def_key=None):
 
 
 def print_intro():
-    cbd_public_ip = horton.cbd.public_ips[0]
-    url = 'https://' + cbd_public_ip + '/sl'
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
-    print("\nCloudbreak is available at (browser): " + url)
-    print("\nAltus Director is available at (browser): " + url
-          .replace('/sl', ':7189'))
-    print("Currently Deployed Environments: " + str(
-        [x.name for x in deploy.list_stacks()])
-          )
-    print("\nThe following Definitions are available for Deployment to "
-          "Cloudbreak:")
+    if horton.cbd:
+        cbd_public_ip = horton.cbd.public_ips[0]
+        url = 'https://' + cbd_public_ip + '/sl'
+        print("\nCloudbreak is available at (browser): " + url)
+        print("\nAltus Director is available at (browser): " + url
+              .replace('/sl', ':7189'))
+        print("Currently Deployed Environments: " + str(
+            [x.name for x in deploy.list_stacks()])
+            )
+    print("\nThe following Definitions are available for Deployment:")
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
         print("        " + horton.defs[def_key].get('desc'))
@@ -287,6 +287,25 @@ def autorun(def_key=None):
     else:
         log.info("Definition %s not recognised, please retry", def_key)
     print_intro()
+
+
+def interfering_kangaroo():
+    user_mode = utils.get_val(config.profile, 'user_mode')
+    k8s_mode = utils.get_val(config.profile, 'k8s_mode')
+    log.info("Name is [%s] running user_menu", __name__)
+    step_1_init_service()
+    # if not horton.cbcred and not k8s_mode:
+    #     step_2_init_infra(create_wait=5)
+    # if k8s_mode:
+    #     step_2_init_k8s(create_wait=5)
+
+    if str(user_mode).lower() == 'ui':
+        app.run(host='0.0.0.0', debug=True, port=5000)
+    elif k8s_mode:
+        print('K8S Cluster is ready...')
+    else:
+        print_intro()
+        user_menu()
 
 
 @app.route("/api/whoville/v1/getCB")
@@ -357,19 +376,4 @@ def deployPackage():
 
 
 if __name__ == '__main__':
-    user_mode = utils.get_val(config.profile, 'user_mode')
-    k8s_mode = utils.get_val(config.profile, 'k8s_mode')
-    log.info("Name is [%s] running user_menu", __name__)
-    step_1_init_service()
-    if not horton.cbcred and not k8s_mode:
-        step_2_init_infra(create_wait=5)
-    if k8s_mode:
-        step_2_init_k8s(create_wait=5)
-
-    if user_mode.lower() == 'ui':
-        app.run(host='0.0.0.0', debug=True, port=5000)
-    elif k8s_mode:
-        print('K8S Cluster is ready...')
-    else:
-        print_intro()
-        user_menu()
+    interfering_kangaroo()
