@@ -1344,10 +1344,10 @@ def create_k8svm(session, k8svm_name):
             raise ValueError("Failed to create new Cloubreak Instance")
     elif session.type == 'gce':
         region = config.profile['platform']['region']
-        k8svm_name = _horton.namespace+'cloudbreak'
-        public_ip_name = _horton.namespace+'cloudbreak-public-ip'
-        subnet_name = _horton.namespace+'cloudbreak-subnet'
-        firewall_name = _horton.namespace+'cloudbreak-secgroup'
+        k8svm_name = _horton.namespace + 'cloudbreak'
+        public_ip_name = _horton.namespace + 'cloudbreak-public-ip'
+        subnet_name = _horton.namespace + 'cloudbreak-subnet'
+        firewall_name = _horton.namespace + 'cloudbreak-secgroup'
         ssh_key = config.profile['sshkey_pub']
 
         log.info("Looking for existing network...")

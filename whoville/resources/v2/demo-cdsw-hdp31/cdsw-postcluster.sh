@@ -75,7 +75,7 @@ su - hdfs -c 'hdfs dfs -chown whoville:hdfs /user/whoville'
 # CDSW Setup
 sed -i "s@MASTER_IP=\"\"@MASTER_IP=\"${MASTER_IP}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@JAVA_HOME=\"/usr/java/default\"@JAVA_HOME=\"$(echo ${JAVA_HOME})\"@g" /etc/cdsw/config/cdsw.conf
-sed -i "s@DOMAIN=\"cdsw.company.com\"@DOMAIN=\"${DOMAIN}.nip.io\"@g" /etc/cdsw/config/cdsw.conf
+sed -i "s@DOMAIN=\"cdsw.company.com\"@DOMAIN=\"${DOMAIN}.xip.io\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DOCKER_BLOCK_DEVICES=\"\"@DOCKER_BLOCK_DEVICES=\"${DOCKER_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@APPLICATION_BLOCK_DEVICE=\"\"@APPLICATION_BLOCK_DEVICE=\"${APP_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DISTRO=\"\"@DISTRO=\"HDP\"@g" /etc/cdsw/config/cdsw.conf
@@ -96,7 +96,7 @@ while (( $respCode != 201 ))
 
 do
     sleep 10
-	export respCode=$(curl -iX POST http://${DOMAIN}.nip.io/api/v1/users/ -H 'Content-Type: application/json' -d '{"email":"whoville@whoville.com","name":"whoville","username":"whoville","password":"whoville-password","type":"user","admin":true}' | grep HTTP | awk '{print $2}')
+	export respCode=$(curl -iX POST http://${DOMAIN}.xip.io/api/v1/users/ -H 'Content-Type: application/json' -d '{"email":"whoville@whoville.com","name":"whoville","username":"whoville","password":"whoville-password","type":"user","admin":true}' | grep HTTP | awk '{print $2}')
 
 done
 
