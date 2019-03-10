@@ -165,22 +165,39 @@ def step_2_init_cbreak(create_wait=0):
 
 
 def step_3_reqs(def_key):
+    log.info("Handling bundle requirements")
     reqs = horton._getr('defs:' + def_key + ':req')
     if not reqs:
+        log.info("Bundle requirements not explicitly set, defaulting to Cloudbreak and Director")
         # Default to Cloudbreak / Director service
         if not horton.cbcred:
+            log.info("Cloudbreak instance not found, deploying...")
             step_2_init_cbreak()
+        else:
+            log.info("Cloudbreak instance found for provider, continuing...")
     else:
         # Work through deps declaration
+        log.info("Bundle requirements found, processing...")
         if 'k8svm' in reqs.lower():
+            log.info("Found k8s on VM requirement, processing...")
             if not horton.k8svm:
+                log.info("K8s on VM not not found, deploying...")
                 step_2_init_k8svm()
+            else:
+                log.info("K8s on VM found for provider, continuing...")
         if 'k8ske' in reqs.lower():
+            log.info("Found k8s on K8s Engine requirement, processing...")
             if not horton.k8ske:
-                pass
+                log.info("K8s on K8s Engine not not found, deploying...")
+            else:
+                log.info("K8s on K8s Engine found for provider, continuing...")
         if 'cb' in reqs.lower():
+            log.info("Found explicit Cloudbreak requirement, processing...")
             if not horton.cbcred:
+                log.info("Cloudbreak instance not found, deploying...")
                 step_2_init_cbreak()
+            else:
+                log.info("Cloudbreak instance found for provider, continuing...")
 
 
 def step_4_build(def_key):
@@ -272,7 +289,7 @@ def autorun(def_key):
     #     if not horton.cbcred:
     #         step_2_init_infra()
     if def_key in horton.defs.keys():
-        step_3_reqs(def_key)
+        step_3_reqs(def_key=def_key)
         step_4_build(def_key=def_key)
     elif 'cdh-' in def_key:
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])
