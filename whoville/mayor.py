@@ -15,8 +15,8 @@ import os
 from time import sleep as _sleep
 from datetime import datetime as _dt
 from whoville import config, utils, security, infra, deploy, actions, director
-from flask import Flask
-from flask import request
+from flask import Flask, request, Response
+
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -310,7 +310,10 @@ def interfering_kangaroo():
 
 @app.route("/api/whoville/v1/getCB")
 def getCB():
-    return json.dumps(horton.cbd.public_ips)
+    if horton.cbd:
+        return json.dumps(horton.cbd.public_ips)
+    else:
+        return Response("", status=404)
 
 
 @app.route("/api/whoville/v1/")
@@ -344,9 +347,12 @@ def getDefsInfraBreakdown():
 
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
-    var = {'platform': horton.cbcred.cloud_platform,
-           'name': horton.cbcred.name}
-    return json.dumps(var)
+    if horton.cbcred:
+        var = {'platform': horton.cbcred.cloud_platform,
+               'name': horton.cbcred.name}
+        return json.dumps(var)
+    else:
+        return Response("", status=404)
 
 
 @app.route("/api/whoville/v1/getStacks")
