@@ -22,7 +22,6 @@ import adal
 import boto3
 from whoville import config, utils, security
 import base64
-import pexpect
 from pexpect import pxssh 
 from pexpect.exceptions import EOF
 from pexpect.pxssh import ExceptionPxssh
@@ -49,21 +48,18 @@ def create_libcloud_session():
         raise ValueError("Profile not configured with Platform Parameters")
     if provider == 'EC2':
         return cls(
-                **{x: y for x, y in params.items()
-                if x in ['key', 'secret', 'region']}
+                **{x: y for x, y in params.items() if x in ['key', 'secret', 'region']}
             )
     elif provider == 'AZURE_ARM':
         return cls(tenant_id=params['tenant'],
                    subscription_id=params['subscription'],
                    key=params['application'],
                    secret=params['secret'],
-                   region=params['region']
-            )
+                   region=params['region'])
     elif provider == 'GCE':
         return cls(params['serviceaccount'],
                    params['apikeypath'],
-                   project=params['project']
-            )
+                   project=params['project'])
 
 
 def create_libcloud_storge_session():
@@ -118,9 +114,6 @@ def create_azure_session(token, service):
     if service == 'network':
         from azure.mgmt.network import NetworkManagementClient
         return NetworkManagementClient(token, sub_id)
-    if service == 'security':
-        from azure.mgmt.network import NetworkResourceProviderClient
-        return NetworkResourceProviderClient(token, sub_id)
     if service == 'storage':
         from azure.mgmt.storage import StorageManagementClient
         return StorageManagementClient(token, sub_id)
@@ -167,79 +160,80 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
             )
             return cbd
 
-def get_k8s(s_libc=None, create=True, purge=False, create_wait=0):
+
+def get_k8svm(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
         s_libc = create_libcloud_session()
         
     user_name = config.profile['k8s_user']
     ssh_key_path = config.profile['k8s_ssh_key_path']
-    cbd_name = namespace + 'k8s-master'
+    k8svm_name = _horton.namespace + 'k8s-master'
     k8s_nodes = []
     
     num_minions = config.profile['k8s_minion_count']
     minion_names = []
     minion_filter = {}
     for x in range(num_minions):
-        minion_names.append(namespace+'k8s-minion-'+str(x))
+        minion_names.append(_horton.namespace+'k8s-minion-'+str(x))
     
-    cbd_nodes = list_nodes(s_libc, {'name': cbd_name})
-    cbd = [x for x in cbd_nodes if x.state == 'running']
-    if cbd:
+    k8svm_nodes = list_nodes(s_libc, {'name': k8svm_name})
+    k8svm = [x for x in k8svm_nodes if x.state == 'running']
+    if k8svm:
         if not purge:
             log.info("K8S Master [%s] found, returning instance",
-                     cbd[0].name)
-            return cbd[0]
+                     k8svm[0].name)
+            return k8svm[0]
         else:
             log.info("K8S Master found, Purge is True, destroying Master and Minions...")
             log.info("Destroying Master...")
-            [s_libc.destroy_node(x) for x in cbd]
+            [s_libc.destroy_node(x) for x in k8svm]
             log.info("Destroying Minions...")
             for minion in minion_names:
                 minion_filter['name'] = minion
                 minion_nodes = list_nodes(s_libc, minion_filter)
                 minion_nodes = [x for x in minion_nodes if x.state == 'running']
                 [s_libc.destroy_node(x) for x in minion_nodes]
-            cbd = None
-    if not cbd:
-        log.info("K8S Master, [%s] not found", cbd_name)
+            k8svm = None
+    if not k8svm:
+        log.info("K8S Master, [%s] not found", k8svm_name)
         if not create:
             log.info("K8S Master not found, Create is False, returning None")
             return None
         else:
             log.info("K8S Master is None, Create is True - deploying new "
-                     "K8S Cluster [%s]", cbd_name)
+                     "K8S Cluster [%s]", k8svm_name)
             if create_wait:
                 log.warning("About to create a K8S Cluster! waiting "
                             "[%s] seconds for abort", create_wait)
                 sleep(create_wait)
-            cbd = create_k8s(s_libc, cbd_name)
-            k8s_nodes.append(cbd)
-            log.info("Waiting for K8S Master [%s] to be created", cbd_name)
+            k8svm = create_k8svm(s_libc, k8svm_name)
+            k8s_nodes.append(k8svm)
+            log.info("Waiting for K8S Master [%s] to be created", k8svm_name)
             utils.wait_to_complete(
                 utils.is_remote_file_present,
-                cbd.public_ips[0],
+                k8svm.public_ips[0],
                 user_name,
                 ssh_key_path,
                 whoville_delay=30,
                 whoville_max_wait=600
             )
             
-            cluster_join_string = initialize_k8s_master(cbd.public_ips[0], user_name, ssh_key_path)
+            cluster_join_string = initialize_k8s_master(k8svm.public_ips[0], user_name, ssh_key_path)
             
             for x in minion_names:
-                cbd = create_k8s(s_libc, x)
+                k8svm = create_k8svm(s_libc, x)
                 log.info("Waiting for K8S Minion [%s] to be created", x)
                 utils.wait_to_complete(
                     utils.is_remote_file_present,
-                    cbd.public_ips[0],
+                    k8svm.public_ips[0],
                     user_name,
                     ssh_key_path,
                     whoville_delay=30,
                     whoville_max_wait=600
                 )
                 
-                initialize_k8s_minion(cbd.public_ips[0], user_name, ssh_key_path, cluster_join_string)
-                k8s_nodes.append(cbd)
+                initialize_k8s_minion(k8svm.public_ips[0], user_name, ssh_key_path, cluster_join_string)
+                k8s_nodes.append(k8svm)
             
             return k8s_nodes
 
@@ -450,7 +444,7 @@ def create_cloudbreak(session, cbd_name):
                 session.ex_associate_address_with_node(
                     cbd,
                     static_ip,
-                    domain='vpc' # needed for legacy AWS accounts
+                    domain='vpc'  # needed for legacy AWS accounts
                 )
             else:
                 raise e
@@ -464,8 +458,7 @@ def create_cloudbreak(session, cbd_name):
                     'Arn': infra_arn,
                     'Name': infra_arn.rsplit('/')[-1]
                 },
-                InstanceId=cbd.id
-        )
+                InstanceId=cbd.id)
         # get updated node information
         cbd = list_nodes(session, {'name': cbd_name})
         cbd = [x for x in cbd if x.state == 'running']
@@ -473,6 +466,611 @@ def create_cloudbreak(session, cbd_name):
             return cbd[0]
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
+    if session.type == 'azure_arm':
+        ssh_key = config.profile['sshkey_pub']
+        resource_group = _horton.namespace + 'cloudbreak-group'
+        network_name = _horton.namespace + 'cloudbreak-network'
+        subnet_name = _horton.namespace + 'cloudbreak-subnet'
+        sec_group_name = _horton.namespace + 'cloudbreak-secgroup'
+        public_ip_name = _horton.namespace + 'cloudbreak-ip'
+        nic_name = _horton.namespace + 'cloudbreak-nic'
+        disk_account_name = _horton.namespace + 'diskaccount'
+        disk_account_name = disk_account_name.replace('-', '')
+        log.info("Creating Resource Group...")
+        token = get_azure_token()
+        azure_resource_client = create_azure_session(token, 'resource')
+        azure_resource_client.resource_groups.create_or_update(
+            resource_group,
+            {'location': config.profile.get('platform')['region']}
+        )
+
+        image = session.list_images(
+            ex_publisher='OpenLogic', ex_offer='CentOS-CI', ex_sku='7-CI'
+        )
+        if not image:
+            raise ValueError("Couldn't find a valid Centos7 Image")
+        else:
+            image = image[-1]
+
+        machines = list_sizes_azure(
+            session, cpu_min=4, cpu_max=4, mem_min=16384, mem_max=20480
+        )
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[0]
+
+        log.info("Checking for disk storage account, please wait...")
+        azure_storage_client = create_azure_session(token, 'storage')
+        try:
+            azure_storage_client.storage_accounts.create(
+                resource_group,
+                disk_account_name,
+                {
+                    'location': config.profile.get('platform')['region'],
+                    'sku': {'name': 'standard_lrs'},
+                    'kind': 'StorageV2'
+                }
+            ).wait()
+        except Exception:
+            log.info("Found existing os disk account...")
+
+        log.info("Looking for existing network resources...")
+        azure_network_client = create_azure_session(token, 'network')
+        try:
+            log.info("Getting Vnet...")
+            network = azure_network_client.virtual_networks.get(resource_group, network_name)
+            log.info("Getting Network Interface...")
+            nic = azure_network_client.network_interfaces.get(resource_group, nic_name)
+            log.info("Getting Public IP...")
+            public_ip = azure_network_client.public_ip_addresses.get(resource_group, public_ip_name)
+        except Exception:
+            log.info("No Vnet exists for this namepsace, creating...")
+            network = azure_network_client.virtual_networks.create_or_update(
+                resource_group,
+                network_name,
+                {
+                    'location': config.profile.get('platform')['region'],
+                    'address_space': {'address_prefixes': ['10.0.0.0/16']}
+                }
+            )
+            network = network.result()
+            log.info("Creating Subnet...")
+            subnet = azure_network_client.subnets.create_or_update(
+                resource_group,
+                network_name,
+                subnet_name,
+                {'address_prefix': '10.0.0.0/24'}
+            )
+            log.info("Creating Public IP...")
+            public_ip = azure_network_client.public_ip_addresses.create_or_update(
+                resource_group,
+                public_ip_name,
+                {
+                    'location': config.profile.get('platform')['region'],
+                    'public_ip_allocation_method': 'static'
+                }
+            )
+            subnet = subnet.result()
+            public_ip = public_ip.result()
+            log.info("Creating Security Group...")
+            sec_group = azure_network_client.network_security_groups.create_or_update(
+                resource_group,
+                sec_group_name,
+                {
+                    'location': config.profile.get('platform')['region'],
+                    'security_rules': [
+                        {
+                            'name': 'ssh_rule',
+                            'description': 'Allow SSH',
+                            'protocol': 'Tcp',
+                            'source_port_range': '*',
+                            'destination_port_range': '22',
+                            'source_address_prefix': 'Internet',
+                            'destination_address_prefix': '*',
+                            'access': 'Allow',
+                            'priority': 100,
+                            'direction': 'Inbound'
+                        },
+                        {
+                            'name': 'http_rule',
+                            'description': 'Allow HTTP',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '80',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 101,
+                            'direction': 'Inbound'
+                        },
+                        {
+                            'name': 'https_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow HTTPS',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '443',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 102,
+                            'direction': 'Inbound'
+                        },
+                        {
+                            'name': 'knox_https_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow CB HTTPS',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '8443',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 103,
+                            'direction': 'Inbound'
+                        },
+                        {
+                            'name': 'cb_https_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow CB HTTPS',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '9443',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 104,
+                            'direction': 'Inbound'
+                        },
+                        {
+                            'name': 'altus_http_rule',
+                            'provisioningState': 'Succeeded',
+                            'description': 'Allow Altus HTTP',
+                            'protocol': 'Tcp',
+                            'sourcePortRange': '*',
+                            'destinationPortRange': '7189',
+                            'sourceAddressPrefix': 'Internet',
+                            'destinationAddressPrefix': '*',
+                            'access': 'Allow',
+                            'priority': 105,
+                            'direction': 'Inbound'
+                        }
+                    ]
+                }
+            )
+            sec_group = sec_group.result()
+            log.info("Creating Network Interface...")
+            nic = azure_network_client.network_interfaces.create_or_update(
+                resource_group,
+                nic_name,
+                {
+                    'location': config.profile.get('platform')['region'],
+                    'network_security_group': {'id': sec_group.id},
+                    'ip_configurations': [{
+                        'name': 'default',
+                        'subnet': {'id': subnet.id},
+                        'public_ip_address': {'id': public_ip.id}
+                    }]
+                }
+            )
+            nic = nic.result()
+        # End network exception handling for missing vnet
+        public_ip = public_ip.ip_address
+        cb_ver = config.profile.get('cloudbreak_ver')
+        cb_ver = str(cb_ver) if cb_ver else config.cb_ver
+        script_lines = [
+            "#!/bin/bash",
+            "cd /root",
+            "yum install -y wget",
+            "wget -O jq https://github.com/stedolan/jq/releases/download/"
+            "jq-1.5/jq-linux64",
+            "chmod +x ./jq",
+            "cp jq /usr/bin",
+            "export cb_ver=" + cb_ver,
+            "export uaa_secret=" + security.get_secret('MASTERKEY'),
+            "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
+            "export uaa_default_email=" + config.profile['email'],
+            "export public_ip=" + public_ip,
+            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+        ]
+        script = '\n'.join(script_lines)
+        script = script.encode()
+        script = str(base64.urlsafe_b64encode(script))\
+            .replace("b'", "").replace("'", "")
+
+        log.info("Creating Virtual Machine...")
+        log.info("with custom_data string like: " + script[:100])
+        azure_compute_client = create_azure_session(token, 'compute')
+        cbd = azure_compute_client.virtual_machines.create_or_update(
+            resource_group,
+            cbd_name,
+            {
+                'location': config.profile.get('platform')['region'],
+                'os_profile': {
+                    'computer_name': cbd_name,
+                    'admin_username': 'centos',
+                    'linux_configuration': {
+                        'disable_password_authentication': True,
+                        'ssh': {
+                            'public_keys': [{
+                                'path': '/home/{}/.ssh/authorized_keys'
+                                .format('centos'),
+                                'key_data': ssh_key
+                            }]
+                        }
+                    }, 
+                    'custom_data': script
+                },
+                'hardware_profile': {
+                    'vm_size': 'Standard_DS3_v2'
+                },
+                'storage_profile': {
+                    'image_reference': {
+                        'publisher': 'Redhat',
+                        'offer': 'RHEL',
+                        'sku': '7-RAW-CI',
+                        'version': 'latest'
+                    },
+                    'os_disk': {
+                        'name': cbd_name,
+                        'create_option': 'fromImage',
+                        'vhd': {
+                            'uri': 'https://{}.blob.core.windows.net/'
+                                   'vhds/{}.vhd'
+                            .format(disk_account_name, cbd_name)}
+                    },
+                },
+                'network_profile': {
+                    'network_interfaces': [{'id': nic.id, 'primary': True}]
+                }
+            }
+        )
+        log.info("Waiting for Cloudbreak Instance to be Available...")
+        cbd.wait()
+
+        cbd = list_nodes(session, {'name': cbd_name})
+        cbd = [x for x in cbd if x.state == 'running']
+        if cbd:
+            return cbd[0]
+        else:
+            raise ValueError("Failed to create new Cloubreak Instance")
+    elif session.type == 'gce':
+        region = config.profile['platform']['region']
+        cbd_name = _horton.namespace+'cloudbreak'
+        public_ip_name = _horton.namespace+'cloudbreak-public-ip'
+        subnet_name = _horton.namespace+'cloudbreak-subnet'
+        firewall_name = _horton.namespace+'cloudbreak-firewall'
+        ssh_key = config.profile['sshkey_pub']
+
+        log.info("Looking for existing network...")
+        networks = session.ex_list_networks()
+        network = [
+            x for x in networks
+            if x.mode == 'auto'
+            ]
+        if not network:
+            raise ValueError("There should be at least one network")
+        else:
+            network = network[-1]
+            log.info("Found network: " + network.name)
+
+        log.info("Looking for existing subnets...")
+        subnets = session.ex_list_subnetworks(region=region)
+        subnet = [
+            x for x in subnets
+            if x.name == 'default'
+            ]
+        if not subnet:
+            session.ex_create_subnetwork(
+                name=subnet_name, region=region, network=network
+            )
+        else:
+            subnet = subnet[-1]
+            subnet_name = subnet.name
+            log.info("Found existing subnet called: " + subnet_name)
+
+        log.info("Getting Public IP...")
+        try:
+            public_ip = session.ex_get_address(
+                name=public_ip_name,region=region
+            )
+            log.info("Found existing Public IP matching name: "
+                     + public_ip_name)
+        except ResourceNotFoundError:
+            public_ip = session.ex_create_address(
+                name=public_ip_name, region=region
+            )
+            log.info("Creating new Public IP with name: " + public_ip_name)
+
+        images = session.list_images()
+        image = [
+            x for x in images 
+            if x.extra['family'] == 'centos-7'
+            and 'centos-7' in x.name 
+            ]
+
+        zones = session.ex_list_zones()
+        zone = [
+            x for x in zones
+            if region in x.name
+            and x.status == 'UP'
+            ]
+        if not zone:
+            raise ValueError("Couldn't find a zone for the requested region..")
+        else:
+            zone = zone[-1]
+
+        if not image:
+            raise ValueError("Couldn't find a valid Centos7 Image")
+        else:
+            image = image[-1]
+
+        machines = list_sizes_gce(
+            session, location=zone, cpu_min=4, cpu_max=4, mem_min=13000,
+            mem_max=20000
+        )
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[-1]
+
+        log.info("Creating Firewall...")
+        try:
+            _ = session.ex_get_firewall(name=firewall_name)
+            log.info("Found existing firewall definition called: " + firewall_name)
+        except ResourceNotFoundError:
+            log.info("Creating new firewall definition called: " + firewall_name)
+            net_rules = [
+                            {'IPProtocol': 'tcp',
+                             'ports': ['22', '443', '8443', '9443', '7189']
+                            }
+                        ]
+            _ = session.ex_create_firewall(name=firewall_name,
+                                           network=network,
+                                           allowed=net_rules,
+                                           target_tags=[cbd_name])
+
+        cb_ver = config.profile.get('cloudbreak_ver')
+        cb_ver = str(cb_ver) if cb_ver else config.cb_ver
+        script_lines = [
+                    "#!/bin/bash",
+                    "cd /root",
+                    "export cb_ver=" + cb_ver,
+                    "export uaa_secret=" + security.get_secret('MASTERKEY'),
+                    "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
+                    "export uaa_default_email=" + config.profile['email'],
+                    "export public_ip=" + public_ip.address,
+                    "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+                    "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+                ]
+        script = '\n'.join(script_lines)
+        metadata = {
+                        'items': [
+                            {
+                                'key': 'startup-script',
+                                'value': script
+                            },
+                            {
+                                'key': 'ssh-keys',
+                                'value': 'centos:' + ssh_key
+                            }
+                        ]
+                    }
+
+        log.info("Creating Cloudbreak instance...")
+        cbd = session.create_node(
+            name=cbd_name,
+            size=machine,
+            image=image,
+            location=zone,
+            ex_network=network,
+            external_ip=public_ip,
+            ex_metadata=metadata,
+            ex_tags=[cbd_name])
+
+        log.info("Waiting for Cloudbreak Instance to be Available...")
+        session.wait_until_running(nodes=[cbd])
+        cbd = list_nodes(session, {'name': cbd_name})
+        cbd = [x for x in cbd if x.state == 'running']
+        if cbd:
+            return cbd[0]
+        else:
+            raise ValueError("Failed to create new Cloubreak Instance")
+    else:
+        raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, "
+                         "and GCE")
+
+
+def create_k8svm(session, k8svm_name):
+    public_ip = requests.get('https://ipv4.icanhazip.com').text.rstrip()
+    net_rules = [
+        {
+            'protocol': 'tcp',
+            'from_port': 9443,
+            'to_port': 9443,
+            'cidr_ips': ['0.0.0.0/0']
+        },
+        {
+            'protocol': -1,
+            'from_port': 1,
+            'to_port': 65535,
+            'cidr_ips': [public_ip + '/32']
+        },
+        {
+            'protocol': 'tcp',
+            'from_port': 443,
+            'to_port': 443,
+            'cidr_ips': ['0.0.0.0/0']
+        },
+        {
+            'protocol': 'tcp',
+            'from_port': 22,
+            'to_port': 22,
+            'cidr_ips': ['0.0.0.0/0']
+        }
+    ]
+    if session.type == 'ec2':
+        s_boto3 = create_boto3_session()
+        log.info("Selecting OS Image for K8S Node")
+        images = list_images(
+            session,
+            filters={
+                'name': '*CentOS Linux 7 x86_64 HVM EBS ENA*',
+            }
+        )
+        image = sorted(images, key=lambda k: k.extra['description'][-7:])
+        if not image:
+            raise ValueError("Couldn't find a valid Centos7 Image")
+        else:
+            image = image[-1]
+        bd = image.extra['block_device_mapping'][0]
+        root_vol = {
+            'VirtualName': None,
+            'DeviceName': bd['device_name'],
+            'Ebs': {
+                'VolumeSize': 50,
+                'VolumeType': bd['ebs']['volume_type'],
+                'DeleteOnTermination': True
+            }
+        }
+        log.info("Fetching list of suitable machine types")
+        machines = list_sizes_aws(
+            session, cpu_min=4, cpu_max=4, mem_min=16000, mem_max=20000
+        )
+        if not machines:
+            raise ValueError("Couldn't find a VM of the right size")
+        else:
+            machine = machines[-1]
+        log.info("Fetching list of available networks")
+        networks = list_networks(session)
+        network = sorted(networks, key=lambda k: k.extra['is_default'])
+        if not network:
+            raise ValueError("There should be at least one network, this "
+                             "is rather unexpected")
+        else:
+            network = network[-1]
+        log.info("Fetching subnets in Network")
+        subnets = list_subnets(session, {'extra.vpc_id': network.id})
+        subnets = sorted(subnets, key=lambda k: k.state)
+        ec2_resource = s_boto3.resource('ec2')
+        if not subnets:
+            raise ValueError("Expecting at least one subnet on a network")
+        subnet = [x for x in subnets
+                  if ec2_resource.Subnet(x.id).map_public_ip_on_launch]
+        if not subnet:
+            raise ValueError("There are no subnets with auto provisioning of "
+                             "public IPs enabled..."
+                             "enable public IP auto provisioning on at least "
+                             "one subnet in the default VPC")
+        else:
+            subnet = subnet[0]
+        log.info("Fetching Security groups matching namespace")
+        sec_group = list_security_groups(session, {'name': _horton.namespace})
+        if not sec_group:
+            log.info("Namespace Security group not found, creating")
+            _ = session.ex_create_security_group(
+                name=_horton.namespace + 'whoville-default',
+                description=_horton.namespace + 'whoville-default Security Group',
+                vpc_id=network.id
+            )
+            sec_group = list_security_groups(session, {'name': _horton.namespace})[-1]
+        else:
+            sec_group = sec_group[-1]
+        net_rules.append(
+            {
+                'protocol': -1,
+                'group_pairs': [{'group_id': sec_group.id}],
+                'from_port': 0,
+                'to_port': 0
+            }
+        )
+        # security group loopback doesn't work well on AWS, need to use subnet
+        net_rules.append(
+            {
+                'protocol': -1,
+                'cidr_ips': [subnet.extra['cidr_block']],
+                'from_port': 0,
+                'to_port': 0
+            }
+        )
+        for rule in net_rules:
+            add_sec_rule_to_ec2_group(session, rule, sec_group.id)
+        log.info("Checking for expected SSH Keypair")
+        ssh_key = list_keypairs(
+            session, {'name': config.profile['sshkey_name']}
+        )
+        if not ssh_key:
+            ssh_key = session.import_key_pair_from_string(
+                name=config.profile['sshkey_name'],
+                key_material=config.profile['sshkey_pub']
+            )
+        else:
+            ssh_key = [x for x in ssh_key
+                       if x.name == config.profile['sshkey_name']][0]
+        log.info("Creating Static IP for K8S Node")
+        try:
+            static_ips = [x for x in session.ex_describe_all_addresses()
+                          if x.instance_id is None]
+        except InvalidCredsError:
+            static_ips = None
+        if not static_ips:
+            static_ip = session.ex_allocate_address()
+        else:
+            static_ip = static_ips[0]
+        if not static_ip:
+            raise ValueError("Couldn't get a Static IP for K8S Node") 
+
+        script_lines = [
+            "#!/bin/bash",
+            "cd /root",
+            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+            "/whoville/master/bootstrap/v2/k8s_bootstrap_centos7.sh)"
+        ]
+        script = '\n'.join(script_lines)
+        k8svm = create_node(
+            session=session,
+            name=k8svm_name,
+            image=image,
+            machine=machine,
+            params={
+                'ex_security_group_ids': [sec_group.id],
+                'ex_subnet': subnet,
+                'ex_assign_public_ip': True,
+                'ex_blockdevicemappings': [root_vol],
+                'ex_keyname': ssh_key.name,
+                'ex_userdata': script
+            }
+        )
+        # inserting hard wait to bypass race condition where returned node ID
+        # is not actually available to the list API call yet
+        sleep(5)
+        log.info("Waiting for K8S Node to be Available...")
+        session.wait_until_running(nodes=[k8svm])
+        log.info("K8S Node Booted at [%s]", k8svm)
+        log.info("Assigning Static IP to K8S Node")
+        session.ex_associate_address_with_node(k8svm, static_ip)
+        # Assign Role ARN
+        if 'infraarn' in config.profile['platform']:
+            log.info("Found infraarn in Profile, associating with K8S Node")
+            infra_arn = config.profile['platform']['infraarn']
+            client = s_boto3.client('ec2')
+            client.associate_iam_instance_profile(
+                IamInstanceProfile={
+                    'Arn': infra_arn,
+                    'Name': infra_arn.rsplit('/')[-1]
+                },
+                InstanceId=k8svm.id
+            )
+        # get updated node information
+        k8svm = list_nodes(session, {'name': k8svm_name})
+        k8svm = [x for x in k8svm if x.state == 'running']
+        if k8svm:
+            return k8svm[0]
+        else:
+            raise ValueError("Failed to create new K8S Node")
+        
     if session.type == 'azure_arm':
         ssh_key = config.profile['sshkey_pub']
         resource_group = _horton.namespace + 'cloudbreak-group'
@@ -666,7 +1264,7 @@ def create_cloudbreak(session, cbd_name):
         # End network exception handling for missing vnet
         public_ip = public_ip.ip_address
         cb_ver = config.profile.get('cloudbreak_ver')
-        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
+        cb_ver = str(cb_ver) if cb_ver else config.cb_ver
         script_lines = [
             "#!/bin/bash",
             "cd /root",
@@ -681,7 +1279,7 @@ def create_cloudbreak(session, cbd_name):
             "export uaa_default_email=" + config.profile['email'],
             "export public_ip=" + public_ip,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)"
         ]
         script = '\n'.join(script_lines)
         script = script.encode()
@@ -691,13 +1289,13 @@ def create_cloudbreak(session, cbd_name):
         log.info("Creating Virtual Machine...")
         log.info("with custom_data string like: " + script[:100])
         azure_compute_client = create_azure_session(token, 'compute')
-        cbd = azure_compute_client.virtual_machines.create_or_update(
+        k8svm = azure_compute_client.virtual_machines.create_or_update(
             resource_group,
-            cbd_name,
+            k8svm_name,
             {
                 'location': config.profile.get('platform')['region'],
                 'os_profile': {
-                    'computer_name': cbd_name,
+                    'computer_name': k8svm_name,
                     'admin_username': 'centos',
                     'linux_configuration': {
                         'disable_password_authentication': True,
@@ -722,12 +1320,12 @@ def create_cloudbreak(session, cbd_name):
                         'version': 'latest'
                     },
                     'os_disk': {
-                        'name': cbd_name,
+                        'name': k8svm_name,
                         'create_option': 'fromImage',
                         'vhd': {
                             'uri': 'https://{}.blob.core.windows.net/'
                                    'vhds/{}.vhd'
-                            .format(disk_account_name, cbd_name)}
+                            .format(disk_account_name, k8svm_name)}
                     },
                 },
                 'network_profile': {
@@ -736,17 +1334,17 @@ def create_cloudbreak(session, cbd_name):
             }
         )
         log.info("Waiting for Cloudbreak Instance to be Available...")
-        cbd.wait()
+        k8svm.wait()
 
-        cbd = list_nodes(session, {'name': cbd_name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
+        k8svm = list_nodes(session, {'name': k8svm_name})
+        k8svm = [x for x in k8svm if x.state == 'running']
+        if k8svm:
+            return k8svm[0]
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
     elif session.type == 'gce':
         region = config.profile['platform']['region']
-        cbd_name = _horton.namespace+'cloudbreak'
+        k8svm_name = _horton.namespace+'cloudbreak'
         public_ip_name = _horton.namespace+'cloudbreak-public-ip'
         subnet_name = _horton.namespace+'cloudbreak-subnet'
         firewall_name = _horton.namespace+'cloudbreak-secgroup'
@@ -838,11 +1436,11 @@ def create_cloudbreak(session, cbd_name):
             _ = session.ex_create_firewall(name=firewall_name,
                                                network=network,
                                                allowed=net_rules,
-                                               target_tags=[cbd_name]
+                                               target_tags=[k8svm_name]
                                             )
 
         cb_ver = config.profile.get('cloudbreak_ver')
-        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
+        cb_ver = str(cb_ver) if cb_ver else config.cb_ver
         script_lines = [
                     "#!/bin/bash",
                     "cd /root",
@@ -852,7 +1450,7 @@ def create_cloudbreak(session, cbd_name):
                     "export uaa_default_email=" + config.profile['email'],
                     "export public_ip=" + public_ip.address,
                     "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-                    "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
+                    "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)"
                 ]
         script = '\n'.join(script_lines)
         metadata = {
@@ -869,633 +1467,28 @@ def create_cloudbreak(session, cbd_name):
                     }
 
         log.info("Creating Cloudbreak instance...")
-        cbd = session.create_node(name=cbd_name, 
-                    size=machine, 
-                    image=image, 
-                    location=zone, 
-                    ex_network=network,
-                    external_ip=public_ip, 
-                    ex_metadata=metadata,
-                    ex_tags=[cbd_name]
-                )
-
-        log.info("Waiting for Cloudbreak Instance to be Available...")
-        session.wait_until_running(nodes=[cbd])
-        cbd = list_nodes(session, {'name': cbd_name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
-        else:
-            raise ValueError("Failed to create new Cloubreak Instance")
-    else:
-        raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, "
-                         "and GCE")
-
-def create_k8s(session, cbd_name):
-    public_ip = requests.get('https://ipv4.icanhazip.com').text.rstrip()
-    net_rules = [
-        {
-            'protocol': 'tcp',
-            'from_port': 9443,
-            'to_port': 9443,
-            'cidr_ips': ['0.0.0.0/0']
-        },
-        {
-            'protocol': -1,
-            'from_port': 1,
-            'to_port': 65535,
-            'cidr_ips': [public_ip + '/32']
-        },
-        {
-            'protocol': 'tcp',
-            'from_port': 443,
-            'to_port': 443,
-            'cidr_ips': ['0.0.0.0/0']
-        },
-        {
-            'protocol': 'tcp',
-            'from_port': 22,
-            'to_port': 22,
-            'cidr_ips': ['0.0.0.0/0']
-        }
-    ]
-    if session.type == 'ec2':
-        s_boto3 = create_boto3_session()
-        log.info("Selecting OS Image for K8S Node")
-        images = list_images(
-            session,
-            filters={
-                'name': '*CentOS Linux 7 x86_64 HVM EBS ENA*',
-            }
-        )
-        image = sorted(images, key=lambda k: k.extra['description'][-7:])
-        if not image:
-            raise ValueError("Couldn't find a valid Centos7 Image")
-        else:
-            image = image[-1]
-        bd = image.extra['block_device_mapping'][0]
-        root_vol = {
-            'VirtualName': None,
-            'DeviceName': bd['device_name'],
-            'Ebs': {
-                'VolumeSize': 50,
-                'VolumeType': bd['ebs']['volume_type'],
-                'DeleteOnTermination': True
-            }
-        }
-        log.info("Fetching list of suitable machine types")
-        machines = list_sizes_aws(
-            session, cpu_min=4, cpu_max=4, mem_min=16000, mem_max=20000
-        )
-        if not machines:
-            raise ValueError("Couldn't find a VM of the right size")
-        else:
-            machine = machines[-1]
-        log.info("Fetching list of available networks")
-        networks = list_networks(session)
-        network = sorted(networks, key=lambda k: k.extra['is_default'])
-        if not network:
-            raise ValueError("There should be at least one network, this "
-                             "is rather unexpected")
-        else:
-            network = network[-1]
-        log.info("Fetching subnets in Network")
-        subnets = list_subnets(session, {'extra.vpc_id': network.id})
-        subnets = sorted(subnets, key=lambda k: k.state)
-        ec2_resource = s_boto3.resource('ec2')
-        if not subnets:
-            raise ValueError("Expecting at least one subnet on a network")
-        subnet = [x for x in subnets
-                  if ec2_resource.Subnet(x.id).map_public_ip_on_launch]
-        if not subnet:
-            raise ValueError("There are no subnets with auto provisioning of "
-                             "public IPs enabled..."
-                             "enable public IP auto provisioning on at least "
-                             "one subnet in the default VPC")
-        else:
-            subnet = subnet[0]
-        log.info("Fetching Security groups matching namespace")
-        sec_group = list_security_groups(session, {'name': namespace})
-        if not sec_group:
-            log.info("Namespace Security group not found, creating")
-            _ = session.ex_create_security_group(
-                name=namespace + 'whoville-default',
-                description=namespace + 'whoville-default Security Group',
-                vpc_id=network.id
-            )
-            sec_group = list_security_groups(session, {'name': namespace})[-1]
-        else:
-            sec_group = sec_group[-1]
-        net_rules.append(
-            {
-                'protocol': -1,
-                'group_pairs': [{'group_id': sec_group.id}],
-                'from_port': 0,
-                'to_port': 0
-            }
-        )
-        # security group loopback doesn't work well on AWS, need to use subnet
-        net_rules.append(
-            {
-                'protocol': -1,
-                'cidr_ips': [subnet.extra['cidr_block']],
-                'from_port': 0,
-                'to_port': 0
-            }
-        )
-        for rule in net_rules:
-            add_sec_rule_to_ec2_group(session, rule, sec_group.id)
-        log.info("Checking for expected SSH Keypair")
-        ssh_key = list_keypairs(
-            session, {'name': config.profile['sshkey_name']}
-        )
-        if not ssh_key:
-            ssh_key = session.import_key_pair_from_string(
-                name=config.profile['sshkey_name'],
-                key_material=config.profile['sshkey_pub']
-            )
-        else:
-            ssh_key = [x for x in ssh_key
-                       if x.name == config.profile['sshkey_name']][0]
-        log.info("Creating Static IP for K8S Node")
-        try:
-            static_ips = [x for x in session.ex_describe_all_addresses()
-                          if x.instance_id is None]
-        except InvalidCredsError:
-            static_ips = None
-        if not static_ips:
-            static_ip = session.ex_allocate_address()
-        else:
-            static_ip = static_ips[0]
-        if not static_ip:
-            raise ValueError("Couldn't get a Static IP for K8S Node") 
-
-        script_lines = [
-            "#!/bin/bash",
-            "cd /root",
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/k8s_bootstrap_centos7.sh)"
-        ]
-        script = '\n'.join(script_lines)
-        cbd = create_node(
-            session=session,
-            name=cbd_name,
+        k8svm = session.create_node(
+            name=k8svm_name,
+            size=machine,
             image=image,
-            machine=machine,
-            params={
-                'ex_security_group_ids': [sec_group.id],
-                'ex_subnet': subnet,
-                'ex_assign_public_ip': True,
-                'ex_blockdevicemappings': [root_vol],
-                'ex_keyname': ssh_key.name,
-                'ex_userdata': script
-            }
-        )
-        # inserting hard wait to bypass race condition where returned node ID
-        # is not actually available to the list API call yet
-        sleep(5)
-        log.info("Waiting for K8S Node to be Available...")
-        session.wait_until_running(nodes=[cbd])
-        log.info("K8S Node Booted at [%s]", cbd)
-        log.info("Assigning Static IP to K8S Node")
-        session.ex_associate_address_with_node(cbd, static_ip)
-        # Assign Role ARN
-        if 'infraarn' in config.profile['platform']:
-            log.info("Found infraarn in Profile, associating with K8S Node")
-            infra_arn = config.profile['platform']['infraarn']
-            client = s_boto3.client('ec2')
-            client.associate_iam_instance_profile(
-                IamInstanceProfile={
-                    'Arn': infra_arn,
-                    'Name': infra_arn.rsplit('/')[-1]
-                },
-                InstanceId=cbd.id
-        )
-        # get updated node information
-        cbd = list_nodes(session, {'name': cbd_name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
-        else:
-            raise ValueError("Failed to create new K8S Node")
-        
-    if session.type == 'azure_arm':
-        ssh_key = config.profile['sshkey_pub']
-        resource_group = namespace + 'cloudbreak-group'
-        network_name = namespace + 'cloudbreak-network'
-        subnet_name = namespace + 'cloudbreak-subnet'
-        sec_group_name = namespace + 'cloudbreak-secgroup'
-        public_ip_name = namespace + 'cloudbreak-ip'
-        nic_name = namespace + 'cloudbreak-nic'
-        disk_account_name = namespace + 'diskaccount'
-        disk_account_name = disk_account_name.replace('-', '')
-        # ToDo: examine cleaning Azure Resource Groups
-        log.info("Creating Resource Group...")
-        token = get_azure_token()
-        azure_resource_client = create_azure_session(token, 'resource')
-        azure_resource_client.resource_groups.create_or_update(
-            resource_group,
-            {'location': config.profile.get('platform')['region']}
-        )
-
-        image = session.list_images(
-            ex_publisher='OpenLogic',ex_offer='CentOS-CI',ex_sku='7-CI'
-        )
-        if not image:
-            raise ValueError("Couldn't find a valid Centos7 Image")
-        else:
-            image = image[-1]
-
-        machines = list_sizes_azure(
-            session, cpu_min=4, cpu_max=4, mem_min=16384, mem_max=20480
-        )
-        if not machines:
-            raise ValueError("Couldn't find a VM of the right size")
-        else:
-            machine = machines[0]
-
-        log.info("Checking for disk storage account, please wait...")
-        azure_storage_client = create_azure_session(token, 'storage')
-        try:
-            azure_storage_client.storage_accounts.create(
-                resource_group,
-                disk_account_name,
-                {
-                    'location': config.profile.get('platform')['region'],
-                    'sku': {'name': 'standard_lrs'},
-                    'kind': 'StorageV2'
-                }
-            ).wait()
-        except Exception:
-            log.info("Found existing os disk account...")
-
-        log.info("Looking for existing network resources...")
-        azure_network_client = create_azure_session(token, 'network')
-        try:
-            log.info("Getting Vnet...")
-            network = azure_network_client.virtual_networks.get(resource_group, network_name)
-            log.info("Getting Network Interface...")
-            nic = azure_network_client.network_interfaces.get(resource_group, nic_name)
-            log.info("Getting Public IP...")
-            public_ip = azure_network_client.public_ip_addresses.get(resource_group, public_ip_name)
-        except Exception:
-            log.info("No Vnet exists for this namepsace, creating...")
-            network = azure_network_client.virtual_networks.create_or_update(
-                resource_group,
-                network_name,
-                {
-                    'location': config.profile.get('platform')['region'],
-                    'address_space': {'address_prefixes': ['10.0.0.0/16']}
-                }
-            )
-            network = network.result()
-            log.info("Creating Subnet...")
-            subnet = azure_network_client.subnets.create_or_update(
-                resource_group,
-                network_name,
-                subnet_name,
-                {'address_prefix': '10.0.0.0/24'}
-            )
-            log.info("Creating Public IP...")
-            public_ip = azure_network_client.public_ip_addresses.create_or_update(
-                resource_group,
-                public_ip_name,
-                {
-                    'location': config.profile.get('platform')['region'],
-                    'public_ip_allocation_method': 'static'
-                }
-            )
-            subnet = subnet.result()
-            public_ip = public_ip.result()
-            log.info("Creating Security Group...")
-            sec_group = azure_network_client.network_security_groups.create_or_update(
-                resource_group,
-                sec_group_name,
-                {
-                    'location': config.profile.get('platform')['region'],
-                    'security_rules': [
-                        {
-                            'name': 'ssh_rule',
-                            'description': 'Allow SSH',
-                            'protocol': 'Tcp',
-                            'source_port_range': '*',
-                            'destination_port_range': '22',
-                            'source_address_prefix': 'Internet',
-                            'destination_address_prefix': '*',
-                            'access': 'Allow',
-                            'priority': 100,
-                            'direction': 'Inbound'
-                        },
-                        {
-                            'name': 'http_rule',
-                            'description': 'Allow HTTP',
-                            'protocol': 'Tcp',
-                            'sourcePortRange': '*',
-                            'destinationPortRange': '80',
-                            'sourceAddressPrefix': 'Internet',
-                            'destinationAddressPrefix': '*',
-                            'access': 'Allow',
-                            'priority': 101,
-                            'direction': 'Inbound'
-                        },
-                        {
-                            'name': 'https_rule',
-                            'provisioningState': 'Succeeded',
-                            'description': 'Allow HTTPS',
-                            'protocol': 'Tcp',
-                            'sourcePortRange': '*',
-                            'destinationPortRange': '443',
-                            'sourceAddressPrefix': 'Internet',
-                            'destinationAddressPrefix': '*',
-                            'access': 'Allow',
-                            'priority': 102,
-                            'direction': 'Inbound'
-                        },
-                        {
-                            'name': 'knox_https_rule',
-                            'provisioningState': 'Succeeded',
-                            'description': 'Allow CB HTTPS',
-                            'protocol': 'Tcp',
-                            'sourcePortRange': '*',
-                            'destinationPortRange': '8443',
-                            'sourceAddressPrefix': 'Internet',
-                            'destinationAddressPrefix': '*',
-                            'access': 'Allow',
-                            'priority': 103,
-                            'direction': 'Inbound'
-                        },
-                        {
-                            'name': 'cb_https_rule',
-                            'provisioningState': 'Succeeded',
-                            'description': 'Allow CB HTTPS',
-                            'protocol': 'Tcp',
-                            'sourcePortRange': '*',
-                            'destinationPortRange': '9443',
-                            'sourceAddressPrefix': 'Internet',
-                            'destinationAddressPrefix': '*',
-                            'access': 'Allow',
-                            'priority': 104,
-                            'direction': 'Inbound'
-                        },
-                        {
-                            'name': 'altus_http_rule',
-                            'provisioningState': 'Succeeded',
-                            'description': 'Allow Altus HTTP',
-                            'protocol': 'Tcp',
-                            'sourcePortRange': '*',
-                            'destinationPortRange': '7189',
-                            'sourceAddressPrefix': 'Internet',
-                            'destinationAddressPrefix': '*',
-                            'access': 'Allow',
-                            'priority': 105,
-                            'direction': 'Inbound'
-                        }
-                    ]
-                }
-            )
-            sec_group = sec_group.result()
-            log.info("Creating Network Interface...")
-            nic = azure_network_client.network_interfaces.create_or_update(
-                resource_group,
-                nic_name,
-                {
-                    'location': config.profile.get('platform')['region'],
-                    'network_security_group': {'id': sec_group.id},
-                    'ip_configurations': [{
-                        'name': 'default',
-                        'subnet': {'id': subnet.id},
-                        'public_ip_address': {'id': public_ip.id}
-                    }]
-                }
-            )
-            nic = nic.result()
-        # End network exception handling for missing vnet
-        public_ip = public_ip.ip_address
-        cb_ver = config.profile.get('cloudbreak_ver')
-        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
-        script_lines = [
-            "#!/bin/bash",
-            "cd /root",
-            "yum install -y wget",
-            "wget -O jq https://github.com/stedolan/jq/releases/download/"
-            "jq-1.5/jq-linux64",
-            "chmod +x ./jq",
-            "cp jq /usr/bin",
-            "export cb_ver=" + cb_ver,
-            "export uaa_secret=" + security.get_secret('MASTERKEY'),
-            "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-            "export uaa_default_email=" + config.profile['email'],
-            "export public_ip=" + public_ip,
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
-        ]
-        script = '\n'.join(script_lines)
-        script = script.encode()
-        script = str(base64.urlsafe_b64encode(script))\
-            .replace("b'","").replace("'","")
-
-        log.info("Creating Virtual Machine...")
-        log.info("with custom_data string like: " + script[:100])
-        azure_compute_client = create_azure_session(token, 'compute')
-        cbd = azure_compute_client.virtual_machines.create_or_update(
-            resource_group,
-            cbd_name,
-            {
-                'location': config.profile.get('platform')['region'],
-                'os_profile': {
-                    'computer_name': cbd_name,
-                    'admin_username': 'centos',
-                    'linux_configuration': {
-                        'disable_password_authentication': True,
-                        'ssh': {
-                            'public_keys': [{
-                                'path': '/home/{}/.ssh/authorized_keys'
-                                .format('centos'),
-                                'key_data': ssh_key
-                            }]
-                        }
-                    }, 
-                    'custom_data': script
-                },
-                'hardware_profile': {
-                    'vm_size': 'Standard_DS3_v2'
-                },
-                'storage_profile': {
-                    'image_reference': {
-                        'publisher': 'Redhat',
-                        'offer': 'RHEL',
-                        'sku': '7-RAW-CI',
-                        'version': 'latest'
-                    },
-                    'os_disk': {
-                        'name': cbd_name,
-                        'create_option': 'fromImage',
-                        'vhd': {
-                            'uri': 'https://{}.blob.core.windows.net/'
-                                   'vhds/{}.vhd'
-                            .format(disk_account_name, cbd_name)}
-                    },
-                },
-                'network_profile': {
-                    'network_interfaces': [{'id': nic.id,'primary': True}]
-                }
-            }
-        )
-        log.info("Waiting for Cloudbreak Instance to be Available...")
-        cbd.wait()
-
-        cbd = list_nodes(session, {'name': cbd_name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
-        else:
-            raise ValueError("Failed to create new Cloubreak Instance")
-    elif session.type == 'gce':
-        region = config.profile['platform']['region']
-        cbd_name = namespace+'cloudbreak'
-        public_ip_name = namespace+'cloudbreak-public-ip'
-        subnet_name = namespace+'cloudbreak-subnet'
-        firewall_name = namespace+'cloudbreak-secgroup'
-        ssh_key = config.profile['sshkey_pub']
-
-        log.info("Looking for existing network...")
-        networks = session.ex_list_networks()
-        network = [
-            x for x in networks
-            if x.mode == 'auto'
-            ]
-        if not network:
-            raise ValueError("There should be at least one network")
-        else:
-            network = network[-1]
-            log.info("Found network: " + network.name)
-
-        log.info("Looking for existing subnets...")
-        subnets = session.ex_list_subnetworks(region=region)
-        subnet = [
-            x for x in subnets
-            if x.name == 'default'
-            ]
-        if not subnet:
-            session.ex_create_subnetwork(
-                name=subnet_name,region=region,network=network
-            )
-        else:
-            subnet = subnet[-1]
-            subnet_name = subnet.name
-            log.info("Found existing subnet called: " + subnet_name)
-
-        log.info("Getting Public IP...")
-        try:
-            public_ip = session.ex_get_address(
-                name=public_ip_name,region=region
-            )
-            log.info("Found existing Public IP matching name: "
-                     + public_ip_name)
-        except ResourceNotFoundError:
-            public_ip = session.ex_create_address(
-                name=public_ip_name, region=region
-            )
-            log.info("Creating new Public IP with name: " + public_ip_name)
-
-        images = session.list_images()
-        image = [
-            x for x in images 
-            if x.extra['family'] == 'centos-7'
-            and 'centos-7' in x.name 
-            ]
-
-        zones = session.ex_list_zones()
-        zone = [
-            x for x in zones
-            if region in x.name
-            and x.status == 'UP'
-            ]
-        if not zone:
-            raise ValueError("Couldn't find a zone for the requested region..")
-        else:
-            zone = zone[-1]
-
-        if not image:
-            raise ValueError("Couldn't find a valid Centos7 Image")
-        else:
-            image = image[-1]
-
-        machines = list_sizes_gce(
-            session, location=region, cpu_min=4, cpu_max=4, mem_min=13000,
-            mem_max=20000
-        )
-        if not machines:
-            raise ValueError("Couldn't find a VM of the right size")
-        else:
-            machine = machines[-1]
-
-        log.info("Creating Security Group...")
-        try:
-            _ = session.ex_get_firewall(name=firewall_name)
-            log.info("Found existing firewall definition called: " + firewall_name)
-        except ResourceNotFoundError:
-            log.info("Creating new firewall definition called: " + firewall_name)
-            net_rules = [
-                            {'IPProtocol': 'tcp',
-                             'ports': ['22','443','8443','9443','7189']
-                            }
-                        ]
-            _ = session.ex_create_firewall(name=firewall_name,
-                                               network=network,
-                                               allowed=net_rules,
-                                               target_tags=[cbd_name]
-                                            )
-
-        cb_ver = config.profile.get('cloudbreak_ver')
-        cb_ver = str(cb_ver) if cb_ver else preferred_cb_ver
-        script_lines = [
-                    "#!/bin/bash",
-                    "cd /root",
-                    "export cb_ver=" + cb_ver,
-                    "export uaa_secret=" + security.get_secret('MASTERKEY'),
-                    "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-                    "export uaa_default_email=" + config.profile['email'],
-                    "export public_ip=" + public_ip.address,
-                    "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-                    "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
-                ]
-        script = '\n'.join(script_lines)
-        metadata = {
-                        'items': [
-                            {
-                                'key': 'startup-script',
-                                'value': script
-                            },
-                            {
-                                'key': 'ssh-keys',
-                                'value': 'centos:' + ssh_key
-                            }
-                        ]
-                    }
-
-        log.info("Creating Cloudbreak instance...")
-        cbd = session.create_node(name=cbd_name, 
-                    size=machine, 
-                    image=image, 
-                    location=zone, 
-                    ex_network=network,
-                    external_ip=public_ip, 
-                    ex_metadata=metadata,
-                    ex_tags=[cbd_name]
-                )
+            location=zone,
+            ex_network=network,
+            external_ip=public_ip,
+            ex_metadata=metadata,
+            ex_tags=[k8svm_name])
 
         log.info("Waiting for Cloudbreak Instance to be Available...")
-        session.wait_until_running(nodes=[cbd])
-        cbd = list_nodes(session, {'name': cbd_name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
+        session.wait_until_running(nodes=[k8svm])
+        k8svm = list_nodes(session, {'name': k8svm_name})
+        k8svm = [x for x in k8svm if x.state == 'running']
+        if k8svm:
+            return k8svm[0]
         else:
             raise ValueError("Failed to create new Cloubreak Instance")
     else:
         raise ValueError("Cloudbreak AutoDeploy only supported on EC2, Azure, "
                          "and GCE")
+
 
 def initialize_k8s_minion(target_host, user_name, ssh_key_path, join_string):
     log.info("Joining K8S Minion [%s] to cluster", target_host)
@@ -1506,7 +1499,7 @@ def initialize_k8s_minion(target_host, user_name, ssh_key_path, join_string):
         s.sendline('sudo /tmp/prepare-k8s-service.sh')
         s.sendline("sudo " + join_string)
         s.prompt()
-        while not 'node has joined the cluster' in s.before.decode():
+        while 'node has joined the cluster' not in s.before.decode():
             sleep(3)
             s.prompt()
             
@@ -1515,18 +1508,20 @@ def initialize_k8s_minion(target_host, user_name, ssh_key_path, join_string):
         log.info("Could not connect to K8S Node [%s]", target_host)
         raise ValueError("Something went wrong during node creation")
 
+
 def initialize_k8s_master(target_host, user_name, ssh_key_path):
     log.info("Initializing K8s Master [%s]", target_host)
     try:
         s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
         s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False)
         s.sendline('sudo /tmp/prepare-k8s-service.sh')
-        s.sendline('sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep -Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16')
+        s.sendline('sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep '
+                   '-Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16')
         s.prompt()
         s.sendline('tail -n 2 /tmp/k8s-init.log')
         s.prompt()
         
-        while not 'kubeadm join' in s.before.decode():
+        while 'kubeadm join' not in s.before.decode():
             sleep(3)
             s.prompt()
             s.sendline('tail -n 2 /tmp/k8s-init.log')
@@ -1537,15 +1532,16 @@ def initialize_k8s_master(target_host, user_name, ssh_key_path):
         s.sendline('/tmp/initialize-k8s-cluster.sh')
         s.prompt()
         
-        while not 'kube-flannel-ds-s390x created' in s.before.decode():
+        while 'kube-flannel-ds-s390x created' not in s.before.decode():
             sleep(3)
             s.prompt()
         
         return cluster_join_string
         
     except (ExceptionPxssh, EOF):
-        raise ValueError("Could not connect to host, %s", n)
-    
+        raise ValueError("Could not connect to host, %s", target_host)
+
+
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
     try:
         session.ex_authorize_security_group_ingress(
@@ -1634,7 +1630,6 @@ def list_sizes_gce(session, location=None, cpu_min=2, cpu_max=16,
         x for x in sizes
         if mem_min <= x.ram <= mem_max
         and cpu_min <= x.extra['guestCpus'] <= cpu_max
-        and location in x.extra['zone'].extra['description'] 
     ]
     return machines
 
@@ -1665,7 +1660,11 @@ def list_subnets(session, filters=None):
 
 
 def list_security_groups(session, filters=None):
-    sec_groups = session.ex_get_security_groups()
+    provider = config.profile.get('platform')['provider']
+    if provider == 'GCE':
+        sec_groups = session.ex_list_firewalls()
+    else:
+        sec_groups = session.ex_get_security_groups()
     if not filters:
         return sec_groups
     for key, val in filters.items():
@@ -1694,9 +1693,6 @@ def list_nodes(session, filters=None):
     if not filters:
         return nodes
     for key, val in filters.items():
-        if session.type == 'gce':
-            # Cloudbreak strips the - from resource names for some reason
-            val = val.replace('-', '')
         nodes = [
             x for x in nodes
             if val in utils.get_val(x, key)
@@ -1944,11 +1940,15 @@ def aws_terminate_by_tag(key_match, node_summary=None, also_terminate=False):
 
 
 def nuke_namespace(dry_run=True):
-    log.info("Nuking all nodes in Namespace %s", _horton.namespace)
+    provider = config.profile.get('platform')['provider']
+    namespace=_horton.namespace
+    if provider == 'GCE':
+        # Cloudbreak creates vms with the - stripped from the name for some reason
+        namespace = namespace.replace('-', '')
+    log.info("Nuking all nodes in Namespace %s", namespace)
     log.info("dry_run is %s", str(dry_run))
     session = create_libcloud_session()
-    all_instances = list_nodes(session, {'name': _horton.namespace})
-    sec_groups = list_security_groups(session, {'name': _horton.namespace})
+    all_instances = list_nodes(session, {'name': namespace})
     if not all_instances:
         log.info("No nodes matching Namespace found")
     else:
@@ -1956,21 +1956,31 @@ def nuke_namespace(dry_run=True):
             x for x in all_instances
             if x.state != 'terminated'
         ]
-        log.info("Found %s nodes matching Namespace", str(len(instances)))
-        for i in instances:
-            log.info("Destroying Node %s", i.name)
-            if not dry_run:
-                session.destroy_node(i)
-        while [x for x in list_nodes(session, {'name': _horton.namespace})
-               if x.state != 'terminated']:
-            log.info("Waiting for nodes to be terminated (sleep10)")
-            sleep(10)
+        log.info("Destroying nodes: %s", ", ".join(x.name for x in instances))
+        if provider == 'GCE':
+            session.ex_destroy_multiple_nodes(instances, ignore_errors=True, destroy_boot_disk=True, poll_interval=2, timeout=180)
+        else:
+            for i in instances:
+                log.info("Destroying Node %s", i.name)
+                if not dry_run:
+                    session.destroy_node(i)
+            while [x for x in list_nodes(session, {'name': _horton.namespace})
+                   if x.state != 'terminated']:
+                log.info("Waiting for nodes to be terminated (sleep10)")
+                sleep(10)
+
+    sec_groups = list_security_groups(session, {'name': _horton.namespace})
     if not sec_groups:
         log.info("No Security Groups matching Namespace found")
     else:
         log.info("Found %s Security Group in this Namespace",
                  str(len(sec_groups)))
         for i in sec_groups:
-            log.info("Destroying Security Group %s", i.name)
-            if not dry_run:
-                session.ex_delete_security_group_by_id(group_id=i.id)
+            if provider == 'GCE':
+                log.info("Destroying firewall %s", i.name)
+                if not dry_run:
+                    session.ex_destroy_firewall(i)
+            else:
+                log.info("Destroying Security Group %s", i.name)
+                if not dry_run:
+                    session.ex_delete_security_group_by_id(group_id=i.id)

@@ -456,6 +456,7 @@ class Horton:
         self.cbcred = None  # Credential for deployments, once loaded in CB
         self.cdcred = None  # Credential for deployments, once loaded in CD
         self.cad = None  # Client for Altus Director, once created
+        self.k8svm = None  # Reference for K8s environment handler, once created
         self.resources = {}  # all loaded resources from github/files
         self.defs = {}  # deployment definitions, once pulled from resources
         self.specs = {}  # stack specifications, once formulated

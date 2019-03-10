@@ -82,6 +82,10 @@ keytool -genkeypair -alias director -keyalg RSA \
 sed -i "s/# lp.security.bootstrap.admin.password: admin/lp.security.bootstrap.admin.password: ${uaa_default_pw}/g" /etc/cloudera-director-server/application.properties
 sed -i "s@# server.ssl.key-store:@server.ssl.key-store: /opt/${cad_subdir}/director.jks@g" /etc/cloudera-director-server/application.properties
 sed -i "s/# server.ssl.key-store-password:/server.ssl.key-store-password: cloudera/g" /etc/cloudera-director-server/application.properties
+sed -i "s/# lp.bootstrap.packages.cmJavaPackages[1]/lp.bootstrap.packages.cmJavaPackages[1]/" /etc/cloudera-director-server/application.properties
+sed -i "s/# lp.bootstrap.packages.cmJavaPackages[0]/lp.bootstrap.packages.cmJavaPackages[0]/" /etc/cloudera-director-server/application.properties
+sed -i "s/oracle-j2sdk1.7/oracle-j2sdk1.8/" /etc/cloudera-director-server/application.properties
+sed -i "s/# lp.normalization.required/lp.normalization.required/" /etc/cloudera-director-server/application.properties
 
 echo Starting Cloudera Director
 service cloudera-director-server start
