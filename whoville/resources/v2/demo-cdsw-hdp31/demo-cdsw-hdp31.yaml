@@ -24,3 +24,7 @@ group:
     machine: 16x60-16x66
     rootvol: 100
     vols: 2x500
+  worker:
+    type: CORE
+    machine: 4x28-8x32
+    nodes: 3
