@@ -22,7 +22,7 @@ infra:
     ver: 2.6.5.1050-37
     url: http://public-repo-1.hortonworks.com/HDP/centos7/2.x/updates/2.6.5.1050/HDP-2.6.5.1050-37.xml
 mpack:
-- name: hdf312
+- name: hdf
   desc: HDF 3.1.2
   url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.1.2.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.1.2.0-7.tar.gz
 - name: hdp-search

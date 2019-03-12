@@ -13,22 +13,10 @@ seq:
 input:
   yarn.vcores: 20
   yarn.capacity: 60000
-infra:
-  baseimage: redhat7
-  ambarirepo:
-    version: 2.7.3.0
-    baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.7.3.0
-    gpgKeyUrl: http://public-repo-1.hortonworks.com/ambari/centos7/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
-  stackrepo:
-    ver: 3.1.0.0-78
-    url: http://public-repo-1.hortonworks.com/HDP/centos7/3.x/updates/3.1.0.0/HDP-3.1.0.0-78.xml
 recipe:
 - name: cdsw-postcluster.sh
   typ: POST_CLUSTER_INSTALL
 group:
-  master1:
-    machine: 8x28-8x32
-    type: GATEWAY
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
@@ -40,9 +28,11 @@ group:
     machine: 4x28-8x32
     nodes: 3
 mpack:
-- name: hdf331
+- name: hdf
   desc: HDF 3.3.1
-  url: http://public-repo-1.hortonworks.com/HDF/amazonlinux2/3.x/updates/3.3.1.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.1.0-10.tar.gz
-- name: hdpsearch400
+  url: http://s3.amazonaws.com/dev.hortonworks.com/HDF/centos7/3.x/BUILDS/3.3.1.0-10/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.1.0-10.tar.gz
+  purge_on_install: false
+- name: hdp-search
   desc: HDP Search 4.0.0
   url: http://public-repo-1.hortonworks.com/HDP-SOLR/hdp-solr-ambari-mp/solr-service-mpack-4.0.0.tar.gz
+  purge_on_install: false
