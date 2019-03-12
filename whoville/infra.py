@@ -1770,7 +1770,7 @@ def get_aws_network(session, create=True):
                 cidr_block='10.0.1.0/24',
                 vpc_id=vpc.id,
                 name=_horton.namespace + 'whoville',
-                availability_zone=zones[-1].name
+                availability_zone=zones[0].name
             )
             if not subnet:
                 raise ValueError("Could not create Subnet on EC2")
