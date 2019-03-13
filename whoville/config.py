@@ -76,6 +76,31 @@ if not cb_config.verify_ssl:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
+# Default Firewall Rules
+default_net_rules = [
+        {
+            'protocol': 'tcp',  # required for Cloudbreak
+            'from_port': 9443,
+            'to_port': 9443,
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Cloudbreak'
+        },
+        {
+            'protocol': 'tcp',  # high port secured access
+            'from_port': 8443,
+            'to_port': 8443,
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Dataplane PublicIP'
+        },
+        {
+            'protocol': 'tcp',  # general secured access
+            'from_port': 443,
+            'to_port': 443,
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'SSL'
+        }
+    ]
+
 # Resolve Configuration overrides from local profile
 try:
     with open(str(profile_loc), 'r') as f:

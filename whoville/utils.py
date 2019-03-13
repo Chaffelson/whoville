@@ -21,13 +21,12 @@ from github import Github
 from github.GithubException import UnknownObjectException
 from requests.models import Response
 from whoville import config, security
-import pexpect
 from pexpect import pxssh
 from pexpect.exceptions import EOF
 from pexpect.pxssh import ExceptionPxssh
 
 __all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
-           'is_endpoint_up', 'set_endpoint', 'get_val',
+           'is_endpoint_up', 'set_endpoint', 'get_val', 'get_remote_shell',
            'load_resources_from_files', 'load_resources_from_github', 'Horton'
            ]
 
@@ -219,28 +218,46 @@ def is_endpoint_up(endpoint_url, verify=False):
         log.info("Got ConnectionError, returning False")
         return False
 
-def is_remote_file_present(target_host, user_name='centos', ssh_key_path='/tmp/key.pem', verify=False):
-    log.info("Called is_remote_file_present with args %s", locals())
-    try:
-        s = pxssh.pxssh(options={"StrictHostKeyChecking": "no",
-                    "UserKnownHostsFile": "/dev/null"})
-        s.login(target_host,user_name,ssh_key=ssh_key_path,check_local_ip=False,)
-        s.sendline('cat /tmp/status.success')
-        s.prompt()
-        response=s.before.decode()
-        response=response.split('\r\n')
-        if '' in response:
-            response.remove('')
-        response=response[len(response)-1]
-        if len(response) > 0 and response == 'complete':
-            log.info("Found .success file, ready to proceed")
-            return True
-        else:
-            log.info("Could not find .success file")
+
+def get_remote_shell(target_host, sshkey_file=None, user_name=None):
+    horton = Horton()
+    shell = horton._getr('shells:' + target_host)
+    if not shell:
+        sshkey_file = sshkey_file if sshkey_file else config.profile['sshkey_file']
+        user_name = user_name if user_name else 'centos'
+        try:
+            shell = pxssh.pxssh(options={"StrictHostKeyChecking": "no", "UserKnownHostsFile": "/dev/null"})
+            shell.login(target_host, user_name, ssh_key=sshkey_file, check_local_ip=False)
+            horton.shells[target_host] = shell
+        except (ExceptionPxssh, EOF):
+            log.info("Target host is not ready to accept connections")
             return False
-    except (ExceptionPxssh, EOF):
-        log.info("Target host is not ready to accept connections")
+    return shell
+
+
+def execute_remote_cmd(target_host, cmd):
+    assert isinstance(cmd, six.string_types)
+    s = get_remote_shell(target_host)
+    s.sendline(cmd)
+    s.prompt()
+    response = s.before.decode()  # response to string
+    response = response.split('\r\n')  # split by newlines
+    if '' in response:
+        response.remove('')  # remove blank lines
+    return response
+
+
+def check_remote_success_file(target_host, check_file='/tmp/status.success'):
+    log.info("Called is_remote_file_present with args %s", locals())
+    response = execute_remote_cmd(target_host, 'cat ' + check_file)
+    response = response[len(response)-1]
+    if len(response) > 0 and response == 'complete':
+        log.info("Found complete in .success file, ready to proceed")
+        return True
+    else:
+        log.info("Could not find .success file")
         return False
+
 
 def set_endpoint(endpoint_url):
     """
@@ -464,6 +481,7 @@ class Horton:
         self.deps = {}  # Dependencies loaded for a given Definition
         self.seq = {}  # Prioritised list of tasks to execute
         self.cache = {}  # Key:Value store for passing params between Defs
+        self.shells = {}  # Key:Value session store for remote shells
         self.namespace = config.profile['namespace']
         self.global_purge = config.profile['globalpurge']
 

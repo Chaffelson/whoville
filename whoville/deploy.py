@@ -1628,13 +1628,11 @@ def write_cache(name, item, cache_key):
                     x for x in group.metadata if x.ambari_server is True][0]
                 horton.cache[cache_key] = instance.__getattribute__(item)
     elif item in ['shared_services']:
-        stack = [x for x in list_stacks()
-                if x.user_defined_tags['datalake'] == 'true'][0]
+        stack = [x for x in list_stacks() if x.user_defined_tags['datalake'] == 'true'][0]
         if stack:
             horton.cache[cache_key] = stack.cluster.name
     elif item in ['cdsw_ip']:
-        stack = [x for x in list_stacks()
-                 if x.name == name][0]
+        stack = [x for x in list_stacks() if x.name == name][0]
         if stack:
             group = [
                 x for x in stack.instance_groups
@@ -1644,9 +1642,9 @@ def write_cache(name, item, cache_key):
                     x for x in group.metadata if 'cdsw' in x.instance_group][0]
                 horton.cache[cache_key] = instance.__getattribute__('public_ip')
             else:
-                log.error("CDSWIP requested but not found")
+                raise ValueError("CDSWIP requested but not found")
         else:
-            log.error("CDSWIP requested but not found")
+            raise ValueError("CDSWIP requested but not found")
     else:
         # write literal value to cache
         horton.cache[cache_key] = item

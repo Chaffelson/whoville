@@ -187,6 +187,6 @@ def merge_def(args):
 
 
 def call_seq(args):
-    from whoville.mayor import step_4_build
+    from whoville.mayor import run_bundle
     def_key_to_build = args[0]
-    step_4_build(def_key_to_build)
+    run_bundle(def_key_to_build)
