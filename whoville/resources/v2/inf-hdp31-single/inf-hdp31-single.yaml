@@ -7,8 +7,8 @@ deploywait: 1800
 purge: true
 priority: 
 seq:
-- prep_deps: [hdp31-s, hdp31-s]
-- prep_spec: [hdp31-s, hdp31-s]
+- prep_deps: [inf-hdp31-single, hdp31-s]
+- prep_spec: [inf-hdp31-single, hdp31-s]
 - do_builds: [hdp31-s]
 - open_port: [tcp, 8080, 8080, '0.0.0.0/0']
 infra:
