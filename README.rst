@@ -13,7 +13,7 @@ Docker Deployment
     Everything is included if you use the provided Docker Image for development or deployment
 
 Local Deployment
-    | Required: Python3.6+
+    | Required: Python3.6
     | Recommended: A Python IDE with inspection and Github support, such as Pycharm
 
 Quickstart

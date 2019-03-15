@@ -14,6 +14,7 @@ import copy
 import base64
 import six
 from six.moves import reduce
+from time import sleep
 import os
 import ruamel.yaml
 import requests
@@ -25,8 +26,8 @@ from pexpect import pxssh
 from pexpect.exceptions import EOF
 from pexpect.pxssh import ExceptionPxssh
 
-__all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete',
-           'is_endpoint_up', 'set_endpoint', 'get_val', 'get_remote_shell',
+__all__ = ['dump', 'load', 'fs_read', 'fs_write', 'wait_to_complete', 'check_remote_success_file',
+           'is_endpoint_up', 'set_endpoint', 'get_val', 'get_remote_shell', 'execute_remote_cmd',
            'load_resources_from_files', 'load_resources_from_github', 'Horton'
            ]
 
@@ -219,39 +220,76 @@ def is_endpoint_up(endpoint_url, verify=False):
         return False
 
 
-def get_remote_shell(target_host, sshkey_file=None, user_name=None):
+def get_remote_shell(target_host, sshkey_file=None, user_name=None, wait=True):
+    log.info("Getting remote shell for target host [%s]", target_host)
     horton = Horton()
-    shell = horton._getr('shells:' + target_host)
+    log.debug("Checking cache for existing Shell session to host")
+    shell = horton.shells[target_host] if target_host in horton.shells else None
+    if shell:
+        if not shell.isalive():
+            log.debug("Cached shell is not live, recreating")
+            shell = None
+        else:
+            return shell
     if not shell:
+        log.debug("Creating new session")
         sshkey_file = sshkey_file if sshkey_file else config.profile['sshkey_file']
         user_name = user_name if user_name else 'centos'
-        try:
-            shell = pxssh.pxssh(options={"StrictHostKeyChecking": "no", "UserKnownHostsFile": "/dev/null"})
-            shell.login(target_host, user_name, ssh_key=sshkey_file, check_local_ip=False)
+        while not shell:
+            try:
+                shell = pxssh.pxssh(options={"StrictHostKeyChecking": "no", "UserKnownHostsFile": "/dev/null"})
+                shell.login(target_host, user_name, ssh_key=sshkey_file, check_local_ip=False)
+            except (ExceptionPxssh, EOF):
+                if not wait:
+                    log.info("Target host is not accepting the connection, Wait is not set, returning False...")
+                    return False
+                else:
+                    log.info("Retrying until target host accepts the connection request...")
+                    sleep(5)
             horton.shells[target_host] = shell
-        except (ExceptionPxssh, EOF):
-            log.info("Target host is not ready to accept connections")
-            return False
+            log.info("Returning Shell session...")
     return shell
 
 
-def execute_remote_cmd(target_host, cmd):
+def execute_remote_cmd(target_host, cmd, expect=None, repeat=False, bool_response=False):
+    log.info("Executing remote command [%s] on host [%s] expecting output of [%s] with wait-repeat of [%s] and "
+             "bool_response of [%s]", cmd, target_host, str(expect), str(repeat), str(bool_response))
     assert isinstance(cmd, six.string_types)
-    s = get_remote_shell(target_host)
+    assert expect is None or isinstance(expect, six.string_types)
+    assert isinstance(repeat, bool)
+    assert isinstance(bool_response, bool)
+    if bool_response and not expect:
+        raise ValueError("Must include an Expect statement with bool_response test")
+    s = get_remote_shell(target_host, wait=not bool_response)
+    if not s:
+        if bool_response:
+            log.info("Remote Shell not currently available, bool_respose is set, returning False")
+            return False
+        else:
+            raise ValueError('Remote Shell not available to host [%s]', target_host)
+    log.debug("Issuing command [%s]", cmd)
     s.sendline(cmd)
     s.prompt()
-    response = s.before.decode()  # response to string
-    response = response.split('\r\n')  # split by newlines
-    if '' in response:
-        response.remove('')  # remove blank lines
-    return response
+    if not expect:
+        log.info("Expect not set, returning command result...")
+        return s.before.decode()
+    while expect not in s.before.decode():
+        if bool_response:
+            return False
+        log.info("Expect set and string not found in response, waiting...")
+        sleep(3)
+        s.prompt()
+        if repeat:
+            log.info("Repeat set, reissuing command before checking again")
+            s.sendline(cmd)
+    log.info("Expect set and found in command response, returning response")
+    return s.before.decode()
 
 
 def check_remote_success_file(target_host, check_file='/tmp/status.success'):
-    log.info("Called is_remote_file_present with args %s", locals())
+
     response = execute_remote_cmd(target_host, 'cat ' + check_file)
-    response = response[len(response)-1]
-    if len(response) > 0 and response == 'complete':
+    if 'complete' in response:
         log.info("Found complete in .success file, ready to proceed")
         return True
     else:
@@ -473,7 +511,7 @@ class Horton:
         self.cbcred = None  # Credential for deployments, once loaded in CB
         self.cdcred = None  # Credential for deployments, once loaded in CD
         self.cad = None  # Client for Altus Director, once created
-        self.k8svm = None  # Reference for K8s environment handler, once created
+        self.k8svm = {}  # Reference for K8s environment, once created
         self.resources = {}  # all loaded resources from github/files
         self.defs = {}  # deployment definitions, once pulled from resources
         self.specs = {}  # stack specifications, once formulated

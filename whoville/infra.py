@@ -22,14 +22,11 @@ import adal
 import boto3
 from whoville import config, utils, security
 import base64
-from pexpect import pxssh 
-from pexpect.exceptions import EOF
-from pexpect.pxssh import ExceptionPxssh
 
-__all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak',
-           'deploy_instance', 'add_sec_rule_to_ec2_group',
-           'create_node', 'list_images', 'list_sizes_aws', 'list_networks',
-           'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes']
+__all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 'get_k8s_join_string',
+           'deploy_instances', 'add_sec_rule_to_ec2_group', 'get_k8svm', 'initialize_k8s_minion',
+           'create_node', 'list_images', 'list_sizes_aws', 'list_networks', 'initialize_k8s_master',
+           'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -37,7 +34,7 @@ log.setLevel(logging.INFO)
 # ADAL for Azure is verbose, reducing output
 adal.log.set_logging_options({'level': 'WARNING'})
 
-_horton = utils.Horton()
+horton = utils.Horton()
 
 
 def create_libcloud_session():
@@ -126,7 +123,7 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
     if not s_libc:
         s_libc = create_libcloud_session()
 
-    cbd_name = _horton.namespace + 'cloudbreak'
+    cbd_name = horton.namespace + 'cloudbreak'
     cbd_nodes = list_nodes(s_libc, {'name': cbd_name})
     cbd = [x for x in cbd_nodes if x.state == 'running']
     if cbd:
@@ -150,170 +147,172 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
                 log.warning("About to create a Cloudbreak Instance! waiting "
                             "[%s] seconds for abort", create_wait)
                 sleep(create_wait)
-            cbd = deploy_instance(s_libc, cbd_name, mode='cb')
+            cbd = deploy_instances(s_libc, [cbd_name], mode='cb', assign_ip=True)
             log.info("Waiting for Cloudbreak Deployment to Complete")
             utils.wait_to_complete(
                 utils.is_endpoint_up,
-                'https://' + cbd.public_ips[0],
+                'https://' + cbd[cbd_name].public_ips[0],
                 whoville_delay=30,
                 whoville_max_wait=600
             )
-            return cbd
+            return cbd[cbd_name]
 
 
 def get_k8svm(s_libc=None, create=True, purge=False, create_wait=0):
     s_libc = s_libc if s_libc else create_libcloud_session()
     # Work out instance counts and names
-    k8s_master_name = _horton.namespace + 'k8s-master'
+    k8s_master_name = horton.namespace + 'k8s-master'
+    k8s_minion_basename = horton.namespace + 'k8s-minion-'
     num_workers = config.profile['k8s_workers'] if 'k8s_workers' in config.profile else 3
     minion_names = [
-        _horton.namespace + 'k8s-minion-' + str(x) for x in range(num_workers)
+        k8s_minion_basename + str(x) for x in range(num_workers)
     ]
+    instances_to_create = []
     # check for existing instances
-    k8s_nodes = []
-    minion_filter = {}
-
     k8s_master = [
         x for x
         in list_nodes(s_libc, {'name': k8s_master_name})
         if x.state == 'running'
     ]
+    k8s_minions = [
+        x for x
+        in list_nodes(s_libc, {'name': k8s_minion_basename})
+        if x.state == 'running'
+    ]
+    # working out what to create and destroy
     if k8s_master:
-        if not purge:
-            log.info("K8S Master [%s] found, returning instance",
-                     k8s_master[0].name)
-            return k8s_master[0]
-        else:
+        log.info("Existing K8s master instance found")
+        if purge:
             log.info("K8S Master found, Purge is True, destroying Master and Minions...")
-            log.info("Destroying Master...")
-            [s_libc.destroy_node(x) for x in k8s_master]
-            log.info("Destroying Minions...")
-            for minion in minion_names:
-                minion_filter['name'] = minion
-                minion_nodes = list_nodes(s_libc, minion_filter)
-                minion_nodes = [x for x in minion_nodes if x.state == 'running']
-                [s_libc.destroy_node(x) for x in minion_nodes]
-            k8s_master = None
-    if not k8s_master:
-        # todo: refactor to create all nodes in parallel then elect master
-        log.info("K8S Master, [%s] not found", k8s_master_name)
-        if not create:
-            log.info("K8S Master not found, Create is False, returning None")
-            return None
+            [s_libc.destroy_node(x) for x in [k8s_master, k8s_minions]]
+            instances_to_create.append(k8s_master_name)
+            instances_to_create += minion_names
         else:
-            log.info("K8S Master is None, Create is True - deploying new "
-                     "K8S Cluster [%s]", k8s_master_name)
-            if create_wait:
-                log.warning("About to create a K8S Cluster! waiting "
-                            "[%s] seconds for abort", create_wait)
-                sleep(create_wait)
-            k8s_master = deploy_instance(s_libc, k8s_master_name, mode='k8svm')
-            k8s_nodes.append(k8s_master)
-            log.info("Waiting for K8S Master [%s] to be created", k8s_master_name)
+            log.info("Purge not set, adding existing K8svm Master to Horton Borgleton")
+            horton.k8svm[k8s_master_name] = k8s_master
+            if k8s_minions:
+                log.info("Purge not set, found [%d] existing minions", len(k8s_minions))
+                minions_to_create = [
+                    x for x in minion_names if x not in [y.name for y in k8s_minions]
+                ]
+                log.info("Creating [%d] additional K8s minions", len(minions_to_create))
+                instances_to_create += minions_to_create
+                for minion in k8s_minions:
+                    horton.k8svm[minion.name] = minion
+            else:
+                log.info("Creating [%d] additional K8s minions", len(minion_names))
+                instances_to_create += minion_names
+    else:
+        instances_to_create.append(k8s_master_name)
+        instances_to_create += minion_names
+    # getting on with it
+    if not instances_to_create:
+        log.info("Found K8sVM environment with enough workers, returning...")
+    else:
+        if not create:
+            raise ValueError("Instances missing from manifest but Create not set, bailing...")
+        # run create instances
+        log.info("K8sVM environment needs the following instances deployed [%s]", str(instances_to_create))
+        if create_wait > 0:
+            log.warning("About to deploy new instances! waiting [%d] seconds for abort...", create_wait)
+        instances = deploy_instances(s_libc, instances_to_create, mode='k8svm', assign_ip=False)
+        log.info("Waiting for K8s instances to be available")
+        for i in instances.keys():
+            log.info("Checking for connectivity to [%s]", i)
             utils.wait_to_complete(
-                utils.check_remote_success_file,
-                k8s_master.public_ips[0],
-                user_name,
-                ssh_key_path,
+                utils.get_remote_shell,
+                target_host=instances[i].public_ips[0],
+                wait=False,
                 whoville_delay=30,
                 whoville_max_wait=600
             )
-            
-            cluster_join_string = initialize_k8s_master(k8s_master.public_ips[0], user_name, ssh_key_path)
-            log.info("Initializing [%s] K8s Workers", str(num_workers))
-            for x in minion_names:
-                log.info("Building minion ")
-                k8s_master = deploy_instance(s_libc, x, mode='k8svm')
-                log.info("Waiting for K8S Minion [%s] to be created", x)
-                utils.wait_to_complete(
-                    utils.check_remote_success_file,
-                    k8s_master.public_ips[0],
-                    user_name,
-                    ssh_key_path,
-                    whoville_delay=30,
-                    whoville_max_wait=600
-                )
-                
-                initialize_k8s_minion(k8s_master.public_ips[0], user_name, ssh_key_path, cluster_join_string)
-                k8s_nodes.append(k8s_master)
-            
-            return k8s_nodes
+        log.info("Checking K8s instances for userdata script success")
+        for i in instances.keys():
+            log.info("Checking userdata success on [%s]", i)
+            utils.wait_to_complete(
+                utils.execute_remote_cmd,
+                target_host=instances[i].public_ips[0],
+                cmd='cat /tmp/status.success',
+                expect='complete',
+                bool_response=True,
+                whoville_delay=30,
+                whoville_max_wait=600
+            )
+        # Setup K8s on machines
+        if k8s_master_name in horton.k8svm.keys():
+            # if already in horton then K8s cluster should be created
+            horton.cache['KUBEADMJOIN'] = get_k8s_join_string(horton.k8svm[k8s_master_name].public_ips[0])
+        else:
+            # need to grab the master node we must've just deployed and init it
+            horton.cache['KUBEADMJOIN'] = initialize_k8s_master(instances[k8s_master_name].public_ips[0])
+            horton.k8svm[k8s_master_name] = instances[k8s_master_name]
+        for i in instances.keys():
+            if k8s_master_name not in instances[i].name:
+                # if not master, then add to cluster as worker
+                initialize_k8s_minion(instances[i].public_ips[0], horton.cache['KUBEADMJOIN'])
+                horton.k8svm[instances[i].name] = instances[i].name
+    log.info("K8s IaaS Cluster deployment complete")
+    return horton.k8svm
+
+
+def get_k8s_join_string(target_host):
+    log.info("Fetching new Kubeadm join string and token from K8s VM cluster")
+    r = utils.execute_remote_cmd(target_host,
+                                 'sudo kubeadm token create --print-join-command',
+                                 'kubeadm join',
+                                 False)
+    cluster_join_string = [x for x in r.split('\r\n') if 'kubeadm join' in x][0].strip()
+    return cluster_join_string
 
 
 def aws_clean_stacks(s_boto3):
     client_cf = s_boto3.client('cloudformation')
     client_as = s_boto3.client('autoscaling')
-    cf_stacks = client_cf.list_stacks()
-    as_stacks = client_as.describe_auto_scaling_groups()
-    log.info("Looking for existing stacks within namespace"
-             " [%s]", _horton.namespace)
-    for cf_stack in cf_stacks['StackSummaries']:
-        if cf_stack['StackName'].startswith(_horton.namespace):
-            log.info("Found Cloud Formation [%s], deleting to avoid "
-                     "collision with Cloudbreak cluster creation...",
-                     cf_stack['StackName'])
-            client_cf.delete_stack(StackName=cf_stack['StackName'])
-    for as_stack in as_stacks['AutoScalingGroups']:
-        if as_stack['AutoScalingGroupName'].startswith(_horton.namespace):
-            log.info("Found AutoScalingGroup [%s], deleting to clean up estate",
-                     as_stack['AutoScalingGroupName'])
-            client_as.delete_auto_scaling_group(
-                AutoScalingGroupName=as_stack['AutoScalingGroupName'],
-                ForceDelete=True
-            )
+    log.info("Lising Cloudformation Stacks in Namespace")
+    cf_stacks = [x for x in client_cf.list_stacks()['StackSummaries']
+                 if x['StackName'].startswith(horton.namespace)
+                 and x['StackStatus'] != 'DELETE_COMPLETE']
+    log.info("Listing Autoscaling groups in Namespace")
+    as_stacks = [x for x in client_as.describe_auto_scaling_groups()['AutoScalingGroups']
+                 if x['AutoScalingGroupName'].startswith(horton.namespace)]
+    for cf_stack in cf_stacks:
+        log.info("Found Cloud Formation [%s], deleting to avoid "
+                 "collision with Cloudbreak cluster creation...",
+                 cf_stack['StackName'])
+        client_cf.delete_stack(
+            StackName=cf_stack['StackName']
+        )
+    for as_stack in as_stacks:
+        log.info("Found AutoScalingGroup [%s], deleting to clean up estate",
+                 as_stack['AutoScalingGroupName'])
+        client_as.delete_auto_scaling_group(
+            AutoScalingGroupName=as_stack['AutoScalingGroupName'],
+            ForceDelete=True
+        )
     log.info("Done with AWS Stack Cleanup tasks")
 
 
-def initialize_k8s_minion(target_host, user_name, ssh_key_path, join_string):
+def initialize_k8s_minion(target_host, join_string):
     log.info("Joining K8S Minion [%s] to cluster", target_host)
-    
-    try:
-        s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
-        s.login(target_host, user_name, ssh_key=ssh_key_path, check_local_ip=False)
-        s.sendline('sudo /tmp/prepare-k8s-service.sh')
-        s.sendline("sudo " + join_string)
-        s.prompt()
-        while 'node has joined the cluster' not in s.before.decode():
-            sleep(3)
-            s.prompt()
-            
-        log.info("K8S Minion [%s] initialized", target_host)
-    except (ExceptionPxssh, EOF):
-        log.info("Could not connect to K8S Node [%s]", target_host)
-        raise ValueError("Something went wrong during node creation")
+    _ = utils.execute_remote_cmd(target_host, 'sudo /tmp/prepare-k8s-service.sh', None, False)
+    _ = utils.execute_remote_cmd(target_host, "sudo " + join_string, 'node has joined the cluster', False)
+    log.info("K8S Minion [%s] initialized", target_host)
 
 
-def initialize_k8s_master(target_host, user_name, ssh_key_path):
+def initialize_k8s_master(target_host):
     log.info("Initializing K8s Master [%s]", target_host)
-    try:
-        s = pxssh.pxssh(options={"StrictHostKeyChecking": "no"})
-        s.login(target_host, user_name, ssh_key=ssh_key_path, check_local_ip=False)
-        s.sendline('sudo /tmp/prepare-k8s-service.sh')
-        s.sendline('sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep '
-                   '-Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16')
-        s.prompt()
-        s.sendline('tail -n 2 /tmp/k8s-init.log')
-        s.prompt()
-        
-        while 'kubeadm join' not in s.before.decode():
-            sleep(3)
-            s.prompt()
-            s.sendline('tail -n 2 /tmp/k8s-init.log')
-            
-        response = s.before.decode().split('\r\n')
-        response = [x for x in response if 'kubeadm join' in x ]
-        cluster_join_string = response[0].strip()
-        s.sendline('/tmp/initialize-k8s-cluster.sh')
-        s.prompt()
-        
-        while 'kube-flannel-ds-s390x created' not in s.before.decode():
-            sleep(3)
-            s.prompt()
-        log.info("K8s Master init complete")
-        return cluster_join_string
-        
-    except (ExceptionPxssh, EOF):
-        raise ValueError("Could not connect to host, %s", target_host)
+    _ = utils.execute_remote_cmd(target_host, 'sudo /tmp/prepare-k8s-service.sh', None, False)
+    _ = utils.execute_remote_cmd(target_host,
+                                 'sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep '
+                                 '-Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16',
+                                 None,
+                                 False
+                                 )
+    r = utils.execute_remote_cmd(target_host, 'tail -n 2 /tmp/k8s-init.log', 'kubeadm join', True)
+    cluster_join_string = [x for x in r.split('\r\n') if 'kubeadm join' in x][0].strip()
+    _ = utils.execute_remote_cmd(target_host, '/tmp/initialize-k8s-cluster.sh', 'kube-flannel-ds-s390x created', False)
+    log.info("K8s Master init complete")
+    return cluster_join_string
 
 
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
@@ -453,7 +452,6 @@ def list_keypairs(session, filters=None):
 
 
 def list_nodes(session, filters=None):
-    log.info("Fetching Nodes matching filters in current session")
     nodes = session.list_nodes()
     if not filters:
         return nodes
@@ -489,24 +487,24 @@ def list_all_aws_nodes(region_list=None):
 def get_aws_network(session, create=True):
     # https://gist.github.com/nguyendv/8cfd92fc8ed32ebb78e366f44c2daea6
     log.info("Requesting VPC for Whoville")
-    networks = list_networks(session, {'name': _horton.namespace})
+    networks = list_networks(session, {'name': horton.namespace})
     if not networks:
         if create is True:
             log.info("VPC not found, creating new VPC")
             vpc = session.ex_create_network(
                 cidr_block='10.0.0.0/16',
-                name=_horton.namespace + 'whoville'
+                name=horton.namespace + 'whoville'
             )
             if not vpc:
                 raise ValueError("Could not create new VPC")
-            networks = list_networks(session, {'name': _horton.namespace})
+            networks = list_networks(session, {'name': horton.namespace})
             if not networks or networks[0].extra['state'] != 'available':
                 log.info("Waiting for new VPC to be available")
                 sleep(5)
             vpc = networks[0]
             log.info("Creating Internet Gateway for VPC")
             ig = session.ex_create_internet_gateway(
-                name=_horton.namespace + 'whoville'
+                name=horton.namespace + 'whoville'
             )
             ig_result = session.ex_attach_internet_gateway(
                 gateway=ig,
@@ -517,7 +515,7 @@ def get_aws_network(session, create=True):
             log.info("Creating Route Table for VPC")
             rt = session.ex_create_route_table(
                 network=vpc,
-                name=_horton.namespace + 'whoville'
+                name=horton.namespace + 'whoville'
             )
             if not rt:
                 raise ValueError("Could not create Route Table")
@@ -534,7 +532,7 @@ def get_aws_network(session, create=True):
             subnet = session.ex_create_subnet(
                 cidr_block='10.0.1.0/24',
                 vpc_id=vpc.id,
-                name=_horton.namespace + 'whoville',
+                name=horton.namespace + 'whoville',
                 availability_zone=zones[0].name
             )
             if not subnet:
@@ -565,7 +563,7 @@ def get_aws_network(session, create=True):
                 MapPublicIpOnLaunch={"Value": True}
             )
             log.info('Returning new VPC/Subnet')
-            return list_networks(session, {'name': _horton.namespace})[-1], subnet
+            return list_networks(session, {'name': horton.namespace})[-1], subnet
         else:
             log.info("VPC not found, Create is False, returning None/None")
             return None, None
@@ -706,7 +704,7 @@ def aws_terminate_by_tag(key_match, node_summary=None, also_terminate=False):
 
 def nuke_namespace(dry_run=True):
     provider = config.profile.get('platform')['provider']
-    namespace=_horton.namespace
+    namespace=horton.namespace
     if provider == 'GCE':
         # Cloudbreak creates vms with the - stripped from the name for some reason
         namespace = namespace.replace('-', '')
@@ -729,12 +727,12 @@ def nuke_namespace(dry_run=True):
                 log.info("Destroying Node %s", i.name)
                 if not dry_run:
                     session.destroy_node(i)
-            while [x for x in list_nodes(session, {'name': _horton.namespace})
+            while [x for x in list_nodes(session, {'name': horton.namespace})
                    if x.state != 'terminated']:
                 log.info("Waiting for nodes to be terminated (sleep10)")
                 sleep(10)
 
-    sec_groups = list_security_groups(session, {'name': _horton.namespace})
+    sec_groups = list_security_groups(session, {'name': horton.namespace})
     if not sec_groups:
         log.info("No Security Groups matching Namespace found")
     else:
@@ -827,15 +825,15 @@ def aws_define_base_machine(session):
 def aws_get_security_group(session, vpc, subnet):
     net_rules = resolve_firewall_rules()
     log.info("Fetching Security groups matching namespace")
-    sec_group = list_security_groups(session, {'name': _horton.namespace})
+    sec_group = list_security_groups(session, {'name': horton.namespace})
     if not sec_group:
         log.info("Namespace Security group not found, creating")
         _ = session.ex_create_security_group(
-            name=_horton.namespace + 'whoville',
-            description=_horton.namespace + 'whoville Security Group',
+            name=horton.namespace + 'whoville',
+            description=horton.namespace + 'whoville Security Group',
             vpc_id=vpc.id
         )
-        sec_group = list_security_groups(session, {'name': _horton.namespace})[-1]
+        sec_group = list_security_groups(session, {'name': horton.namespace})[-1]
     else:
         sec_group = sec_group[-1]
     net_rules.append(
@@ -858,8 +856,12 @@ def aws_get_security_group(session, vpc, subnet):
         }
     )
     for rule in net_rules:
-        add_sec_rule_to_ec2_group(session, rule, sec_group.id)
-    return list_security_groups(session, {'name': _horton.namespace})[-1]
+        try:
+            add_sec_rule_to_ec2_group(session, rule, sec_group.id)
+        except BaseHTTPError:
+            sleep(3)
+            add_sec_rule_to_ec2_group(session, rule, sec_group.id)
+    return list_security_groups(session, {'name': horton.namespace})[-1]
 
 
 def aws_get_ssh_key(session):
@@ -892,7 +894,7 @@ def aws_get_static_ip(session):
     return static_ip
 
 
-def define_userdata_script(static_ip, mode='cb'):
+def define_userdata_script(mode='cb', static_ip=None):
     if mode == 'cb':
         log.info("Checking for Cloudbreak Version override")
         cb_ver = config.profile.get('cloudbreak_ver')
@@ -953,47 +955,60 @@ def aws_get_hosting_infra(session):
     return vpc, subnet, sec_group, ssh_key
 
 
-def deploy_instance(session, name, mode='cb'):
+def deploy_instances(session, names, mode='cb', assign_ip=True):
+    assert isinstance(names, list)
     if session.type == 'ec2':
         log.info("Session Type is ec2, fetching AWS Hosting Infrastructure")
         vpc, subnet, sec_group, ssh_key = aws_get_hosting_infra(session)
         log.info("Determining default node configuration")
         image, root_vol, machine = aws_define_base_machine(session)
-        log.info("Checking for available Static IP")
-        static_ip = aws_get_static_ip(session)
-        log.info("Defining deployment userdata script")
-        script = define_userdata_script(static_ip, mode)
-        log.info("Creating Instance for [%s]", name)
-        instance = create_node(
-            session=session, name=name, image=image, machine=machine,
-            params={
-                'ex_security_group_ids': [sec_group.id],
-                'ex_subnet': subnet,
-                'ex_assign_public_ip': True,
-                'ex_blockdevicemappings': [root_vol],
-                'ex_keyname': ssh_key.name,
-                'ex_userdata': script
-            }
-        )
-        # Set Instance Tags
-        set_instance_tags(session, instance)
-        log.info("Instance [%s] created as [%s]", name, instance)
-        aws_assign_static_ip(session, instance, static_ip)
-        instance = list_nodes(session, {'name': name})
-        instance = [x for x in instance if x.state == 'running']
-        if instance:
-            return instance[0]
-        else:
-            raise ValueError("Failed to create new Instance [%s]", name)
+        instances = {}
+        for name in names:
+            log.info("Handling instance [%s]", name)
+            if assign_ip:
+                log.info("Checking for available Static IP")
+                static_ip = aws_get_static_ip(session)
+            else:
+                static_ip = None
+            log.info("Defining deployment userdata script")
+            script = define_userdata_script(mode, static_ip=static_ip)
+            log.info("Creating Instance for [%s]", name)
+            instance = create_node(
+                session=session, name=name, image=image, machine=machine,
+                params={
+                    'ex_security_group_ids': [sec_group.id],
+                    'ex_subnet': subnet,
+                    'ex_assign_public_ip': True,
+                    'ex_blockdevicemappings': [root_vol],
+                    'ex_keyname': ssh_key.name,
+                    'ex_userdata': script
+                }
+            )
+            # Set Instance Tags
+            set_instance_tags(session, instance)
+            log.info("Instance [%s] created as [%s]", name, instance)
+            if assign_ip:
+                aws_assign_static_ip(session, instance, static_ip)
+            instance = [x for x in list_nodes(session, {'name': name}) if x.state == 'running']
+            # The VPC is setup to always assign a public IP, but sometimes it's a bit slow
+            while not instance[0].public_ips:
+                sleep(3)
+                instance = [x for x in list_nodes(session, {'name': name}) if x.state == 'running']
+            if instance:
+                log.info("Instance [%s] deploy complete...", name)
+                instances[name] = instance[0]
+            else:
+                raise ValueError("Failed to create new Instance [%s]", name)
+        return instances
     elif session.type == 'azure_arm':
         ssh_key = config.profile['sshkey_pub']
-        resource_group = _horton.namespace + 'cloudbreak-group'
-        network_name = _horton.namespace + 'cloudbreak-network'
-        subnet_name = _horton.namespace + 'cloudbreak-subnet'
-        sec_group_name = _horton.namespace + 'cloudbreak-secgroup'
-        public_ip_name = _horton.namespace + 'cloudbreak-ip'
-        nic_name = _horton.namespace + 'cloudbreak-nic'
-        disk_account_name = _horton.namespace + 'diskaccount'
+        resource_group = horton.namespace + 'cloudbreak-group'
+        network_name = horton.namespace + 'cloudbreak-network'
+        subnet_name = horton.namespace + 'cloudbreak-subnet'
+        sec_group_name = horton.namespace + 'cloudbreak-secgroup'
+        public_ip_name = horton.namespace + 'cloudbreak-ip'
+        nic_name = horton.namespace + 'cloudbreak-nic'
+        disk_account_name = horton.namespace + 'diskaccount'
         disk_account_name = disk_account_name.replace('-', '')
         log.info("Creating Resource Group...")
         token = get_azure_token()
@@ -1257,10 +1272,10 @@ def deploy_instance(session, name, mode='cb'):
             raise ValueError("Failed to create new Cloubreak Instance")
     elif session.type == 'gce':
         region = config.profile['platform']['region']
-        name = _horton.namespace + 'cloudbreak'
-        public_ip_name = _horton.namespace + 'cloudbreak-public-ip'
-        subnet_name = _horton.namespace + 'cloudbreak-subnet'
-        firewall_name = _horton.namespace + 'cloudbreak-firewall'
+        name = horton.namespace + 'cloudbreak'
+        public_ip_name = horton.namespace + 'cloudbreak-public-ip'
+        subnet_name = horton.namespace + 'cloudbreak-subnet'
+        firewall_name = horton.namespace + 'cloudbreak-firewall'
         ssh_key = config.profile['sshkey_pub']
 
         log.info("Looking for existing network...")

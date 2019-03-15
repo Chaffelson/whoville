@@ -251,6 +251,10 @@ def print_intro():
         print("Currently Deployed Environments: " + str(
             [x.name for x in deploy.list_stacks()])
             )
+    if horton.k8svm:
+        k8s_master_name = [x for x in horton.k8svm if 'k8s-master' in x][0]
+        k8s_master_ip = horton.k8svm[k8s_master_name].public_ips[0]
+        print("\nThe K8s Cluster Master is on: " + k8s_master_ip)
     print("\nThe following Definitions are available for Deployment:")
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
@@ -288,7 +292,6 @@ def user_menu():
 
 
 def autorun(def_key):
-    # Check output of last step of staging process
     if not horton.defs:
         init_whoville_service()
     if def_key in horton.defs.keys():
@@ -301,7 +304,7 @@ def autorun(def_key):
     print_intro()
 
 
-def interfering_kangaroo():
+def interactive():
     user_mode = utils.get_val(config.profile, 'user_mode')
     log.info("Name is [%s] running user_menu", __name__)
     init_whoville_service()
@@ -386,4 +389,4 @@ def deployPackage():
 
 
 if __name__ == '__main__':
-    interfering_kangaroo()
+    interactive()
