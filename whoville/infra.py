@@ -1468,14 +1468,14 @@ def create_k8s(session, cbd_name):
 
         log.info("Creating Cloudbreak instance...")
         cbd = session.create_node(name=cbd_name, 
-                    size=machine, 
-                    image=image, 
-                    location=zone, 
-                    ex_network=network,
-                    external_ip=public_ip, 
-                    ex_metadata=metadata,
-                    ex_tags=[cbd_name]
-                )
+            size=machine,
+            image=image,
+            location=zone,
+            ex_network=network,
+            external_ip=public_ip,
+            ex_metadata=metadata,
+            ex_tags=[cbd_name]
+        )
 
         log.info("Waiting for Cloudbreak Instance to be Available...")
         session.wait_until_running(nodes=[cbd])
@@ -1766,11 +1766,18 @@ def get_aws_network(session, create=True):
                 raise ValueError("Could not create Route for Route Table")
             log.info("Creating Subnet in VPC")
             zones = session.ex_list_availability_zones()
+            if 'zone' in config.profile['platform']:
+                preferred_zone = config.profile['platform']['zone']
+                log.info("Using Availability Zone override from profile of [%s]", preferred_zone)
+            else:
+                preferred_zone = 'a'
+                log.info("Using default Availability Zone of [%s]", preferred_zone)
+
             subnet = session.ex_create_subnet(
                 cidr_block='10.0.1.0/24',
                 vpc_id=vpc.id,
                 name=_horton.namespace + 'whoville',
-                availability_zone=zones[0].name
+                availability_zone=[x for x in zones if x.name.endswith(preferred_zone)][0].name
             )
             if not subnet:
                 raise ValueError("Could not create Subnet on EC2")
