@@ -20,8 +20,8 @@ group:
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
-    machine: 16x60-16x66
-    rootvol: 100
+    machine: 8x32-16x66
+    rootvol: 150
     vols: 2x500
   worker:
     type: CORE
