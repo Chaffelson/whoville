@@ -28,7 +28,7 @@ horton = utils.Horton()
 app = Flask(__name__)
 
 
-def step_1_init_service():
+def init_whoville_service():
     init_start_ts = _dt.utcnow()
     log.info("------------- Initialising Whoville Deployment Service at [%s]",
              init_start_ts)
@@ -79,24 +79,33 @@ def step_1_init_service():
              init_finish_ts, diff_ts.seconds)
 
 
-def step_2_init_k8s(create_wait=0):
+def init_k8svm_infra(create_wait=0):
     init_start_ts = _dt.utcnow()
     log.info("------------- Getting Environment at [%s]",
              init_start_ts)
-    horton.cbd = infra.get_k8s(
+    horton.k8svm = infra.get_k8svm(
         purge=horton.global_purge,
         create_wait=create_wait
     )
 
 
-def step_2_init_infra(create_wait=0):
+def init_cbreak_infra(create=True, create_wait=0):
     init_start_ts = _dt.utcnow()
     log.info("------------- Getting Environment at [%s]",
              init_start_ts)
     horton.cbd = infra.get_cloudbreak(
         purge=horton.global_purge,
-        create_wait=create_wait
+        create_wait=create_wait,
+        create=create
     )
+    if not horton.cbd:
+        if create:
+            # Create has failed, throw error
+            raise ValueError("Cloudbreak Create requested but failed, exiting...")
+        else:
+            return None
+    else:
+        log.info("Found existing Cloudbreak in Namespace, connecting...")
     log.info("------------- Connecting to Environment")
     public_ip = horton.cbd.public_ips[0]
     cbd_url = 'https://' + public_ip + '/cb/api'
@@ -164,43 +173,53 @@ def step_2_init_infra(create_wait=0):
              init_finish_ts, diff_ts.seconds)
 
 
-def step_3_sequencing(def_key=None):
-    log.info("------------- Establishing Deployment Sequence")
-    if def_key:
-        if def_key not in horton.defs.keys():
-            raise ValueError("def_key {0} not found".format(def_key))
-        horton.seq[1] = horton._getr(
-            'defs:' + def_key + ':seq'
-        )
+def resolve_bundle_reqs(def_key):
+    log.info("Handling bundle requirements")
+    reqs = horton._getr('defs:' + def_key + ':req')
+    if not reqs:
+        log.info("Bundle requirements not explicitly set, defaulting to Cloudbreak and Director")
+        # Default to Cloudbreak / Director service
+        if not horton.cbcred:
+            log.info("Cloudbreak instance not found, deploying...")
+            init_cbreak_infra()
+        else:
+            log.info("Cloudbreak instance found for provider, continuing...")
     else:
-        for def_key in horton.defs.keys():
-            log.info("Checking Definition [%s]", def_key)
-            priority = horton._getr('defs:' + def_key + ':priority')
-            if priority is not None:
-                log.info("Registering [%s] as Priority [%s]",
-                         def_key, str(priority))
-                horton.seq[priority] = horton._getr(
-                    'defs:' + def_key + ':seq'
-                )
+        # Work through deps declaration
+        log.info("Bundle requirements found, processing...")
+        if 'k8svm' in reqs.lower():
+            log.info("Found k8s on VM requirement, processing...")
+            if not horton.k8svm:
+                log.info("K8s on VM not not found, deploying...")
+                init_k8svm_infra()
             else:
-                log.info("Priority not set for [%s], skipping...", def_key)
+                log.info("K8s on VM found for provider, continuing...")
+        if 'k8ske' in reqs.lower():
+            log.info("Found k8s on K8s Engine requirement, processing...")
+            if not horton.k8ske:
+                log.info("K8s on K8s Engine not not found, deploying...")
+                pass
+            else:
+                log.info("K8s on K8s Engine found for provider, continuing...")
+        if 'cb' in reqs.lower():
+            log.info("Found explicit Cloudbreak requirement, processing...")
+            if not horton.cbcred:
+                log.info("Cloudbreak instance not found, deploying...")
+                init_cbreak_infra()
+            else:
+                log.info("Cloudbreak instance found for provider, continuing...")
 
 
-def step_4_build(def_key=None):
+def run_bundle(def_key):
     valid_actions = [x for x in dir(actions) if not x.startswith('_')]
     steps = []
     log.info("------------- Running Build")
-    if not def_key:
-        for seq_key in sorted(horton.seq.keys()):
-            log.info("Loading steps for Sequence Priority [%s]", str(seq_key))
-            steps += horton.seq[seq_key]
-    else:
-        if def_key not in horton.defs.keys():
-            raise ValueError("def_key {0} not found".format(def_key))
-        if 'seq' not in horton.defs[def_key]:
-            raise ValueError("Definition [%s] doesn't have a default Sequence",
-                             def_key)
-        steps += horton.defs[def_key]['seq']
+    if def_key not in horton.defs.keys():
+        raise ValueError("def_key {0} not found".format(def_key))
+    if 'seq' not in horton.defs[def_key]:
+        raise ValueError("Definition [%s] doesn't have a default Sequence",
+                         def_key)
+    steps += horton.defs[def_key]['seq']
     start_ts = _dt.utcnow()
     log.info("Beginning Deployment at [%s] with step sequence: [%s]",
              start_ts, str(steps))
@@ -221,6 +240,7 @@ def step_4_build(def_key=None):
 
 
 def print_intro():
+    init_cbreak_infra(create=False)
     print('\033[1m' + "Welcome to Whoville!" + '\033[0m')
     if horton.cbd:
         cbd_public_ip = horton.cbd.public_ips[0]
@@ -231,6 +251,10 @@ def print_intro():
         print("Currently Deployed Environments: " + str(
             [x.name for x in deploy.list_stacks()])
             )
+    if horton.k8svm:
+        k8s_master_name = [x for x in horton.k8svm if 'k8s-master' in x][0]
+        k8s_master_ip = horton.k8svm[k8s_master_name].public_ips[0]
+        print("\nThe K8s Cluster Master is on: " + k8s_master_ip)
     print("\nThe following Definitions are available for Deployment:")
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
@@ -267,21 +291,12 @@ def user_menu():
             print("Sorry, that is not recognised, please try again")
 
 
-def autorun(def_key=None):
-    # Check output of last step of staging process
+def autorun(def_key):
     if not horton.defs:
-        step_1_init_service()
-    if 'k8s_mode' in config.profile:
-        if config.profile['k8s_mode'] == 'true':
-            step_2_init_k8s()
-        elif not horton.cbcred:
-            step_2_init_infra()
-    else:
-        if not horton.cbcred:
-            step_2_init_infra()
+        init_whoville_service()
     if def_key in horton.defs.keys():
-        step_3_sequencing(def_key=def_key)
-        step_4_build()
+        resolve_bundle_reqs(def_key=def_key)
+        run_bundle(def_key=def_key)
     elif 'cdh-' in def_key:
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     else:
@@ -289,20 +304,12 @@ def autorun(def_key=None):
     print_intro()
 
 
-def interfering_kangaroo():
+def interactive():
     user_mode = utils.get_val(config.profile, 'user_mode')
-    k8s_mode = utils.get_val(config.profile, 'k8s_mode')
     log.info("Name is [%s] running user_menu", __name__)
-    step_1_init_service()
-    # if not horton.cbcred and not k8s_mode:
-    #     step_2_init_infra(create_wait=5)
-    # if k8s_mode:
-    #     step_2_init_k8s(create_wait=5)
-
+    init_whoville_service()
     if str(user_mode).lower() == 'ui':
         app.run(host='0.0.0.0', debug=True, port=5000)
-    elif k8s_mode:
-        print('K8S Cluster is ready...')
     else:
         print_intro()
         user_menu()
@@ -382,4 +389,4 @@ def deployPackage():
 
 
 if __name__ == '__main__':
-    interfering_kangaroo()
+    interactive()

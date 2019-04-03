@@ -8,9 +8,9 @@ swapoff -a
 
 echo "/dev/mapper/centos-swap swap swap defaults 0 0" >> /etc/fstab
 
-yum install -y yum-utils device-mapper-persistent-data lvm2
-yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-yum install -y docker-ce
+yum install -y yum-utils device-mapper-persistent-data lvm2 epel-release
+yum-config-manager --add-repo https://download.docker.com/linux/cen tos/docker-ce.repo
+yum install -y docker-ce jq wget git epel-release
 dhclient
 
 systemctl start docker
@@ -28,8 +28,6 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
 EOF
 
 yum install -y kubelet kubeadm kubectl
-
-echo "complete" > /tmp/status.success
 
 cat <<EOF > /tmp/prepare-k8s-service.sh
 #!/bin/bash
@@ -57,7 +55,12 @@ sudo chown centos:centos ~/.kube/config
 
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 
+curl https://raw.githubusercontent.com/helm/helm/master/scripts/get | bash -s -- -v v2.10.0
+helm init
+
 EOF
 chmod 755 /tmp/initialize-k8s-cluster.sh
+
+echo "complete" > /tmp/status.success
 
 reboot

@@ -916,6 +916,7 @@ def prep_instance_groups(def_key, fullname):
             group_def = {}
         nodes = group_def['nodes'] if 'nodes' in group_def else 1
         machine = group_def['machine'] if 'machine' in group_def else None
+        log.info("Finding a machine type matching spec [%s]", machine)
         machine_range = machine.split('-')
         machine_min = machine_range[0]
         machine_max = machine_range[1]
@@ -924,36 +925,36 @@ def prep_instance_groups(def_key, fullname):
         min_mem = float(machine_min.split('x')[1])
         max_mem = float(machine_max.split('x')[1])
         sizes = recs.virtual_machines
-        machines = [
+        machines_by_size = [
             x for x in sizes
             if min_cpu <= int(x.vm_type_meta_json.properties['Cpu']) <= max_cpu
             and min_mem <= float(x.vm_type_meta_json.properties['Memory']) <= max_mem
         ]
-        if not machines:
+        if not machines_by_size:
             raise ValueError("Couldn't find a VM of the right size")
         else:
             if horton.cbcred.cloud_platform == 'AZURE':
                 machines = [
-                    x for x in machines
+                    x for x in machines_by_size
                     if ('Standard_D' in x.value or 'Standard_DS' in x.value)
                     and 'v2' in x.value
                     and 'Promo' not in x.value
                 ]
-                machine = machines[0].value
             elif horton.cbcred.cloud_platform == 'AWS':
                 machines = [
-                    x for x in machines
+                    x for x in machines_by_size
                     if 'm4.' in x.value or 'm5.' in x.value
                 ]
-                machine = machines[0].value
-            elif horton.cbcred.cloud_platform == 'GCP':
+            else:  # GCP
                 machines = [
-                    x for x in machines
+                    x for x in machines_by_size
                     if 'n' in x.value
                 ]
+            if machines:
                 machine = machines[0].value
             else:
-                machine = machines[0].value
+                log.info("Machine list does not contain expected types: %s", str(machines_by_size))
+                raise ValueError("Could not find a machine type matching demo spec for %s", group)
 
         if 'recipe' in group_def and group_def['recipe'] is not None:
             # convert to set and back again to only use unique list of recipes as duplicates may be introduced during
@@ -1628,13 +1629,11 @@ def write_cache(name, item, cache_key):
                     x for x in group.metadata if x.ambari_server is True][0]
                 horton.cache[cache_key] = instance.__getattribute__(item)
     elif item in ['shared_services']:
-        stack = [x for x in list_stacks()
-                if x.user_defined_tags['datalake'] == 'true'][0]
+        stack = [x for x in list_stacks() if x.user_defined_tags['datalake'] == 'true'][0]
         if stack:
             horton.cache[cache_key] = stack.cluster.name
     elif item in ['cdsw_ip']:
-        stack = [x for x in list_stacks()
-                 if x.name == name][0]
+        stack = [x for x in list_stacks() if x.name == name][0]
         if stack:
             group = [
                 x for x in stack.instance_groups
@@ -1644,9 +1643,9 @@ def write_cache(name, item, cache_key):
                     x for x in group.metadata if 'cdsw' in x.instance_group][0]
                 horton.cache[cache_key] = instance.__getattribute__('public_ip')
             else:
-                log.error("CDSWIP requested but not found")
+                raise ValueError("CDSWIP requested but not found")
         else:
-            log.error("CDSWIP requested but not found")
+            raise ValueError("CDSWIP requested but not found")
     else:
         # write literal value to cache
         horton.cache[cache_key] = item

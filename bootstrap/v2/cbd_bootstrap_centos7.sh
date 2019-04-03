@@ -85,6 +85,7 @@ sed -i "s/# server.ssl.key-store-password:/server.ssl.key-store-password: cloude
 sed -i "s/# lp.bootstrap.packages.cmJavaPackages[1]/lp.bootstrap.packages.cmJavaPackages[1]/" /etc/cloudera-director-server/application.properties
 sed -i "s/# lp.bootstrap.packages.cmJavaPackages[0]/lp.bootstrap.packages.cmJavaPackages[0]/" /etc/cloudera-director-server/application.properties
 sed -i "s/oracle-j2sdk1.7/oracle-j2sdk1.8/" /etc/cloudera-director-server/application.properties
+sed -i "s/# lp.normalization.required/lp.normalization.required/" /etc/cloudera-director-server/application.properties
 
 echo Starting Cloudera Director
 service cloudera-director-server start

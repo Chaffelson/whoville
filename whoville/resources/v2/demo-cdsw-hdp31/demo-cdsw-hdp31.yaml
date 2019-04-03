@@ -1,7 +1,6 @@
 desc: Two node Service including HDP-3.1 & CDSW-1.5
 deploywait: 1800
 purge: true
-priority: 
 seq:
 - copy_def: [inf-hdp31-single, hdp31-cdsw15-s]
 - merge_def: [demo-cdsw-hdp31, hdp31-cdsw15-s]
@@ -21,8 +20,8 @@ group:
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
-    machine: 16x60-16x66
-    rootvol: 100
+    machine: 8x32-16x66
+    rootvol: 150
     vols: 2x500
   worker:
     type: CORE
