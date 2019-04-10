@@ -1,0 +1,6 @@
+desc: Ozone running on K8s cluster
+req: k8svm
+priority: 
+seq:
+- upload_recipe_to_k8s: [demo-ozone-k8s,deploy-ozone.sh]
+- exec_recipe_on_k8s: [demo-ozone-k8s,deploy-ozone.sh]
