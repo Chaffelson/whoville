@@ -915,7 +915,7 @@ def define_userdata_script(mode='cb', static_ip=None):
             "#!/bin/bash",
             "cd /root",
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/k8s_bootstrap_centos7.sh)"
+            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)"
         ]
     else:
         raise ValueError("Mode [%s] not recognised", mode)

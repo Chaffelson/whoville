@@ -253,7 +253,10 @@ def print_intro():
             )
     if horton.k8svm:
         k8s_master_name = [x for x in horton.k8svm if 'k8s-master' in x][0]
-        k8s_master_ip = horton.k8svm[k8s_master_name].public_ips[0]
+        if isinstance(horton.k8svm[k8s_master_name], list):
+            k8s_master_ip = horton.k8svm[k8s_master_name][0].public_ips[0]
+        else:
+            k8s_master_ip = horton.k8svm[k8s_master_name].public_ips[0]
         print("\nThe K8s Cluster Master is on: " + k8s_master_ip)
     print("\nThe following Definitions are available for Deployment:")
     for def_key in horton.defs.keys():
