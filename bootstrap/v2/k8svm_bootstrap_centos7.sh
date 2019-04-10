@@ -9,7 +9,7 @@ swapoff -a
 echo "/dev/mapper/centos-swap swap swap defaults 0 0" >> /etc/fstab
 
 yum install -y yum-utils device-mapper-persistent-data lvm2 epel-release
-yum-config-manager --add-repo https://download.docker.com/linux/cen tos/docker-ce.repo
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 yum install -y docker-ce jq wget git epel-release
 dhclient
 
