@@ -302,14 +302,16 @@ def initialize_k8s_minion(target_host, join_string):
 def initialize_k8s_master(target_host):
     log.info("Initializing K8s Master [%s]", target_host)
     _ = utils.execute_remote_cmd(target_host, 'sudo /tmp/prepare-k8s-service.sh', None, False)
-    _ = utils.execute_remote_cmd(target_host,
-                                 'sudo kubeadm init --apiserver-advertise-address=$(ifconfig eth0|grep '
-                                 '-Po \'inet [0-9.]+\'|grep -Po \'[0-9.]+\') --pod-network-cidr=10.244.0.0/16',
+    _ = utils.execute_remote_cmd(target_host,'sudo kubeadm init --apiserver-advertise-address=$(hostname -I | awk \'{print $1}\') --pod-network-cidr=10.244.0.0/16  > /tmp/k8s-init.log',
                                  None,
                                  False
                                  )
     r = utils.execute_remote_cmd(target_host, 'tail -n 2 /tmp/k8s-init.log', 'kubeadm join', True)
-    cluster_join_string = [x for x in r.split('\r\n') if 'kubeadm join' in x][0].strip()
+    cluster_join = r.split('\n')
+    cluster_join = [x for x in cluster_join
+                    if 'kubeadm join' in x 
+                    or '--discovery-token-ca-cert-hash' in x]
+    cluster_join_string = ' '.join(cluster_join).replace('\\','').replace('\r','').strip()
     _ = utils.execute_remote_cmd(target_host, '/tmp/initialize-k8s-cluster.sh', 'kube-flannel-ds-s390x created', False)
     log.info("K8s Master init complete")
     return cluster_join_string
@@ -926,7 +928,7 @@ def define_userdata_script(mode='cb', static_ip=None):
             "#!/bin/bash",
             "cd /root",
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/k8s_bootstrap_centos7.sh)"
+            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)"
         ]
     else:
         raise ValueError("Mode [%s] not recognised", mode)
