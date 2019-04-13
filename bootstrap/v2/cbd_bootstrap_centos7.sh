@@ -15,7 +15,7 @@ export cb_ver=${cb_ver:-2.9.0-rc.63}
 export cbd_subdir=${cbd_subdir:-cbdeploy}
 export cad_subdir=${cad_subdir:-cadeploy}
 export cb_url=${cb_url:-public-repo-1.hortonworks.com/HDP/cloudbreak/cloudbreak-deployer_${cb_ver}_$(uname)_x86_64.tgz}
-export cad_url=${cad_url:-http://archive.cloudera.com/director6/6.1/redhat7/cloudera-director.repo}
+export cad_url=${cad_url:-http://archive.cloudera.com/director6/6.2/redhat7/cloudera-director.repo}
 export uaa_secret=${uaa_secret:-VerySecretIndeed!}
 export uaa_default_pw=${uaa_default_pw:-admin-password1}
 export uaa_default_email=${uaa_default_email:-admin@example.com}
@@ -86,6 +86,7 @@ sed -i "s/# lp.bootstrap.packages.cmJavaPackages[1]/lp.bootstrap.packages.cmJava
 sed -i "s/# lp.bootstrap.packages.cmJavaPackages[0]/lp.bootstrap.packages.cmJavaPackages[0]/" /etc/cloudera-director-server/application.properties
 sed -i "s/oracle-j2sdk1.7/oracle-j2sdk1.8/" /etc/cloudera-director-server/application.properties
 sed -i "s/# lp.normalization.required/lp.normalization.required/" /etc/cloudera-director-server/application.properties
+sed -i "s/# lp.bootstrap.packages/lp.bootstrap.packages/" /etc/cloudera-director-server/application.properties
 
 echo Starting Cloudera Director
 service cloudera-director-server start
