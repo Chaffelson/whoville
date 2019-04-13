@@ -253,7 +253,7 @@ def get_remote_shell(target_host, sshkey_file=None, user_name=None, wait=True):
 
 def execute_remote_cmd(target_host, cmd, expect=None, repeat=False, bool_response=False):
     log.info("Executing remote command [%s] on host [%s] expecting output of [%s] with wait-repeat of [%s] and "
-             "bool_response of [%s]", cmd, target_host, str(expect), str(repeat), str(bool_response))
+             "bool_response of [%s]", cmd[:100], target_host, str(expect), str(repeat), str(bool_response))
     assert isinstance(cmd, six.string_types)
     assert expect is None or isinstance(expect, six.string_types)
     assert isinstance(repeat, bool)
@@ -563,8 +563,7 @@ def validate_profile():
         assert config.profile['sshkey_file'].endswith('.pem')
         from Crypto.PublicKey import RSA
         pem_key = RSA.importKey(fs_read(config.profile['sshkey_file']))
-        if not config.profile['sshkey_pub']:
-            config.profile['sshkey_pub'] = pem_key.publickey().exportKey(format="OpenSSH").decode()
+        config.profile['sshkey_pub'] = pem_key.publickey().exportKey(format="OpenSSH").decode()
         config.profile['sshkey_priv'] = pem_key.exportKey().decode()
         config.profile['sshkey_name'] = os.path.basename(config.profile['sshkey_file']).split('.')[0]
     else:

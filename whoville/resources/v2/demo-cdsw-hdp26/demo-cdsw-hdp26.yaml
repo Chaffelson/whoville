@@ -19,8 +19,8 @@ infra:
     baseUrl: http://public-repo-1.hortonworks.com/ambari/centos7/2.x/updates/2.6.2.2
     gpgKeyUrl: http://public-repo-1.hortonworks.com/ambari/centos7/RPM-GPG-KEY/RPM-GPG-KEY-Jenkins
   stackrepo:
-    ver: 2.6.5.1050-37
-    url: http://public-repo-1.hortonworks.com/HDP/centos7/2.x/updates/2.6.5.1050/HDP-2.6.5.1050-37.xml
+    ver: 2.6.5.1100-59
+    url: http://s3.amazonaws.com/dev.hortonworks.com/HDP/centos7/2.x/BUILDS/2.6.5.1100-59/HDP-2.6.5.1100-59.xml
 mpack:
 - name: hdf
   desc: HDF 3.1.2

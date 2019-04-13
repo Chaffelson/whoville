@@ -108,6 +108,7 @@ def write_cache(args):
     cache_key = args[2]
     deploy.write_cache(fullname, target, cache_key)
 
+
 def upload_recipe_to_k8s(args):
     target_host_name = [x for x in _horton.k8svm if 'master' in x][0]
     if isinstance(_horton.k8svm[target_host_name], list):
@@ -115,10 +116,13 @@ def upload_recipe_to_k8s(args):
     else:
         target_host_ip = _horton.k8svm[target_host_name].public_ips[0]    
     payload = _horton.resources[args[0]][args[1]]
-    cmd = 'tee /tmp/' +  args[1] + ' <<-\'END\'\n' + payload + '\nEND'
-    utils.execute_remote_cmd(target_host_ip, cmd, expect=None, repeat=False, bool_response=False)
-    cmd = 'chmod 755 /tmp/' +  args[1]
-    utils.execute_remote_cmd(target_host_ip, cmd, expect=None, repeat=False, bool_response=False)
+    cmd = 'tee /tmp/' + args[1] + ' <<-\'END\'\n' + payload + '\nEND'
+    utils.execute_remote_cmd(target_host_ip, cmd, expect=None,
+                             repeat=False, bool_response=False)
+    cmd = 'chmod 755 /tmp/' + args[1]
+    utils.execute_remote_cmd(target_host_ip, cmd, expect=None,
+                             repeat=False, bool_response=False)
+
 
 def exec_recipe_on_k8s(args):
     target_host_name = [x for x in _horton.k8svm if 'master' in x][0]
@@ -126,8 +130,10 @@ def exec_recipe_on_k8s(args):
         target_host_ip = _horton.k8svm[target_host_name][0].public_ips[0]
     else:
         target_host_ip = _horton.k8svm[target_host_name].public_ips[0]
-    cmd = 'sudo /tmp/' +  args[1] + ' > /tmp/whoville.recipe.log 2>&1'
-    utils.execute_remote_cmd(target_host_ip, cmd, expect=None, repeat=False, bool_response=False)
+    cmd = 'sudo /tmp/' + args[1] + ' > /tmp/whoville.recipe.log 2>&1'
+    utils.execute_remote_cmd(target_host_ip, cmd, expect=None,
+                             repeat=False, bool_response=False)
+
 
 def replace_str(args):
     def_key = args[0]

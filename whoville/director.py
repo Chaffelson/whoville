@@ -27,6 +27,14 @@ log = logging.getLogger(__name__)
 horton = utils.Horton()
 
 
+csds = [
+    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFI-1.9.0.1.0.0.0-90.jar",
+    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFICA-1.9.0.1.0.0.0-90.jar",
+    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFIREGISTRY-0.3.0.1.0.0.0-90.jar"
+
+]
+
+
 def get_environment(env_name=None):
     tgt_env_name = env_name if env_name else horton.namespace + 'whoville'
     envs = list_environments()
@@ -152,7 +160,9 @@ def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
                 enable_enterprise_trial=True,
                 repository_key_url=repo_key,
                 repository=repo,
-                tls_enabled=tls_start
+                tls_enabled=tls_start,
+                csds=csds,
+                java_installation_strategy='AUTO'
             )
         )
     except ApiException as e:
@@ -263,6 +273,15 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
     services = services if services else ['HDFS', 'YARN']
+    if cdh_ver[0] == '5':
+        parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
+                   cdh_ver + '/',
+                   'http://archive.cloudera.com/CFM/parcels/1.0.0.0/']
+    elif cdh_ver[0] == '6':
+        parcels = ['https://archive.cloudera.com/cdh6/' + cdh_ver +
+                   '/parcels/']
+    else:
+        raise ValueError("Only CDH versions 5 or 6 supported")
     master_setups = {}
     master_configs = {}
     worker_setups = {}
@@ -300,16 +319,19 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
     if 'IMPALA' in services:
         master_setups['IMPALA'] = ['CATALOGSERVER', 'STATESTORE']
         worker_setups['IMPALA'] = ['IMPALAD']
+    if 'NIFI' in services:
+        worker_setups['NIFI'] = ['NIFI_NODE']
+    if 'NIFIREGISTRY' in services:
+        master_setups['NIFIREGISTRY'] = ['NIFI_REGISTRY_SERVER']
+    if 'NIFITOOLKITCA' in services:
+        master_setups['NIFITOOLKITCA'] = ['NIFI_TOOLKIT_SERVER']
+        master_configs['NIFITOOLKITCA'] = {
+            'NIFI_TOOLKIT_SERVER': {
+                'nifi.toolkit.tls.ca.server.token': security.get_secret('MASTERKEY')
+            }
+        }
     clus_name = clus_name if clus_name else \
         horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
-    if cdh_ver[0] == '5':
-        parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
-                   cdh_ver + '/']
-    elif cdh_ver[0] == '6':
-        parcels = ['https://archive.cloudera.com/cdh6/' + cdh_ver +
-                   '/parcels/']
-    else:
-        raise ValueError("Only CDH versions 5 or 6 supported")
     try:
         cd.ClustersApi(horton.cad).create(
             environment=env_name,
