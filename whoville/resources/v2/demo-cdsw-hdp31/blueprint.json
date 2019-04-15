@@ -11,7 +11,10 @@
         "properties_attributes": {},
         "properties": {
           "default.replication.factor": "2",
-          "offsets.topic.replication.factor": "2"
+          "offsets.topic.replication.factor": "2",
+          "kafka.timeline.metrics.host_in_memory_aggregation":"false",
+          "kafka.timeline.metrics.host_in_memory_aggregation_port":"61888",
+          "kafka.timeline.metrics.host_in_memory_aggregation_protocol":"http"
         }
       }
     },
@@ -58,6 +61,27 @@
           "registry.storage.type": "mysql"
         }
       }
+    },
+    {
+      "hbase-site": {
+        "properties_attributes": {},
+        "properties": {
+          "phoenix.query.timeoutMs": "60000",
+          "hbase.regionserver.wal.codec": "org.apache.hadoop.hbase.regionserver.wal.IndexedWALEditCodec",
+          "hbase.defaults.for.version.skip": "true",
+          "hbase.region.server.rpc.scheduler.factory.class": "org.apache.hadoop.hbase.ipc.PhoenixRpcSchedulerFactory",
+          "hbase.rpc.controllerfactory.class": "org.apache.hadoop.hbase.ipc.controller.ServerRpcControllerFactory",
+          "phoenix.functions.allowUserDefinedFunctions": "true"
+        }
+      }
+    },
+    {
+      "hbase-env": {
+        "properties_attributes": {},
+        "properties": {
+          "phoenix_sql_enabled": "true"
+        }
+      }
     }
   ],
   "host_groups": [
@@ -75,6 +99,9 @@
         },
         {
           "name": "RESOURCEMANAGER"
+        },
+        {
+          "name": "HBASE_MASTER"
         },
         {
           "name": "DATANODE"
@@ -144,6 +171,9 @@
         },
         {
           "name": "INFRA_SOLR"
+        },
+        {
+          "name": "HBASE_CLIENT"
         }
       ],
       "cardinality": "1"
@@ -214,6 +244,12 @@
         },
         {
           "name": "ZOOKEEPER_SERVER"
+        },
+        {
+          "name": "HBASE_REGIONSERVER"
+        },
+        {
+          "name": "HBASE_CLIENT"
         },
         {
           "name": "METRICS_MONITOR"
