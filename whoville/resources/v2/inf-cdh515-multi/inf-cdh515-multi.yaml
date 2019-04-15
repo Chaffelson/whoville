@@ -1,4 +1,4 @@
-desc: Multi node cluster with Simple CDH-6.1 install
+desc: Multi node cluster with Simple CDH-5.15 install
 orchestrator: director
 purge: false
 deploywait: 1800
