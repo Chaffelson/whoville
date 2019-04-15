@@ -191,10 +191,15 @@ spark.read.textFile("o3fs://warehouse.s3volume01/folder01").select("value").show
 ********************************************************************************************************
 DEMO SPARK ON FROM EXTERNAL SPARK OUTSIDE OF K8S <--> OZONE S3GATEWAY
 ********************************************************************************************************
+sudo yum install -y yum-utils device-mapper-persistent-data lvm2 epel-release
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install -y docker-ce jq wget git epel-release
+sudo systemctl start docker
+sudo docker create --name ozone-temp vvaks/hadoop-runner:ozone-0.4.0
+sudo docker cp ozone-temp:/opt/hadoop/share/ozone/lib /tmp/ozone-lib
+sudo -u hdfs haddop fs -chmod 777 /user
 spark-shell \
---jars hadoop/hadoop-ozone/dist/target/ozone-0.4.0-SNAPSHOT/share/ozone/lib/hadoop-ozone-filesystem-0.4.0-SNAPSHOT.jar, \
-hadoop/hadoop-ozone/dist/target/ozone-0.4.0-SNAPSHOT/share/ozone/lib/ratis-thirdparty-misc-0.2.0.jar, \
-hadoop/hadoop-ozone/dist/target/ozone-0.4.0-SNAPSHOT/share/ozone/lib/ratis-proto-0.4.0-f283ffa-SNAPSHOT.jar \
+--jars /tmp/ozone-lib/* \
 --conf spark.hadoop.fs.s3a.endpoint=$DATANODE0:30878 \
 --conf spark.hadoop.fs.s3a.access.key=volume01 \
 --conf spark.hadoop.fs.s3a.secret.key=volume01 \
@@ -204,7 +209,7 @@ hadoop/hadoop-ozone/dist/target/ozone-0.4.0-SNAPSHOT/share/ozone/lib/ratis-proto
 run the following at spark shell to simulate distributed read/write to Ozone using S3AFileSystem client
 ********************************************************************************************************
 sc.parallelize(Array(1,2,3,4,5)).saveAsTextFile("s3a://warehouse/folder02")
-spark.read.textFile("s3a://warehouse/folder01").select("value").show
+spark.read.textFile("s3a://warehouse/folder02").select("value").show
 ********************************************************************************************************
 EOF
 
