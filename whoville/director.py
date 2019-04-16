@@ -20,7 +20,7 @@ __all__ = ['list_environments', 'get_environment', 'create_environment',
            'delete_environment', 'create_deployment', 'list_deployments',
            'delete_deployment', 'get_deployment', 'get_deployment_status',
            'list_clusters', 'create_instance_template',
-           'get_instance_template',
+           'get_instance_template', 'get_cluster',
            'create_cluster', 'create_virtual_instance']
 
 log = logging.getLogger(__name__)
@@ -162,7 +162,7 @@ def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
                 repository=repo,
                 tls_enabled=tls_start,
                 csds=csds,
-                java_installation_strategy='AUTO'
+                java_installation_strategy='NONE'
             )
         )
     except ApiException as e:
@@ -247,7 +247,15 @@ def create_instance_template(tem_name, env_name=None, image_id=None,
                 'securityGroupsIds': sec_id,
                 'instanceNamePrefix': horton.namespace
             },
-            tags=config.profile['tags']
+            tags=config.profile['tags'],
+            bootstrap_scripts=[
+                cd.Script(
+                    content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
+                            '"https://archive.cloudera.com/director/redhat/7/x86_64/'
+                            'director/2.8.0/RPMS/x86_64/oracle-j2sdk1.8-1.8.0+update1'
+                            '21-1.x86_64.rpm"\nexit 0'
+                )
+            ]
         )
     )
 
@@ -275,13 +283,20 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
     services = services if services else ['HDFS', 'YARN']
     if cdh_ver[0] == '5':
         parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
-                   cdh_ver + '/',
-                   'http://archive.cloudera.com/CFM/parcels/1.0.0.0/']
+                   cdh_ver + '/']
     elif cdh_ver[0] == '6':
         parcels = ['https://archive.cloudera.com/cdh6/' + cdh_ver +
                    '/parcels/']
     else:
         raise ValueError("Only CDH versions 5 or 6 supported")
+    products = {
+        'CDH': cdh_ver
+    }
+    if 'NIFI' in str(services):
+        products['CFM'] = '1'
+        if cdh_ver[0] == '5':
+            parcels.append('http://archive.cloudera.com/CFM/parcels/1.0.0.0/')
+    services_configs = {}
     master_setups = {}
     master_configs = {}
     worker_setups = {}
@@ -325,10 +340,8 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
         master_setups['NIFIREGISTRY'] = ['NIFI_REGISTRY_SERVER']
     if 'NIFITOOLKITCA' in services:
         master_setups['NIFITOOLKITCA'] = ['NIFI_TOOLKIT_SERVER']
-        master_configs['NIFITOOLKITCA'] = {
-            'NIFI_TOOLKIT_SERVER': {
-                'nifi.toolkit.tls.ca.server.token': security.get_secret('MASTERKEY')
-            }
+        services_configs['NIFITOOLKITCA'] = {
+            'nifi.toolkit.tls.ca.server.token': security.get_secret('MASTERKEY')
         }
     clus_name = clus_name if clus_name else \
         horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
@@ -338,12 +351,10 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
             deployment=dep_name,
             cluster_template=cd.ClusterTemplate(
                 name=clus_name,
-                product_versions={
-                    'CDH': cdh_ver
-                },
+                product_versions=products,
                 parcel_repositories=parcels,
                 services=services,
-                services_configs={},
+                services_configs=services_configs,
                 virtual_instance_groups={
                     'masters': cd.VirtualInstanceGroup(
                         name='masters',
