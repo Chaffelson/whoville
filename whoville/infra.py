@@ -894,8 +894,11 @@ def aws_get_ssh_key(session):
 
 def aws_get_static_ip(session):
     try:
-        static_ips = [x for x in session.ex_describe_all_addresses()
-                      if x.instance_id is None]
+        static_ips = [
+            x for x in session.ex_describe_all_addresses()
+            if x.instance_id is None
+            and x.extra['association_id'] is None
+        ]
     except InvalidCredsError:
         static_ips = None
     if not static_ips:
