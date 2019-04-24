@@ -16,6 +16,7 @@ from libcloud.compute.providers import get_driver
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
 from libcloud.common.google import ResourceNotFoundError
+import libcloud.security
 from botocore.exceptions import ClientError
 from azure.common.credentials import ServicePrincipalCredentials
 import adal
@@ -26,7 +27,8 @@ import base64
 __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 'get_k8s_join_string',
            'deploy_instances', 'add_sec_rule_to_ec2_group', 'get_k8svm', 'initialize_k8s_minion',
            'create_node', 'list_images', 'list_sizes_aws', 'list_networks', 'initialize_k8s_master',
-           'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace']
+           'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace',
+           'aws_get_static_ip']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -57,6 +59,24 @@ def create_libcloud_session():
         return cls(params['serviceaccount'],
                    params['apikeypath'],
                    project=params['project'])
+    elif provider == 'OPENSTACK':
+        # As this is accessible ONLY over VPN, I feel less concerned about MITM attacks
+        # TODO: Get Proper certs for Openstack
+        # https://buildmedia.readthedocs.org/media/pdf/libcloud/v2.4.0/libcloud.pdf
+        # search 'libcloud.security
+        libcloud.security.VERIFY_SSL_CERT = params['verify_ssl']
+        if params['cacert_path'] and params['verify_ssl'] is True:
+            libcloud.security.CA_CERTS_PATH = params['cacert_path']
+        # This works for Openstack keystone v3
+        return cls(
+            params['username'],
+            params['password'],
+            ex_tenant_name=params['project'],
+            ex_force_auth_url=params['auth_url'],
+            ex_force_auth_version=params['auth_mode']
+        )
+    else:
+        raise ValueError("Provider %s not Supported", provider)
 
 
 def create_libcloud_storge_session():
@@ -894,8 +914,11 @@ def aws_get_ssh_key(session):
 
 def aws_get_static_ip(session):
     try:
-        static_ips = [x for x in session.ex_describe_all_addresses()
-                      if x.instance_id is None]
+        static_ips = [
+            x for x in session.ex_describe_all_addresses()
+            if x.instance_id is None
+            and x.extra['association_id'] is None
+        ]
     except InvalidCredsError:
         static_ips = None
     if not static_ips:
@@ -942,13 +965,17 @@ def aws_assign_static_ip(session, node, static_ip):
             node,
             static_ip
         )
-    except BaseHTTPError as e:
+    except (BaseHTTPError, InvalidCredsError) as e:
         if 'InvalidParameterCombination' in e.message:
             session.ex_associate_address_with_node(
                 node,
                 static_ip,
                 domain='vpc'  # needed for legacy AWS accounts
             )
+        elif 'AuthFailure: You do not have permission' in e.message:
+            raise EnvironmentError("Unable to Assign Static IP to Instance, you "
+                                   "may be missing permissions or reached the "
+                                   "Limit of your Static IP Allocation")
         else:
             raise e
 
@@ -970,6 +997,9 @@ def aws_get_hosting_infra(session):
 
 def deploy_instances(session, names, mode='cb', assign_ip=True):
     assert isinstance(names, list)
+    if session.type == 'openstack':
+        log.info("Session Type is Openstack, fetching Infrastructure information")
+
     if session.type == 'ec2':
         log.info("Session Type is ec2, fetching AWS Hosting Infrastructure")
         vpc, subnet, sec_group, ssh_key = aws_get_hosting_infra(session)

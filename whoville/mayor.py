@@ -201,8 +201,8 @@ def resolve_bundle_reqs(def_key):
                 pass
             else:
                 log.info("K8s on K8s Engine found for provider, continuing...")
-        if 'cb' in reqs.lower():
-            log.info("Found explicit Cloudbreak requirement, processing...")
+        if 'cb' in reqs.lower() or 'ad' in reqs.lower():
+            log.info("Found explicit Cloudbreak/Director requirement, processing...")
             if not horton.cbcred:
                 log.info("Cloudbreak instance not found, deploying...")
                 init_cbreak_infra()
