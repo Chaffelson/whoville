@@ -107,7 +107,10 @@ def init_cbreak_infra(create=True, create_wait=0):
     else:
         log.info("Found existing Cloudbreak in Namespace, connecting...")
     log.info("------------- Connecting to Environment")
-    public_ip = horton.cbd.public_ips[0]
+    if horton.cbd.public_ips:
+        public_ip = horton.cbd.public_ips[0]
+    else:
+        public_ip = horton.cbd.name + config.profile['platform']['domain']
     cbd_url = 'https://' + public_ip + '/cb/api'
     cad_url = 'https://' + public_ip + ':7189'
     log.info("Setting Cloudbreak endpoint to %s", cbd_url)

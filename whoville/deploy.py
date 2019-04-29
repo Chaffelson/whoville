@@ -74,7 +74,21 @@ def create_credential(from_profile=False, platform='EC2', name=None,
                       params=None, **kwargs):
     if from_profile:
         platform = config.profile.get('platform')
-        if platform['provider'] == 'EC2':
+        if platform['provider'] == 'OPENSTACK':
+            service = platform['provider']
+            sub_params = {
+                "endpoint": platform['auth_url'] + "/v3",
+                "facing": "internal",
+                "keystoneAuthScope": "cb-keystone-v3-project-scope",
+                "selector": "cb-keystone-v3-project-scope",
+                "keystoneVersion": "cb-keystone-v3",
+                "password": platform['password'],
+                "userDomain": "Default",
+                "userName": platform['username'],
+                "projectDomainName": "Default",
+                "projectName": platform['project'].upper()
+            }
+        elif platform['provider'] == 'EC2':
             service = 'AWS'
             if 'credarn' in platform:
                 sub_params = {

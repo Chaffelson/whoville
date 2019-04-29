@@ -28,7 +28,8 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 
            'deploy_instances', 'add_sec_rule_to_ec2_group', 'get_k8svm', 'initialize_k8s_minion',
            'create_node', 'list_images', 'list_sizes_aws', 'list_networks', 'initialize_k8s_master',
            'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace',
-           'aws_get_static_ip']
+           'aws_get_static_ip', 'resolve_firewall_rules', 'ops_get_security_group', 'ops_get_ssh_key',
+           'list_sizes_ops', 'ops_get_hosting_infra', 'ops_define_base_machine', 'define_userdata_script']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -65,7 +66,7 @@ def create_libcloud_session():
         # https://buildmedia.readthedocs.org/media/pdf/libcloud/v2.4.0/libcloud.pdf
         # search 'libcloud.security
         libcloud.security.VERIFY_SSL_CERT = params['verify_ssl']
-        if params['cacert_path'] and params['verify_ssl'] is True:
+        if params['verify_ssl'] is True and 'cacert_path' in params and params['cacert_path']:
             libcloud.security.CA_CERTS_PATH = params['cacert_path']
         # This works for Openstack keystone v3
         return cls(
@@ -169,9 +170,13 @@ def get_cloudbreak(s_libc=None, create=True, purge=False, create_wait=0):
                 sleep(create_wait)
             cbd = deploy_instances(s_libc, [cbd_name], mode='cb', assign_ip=True)
             log.info("Waiting for Cloudbreak Deployment to Complete")
+            if s_libc.type == 'openstack':
+                cbd_fqdn = cbd[cbd_name].name + config.profile['platform']['domain']
+            else:
+                cbd_fqdn = cbd[cbd_name].public_ips[0]
             utils.wait_to_complete(
                 utils.is_endpoint_up,
-                'https://' + cbd[cbd_name].public_ips[0],
+                'https://' + cbd_fqdn,
                 whoville_delay=30,
                 whoville_max_wait=600
             )
@@ -337,6 +342,26 @@ def initialize_k8s_master(target_host):
     return cluster_join_string
 
 
+def add_sec_rule_to_ops_group(session, rule, sec_group):
+    log.info("Attempting to create rule with [%s]", str(rule))
+    # Openstack doesn't support 'any' when passed via the API client apparently
+    protocol = rule['protocol'] if rule['protocol'] != -1 else 'tcp'
+    for cidr in rule['cidr_ips']:
+        try:
+            session.ex_create_security_group_rule(
+                security_group=sec_group,
+                ip_protocol=protocol,
+                from_port=rule['from_port'],
+                to_port=rule['to_port'],
+                cidr=cidr
+            )
+        except BaseHTTPError as e:
+            if 'This rule already exists' in e.message:
+                pass
+            else:
+                raise e
+
+
 def add_sec_rule_to_ec2_group(session, rule, sec_group_id):
     try:
         session.ex_authorize_security_group_ingress(
@@ -377,7 +402,14 @@ def create_node(session, name, image, machine, params=None):
     }
     node = session.create_node(**obj)
     log.info("Waiting for node to be Available...")
-    session.wait_until_running(nodes=[node])
+    if session.type == 'openstack':
+        # Private OpenStack uses Private IPs, not public
+        session.wait_until_running(
+            nodes=[node],
+            ssh_interface='private_ips'
+        )
+    else:
+        session.wait_until_running(nodes=[node])
     return node
 
 
@@ -395,6 +427,16 @@ def list_sizes_aws(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
         and disk_min <= x.disk <= disk_max
     ]
     return machines
+
+
+def list_sizes_ops(session, cpu_min=2, cpu_max=16, mem_min=4096,
+                   mem_max=32768):
+    sizes = session.list_sizes()
+    return [
+        x for x in sizes
+        if mem_min <= x.ram <= mem_max
+        and cpu_min <= x.vcpus <= cpu_max
+    ]
 
 
 def list_sizes_azure(session, cpu_min=2, cpu_max=16, mem_min=4096,
@@ -449,6 +491,8 @@ def list_security_groups(session, filters=None):
     provider = config.profile.get('platform')['provider']
     if provider == 'GCE':
         sec_groups = session.ex_list_firewalls()
+    elif provider == 'OPENSTACK':
+        sec_groups = session.ex_list_security_groups()
     else:
         sec_groups = session.ex_get_security_groups()
     if not filters:
@@ -770,6 +814,8 @@ def nuke_namespace(dry_run=True):
                     log.info("Destroying firewall %s", i.name)
                     if not dry_run:
                         session.ex_destroy_firewall(i)
+                if provider == 'OPENSTACK':
+                    session.ex_delete_security_group(i)
                 else:
                     log.info("Destroying Security Group %s", i.name)
                     if not dry_run:
@@ -777,9 +823,7 @@ def nuke_namespace(dry_run=True):
         else:
             for i in sec_groups:
                 log.info("Dry Run: Would be destoying security group %s", i.name)
-    if provider == 'GCE':
-        pass
-    else:
+    if provider == 'AWS':
         if not dry_run:
             aws_clean_stacks(create_boto3_session())
         else:
@@ -807,12 +851,35 @@ def resolve_firewall_rules():
                 {
                     'protocol': -1,
                     'cidr_ips': [whitelist_cidr],
-                    'from_port': 0,
-                    'to_port': 0,
+                    'from_port': 1,
+                    'to_port': 65535,
                     'description': 'fromProfileWhitelist'
                 }
             )
     return net_rules
+
+
+def ops_define_base_machine(session):
+    log.info("Finding Machine Image")
+    # OpenStack's list images call doesn't support filters
+    images = [
+        x for x in session.list_images()
+        if 'CentOS 7.' in x.name
+    ]
+    image = sorted(images, key=lambda k: k.extra['created'])
+    if not image:
+        raise ValueError("Couldn't find a valid Centos7 Image")
+    else:
+        image = image[-1]
+    # No Disk specification available?
+    machines = list_sizes_ops(
+        session, cpu_min=8, cpu_max=8, mem_min=15000, mem_max=20000
+    )
+    if not machines:
+        raise ValueError("Couldn't find a VM of the right size")
+    else:
+        machine = machines[-1]
+    return image, machine
 
 
 def aws_define_base_machine(session):
@@ -855,7 +922,40 @@ def aws_define_base_machine(session):
         return image, root_vol, machine
 
 
+def ops_get_security_group(session):
+    # OpenStack default is a flat network, do not need complex firewall setup
+    # log.info("Resolving Firewall Rules")
+    # net_rules = resolve_firewall_rules()
+    log.info("Fetching Security groups matching namespace")
+    sec_group = list_security_groups(session, {'name': horton.namespace})
+    if not sec_group:
+        log.info("Namespace Security group not found, creating")
+        _ = session.ex_create_security_group(
+            name=horton.namespace + 'whoville',
+            description=horton.namespace + 'whoville Security Group'
+        )
+        sec_group = list_security_groups(session, {'name': horton.namespace})[-1]
+    else:
+        sec_group = sec_group[-1]
+        log.info("Found existing Security Group %s", sec_group.name)
+        log.info("Ensuring Security Group has required Network Rules")
+    # Blanket inbound rule as environment is isolated
+    net_rules = [
+        {
+            'protocol': 'tcp',
+            'cidr_ips': ['0.0.0.0/0'],
+            'from_port': 1,
+            'to_port': 65535
+        }
+    ]
+    for rule in net_rules:
+        add_sec_rule_to_ops_group(session, rule, sec_group)
+    log.info("Security Group preparation complete, returning to main program")
+    return list_security_groups(session, {'name': horton.namespace})[-1]
+
+
 def aws_get_security_group(session, vpc, subnet):
+    log.info("Resolving Firewall Rules")
     net_rules = resolve_firewall_rules()
     log.info("Fetching Security groups matching namespace")
     sec_group = list_security_groups(session, {'name': horton.namespace})
@@ -897,6 +997,22 @@ def aws_get_security_group(session, vpc, subnet):
     return list_security_groups(session, {'name': horton.namespace})[-1]
 
 
+def ops_get_ssh_key(session):
+    ssh_key = [
+        x for x in session.ex_list_keypairs()
+        if config.profile['sshkey_name'] in x.name
+    ]
+    if not ssh_key:
+        ssh_key = session.ex_import_key_pair_from_string(
+            name=config.profile['sshkey_name'],
+            key_material=config.profile['sshkey_pub']
+        )
+    else:
+        ssh_key = [x for x in ssh_key
+                   if x.name == config.profile['sshkey_name']][0]
+    return ssh_key
+
+
 def aws_get_ssh_key(session):
     ssh_key = list_keypairs(
         session, {'name': config.profile['sshkey_name']}
@@ -935,6 +1051,8 @@ def define_userdata_script(mode='cb', static_ip=None):
         log.info("Checking for Cloudbreak Version override")
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else config.cb_ver
+        # this allows direct passthrough if not an IP from EC2-like setups
+        fqdn = static_ip.ip if 'ip' in static_ip else static_ip + config.profile['platform']['domain']
         script_lines = [
             "#!/bin/bash",
             "cd /root",
@@ -942,7 +1060,7 @@ def define_userdata_script(mode='cb', static_ip=None):
             "export uaa_secret=" + security.get_secret('MASTERKEY'),
             "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
             "export uaa_default_email=" + config.profile['email'],
-            "export public_ip=" + static_ip.ip,
+            "export public_ip=" + fqdn,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
             "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
         ]
@@ -995,12 +1113,62 @@ def aws_get_hosting_infra(session):
     return vpc, subnet, sec_group, ssh_key
 
 
+def ops_get_network(session):
+    network = [
+        x for x in session.ex_list_networks()
+        if 'PROVIDER' in x.name
+    ]
+    if network:
+        return network[0]
+    else:
+        raise EnvironmentError("'PROVIDER' network not found in OpenStack")
+
+
+def ops_get_hosting_infra(session):
+    log.info("Fetching OpenStack Network")
+    network = ops_get_network(session)
+    log.info("Fetching OpenStack Security Group")
+    sec_group = ops_get_security_group(session)
+    log.info("Checking for expected SSH Keypair")
+    ssh_key = ops_get_ssh_key(session)
+    return network, sec_group, ssh_key
+
+
 def deploy_instances(session, names, mode='cb', assign_ip=True):
     assert isinstance(names, list)
     if session.type == 'openstack':
         log.info("Session Type is Openstack, fetching Infrastructure information")
-
-    if session.type == 'ec2':
+        network, sec_group, ssh_key = ops_get_hosting_infra(session)
+        log.info("Determining default node configuration")
+        image, machine = ops_define_base_machine(session)
+        instances = {}
+        for name in names:
+            log.info("Handling instance [%s]", name)
+            # We're not doing static IPs on OpenStack
+            # We're using dynamic DNS ! woo
+            log.info("Defining deployment userdata script")
+            script = define_userdata_script(mode, static_ip=name)
+            log.info("Creating Instance for [%s]", name)
+            instance = create_node(
+                session=session, name=name, image=image, machine=machine,
+                params={
+                    'ex_security_groups': [sec_group],
+                    'ex_keyname': ssh_key.name,
+                    'ex_userdata': script,
+                    'networks': [network],
+                    'ex_admin_pass': security.get_secret('ADMINPASSWORD'),
+                    'ex_availability_zone': session._ex_tenant_name.upper()
+                }
+            )
+            log.info("Instance [%s] created as [%s]", name, instance)
+            instance = [x for x in list_nodes(session, {'name': name}) if x.state == 'running']
+            if instance:
+                log.info("Instance [%s] deploy complete...", name)
+                instances[name] = instance[0]
+            else:
+                raise ValueError("Failed to create new Instance [%s]", name)
+        return instances
+    elif session.type == 'ec2':
         log.info("Session Type is ec2, fetching AWS Hosting Infrastructure")
         vpc, subnet, sec_group, ssh_key = aws_get_hosting_infra(session)
         log.info("Determining default node configuration")
