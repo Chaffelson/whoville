@@ -1,4 +1,4 @@
-desc: Two node Service including HDP-3.1 & CDSW-1.5
+desc: HDP-3.1, NiFi, & CDSW-1.5 cluster with 2m5w
 deploywait: 1800
 purge: true
 seq:
