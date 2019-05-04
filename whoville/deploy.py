@@ -1038,11 +1038,11 @@ def prep_stack_specs(def_key, name=None):
             tags['deployer'] = horton.cbcred.name
         if 'startdate' not in tags or tags['startdate'] is None:
             tags['startdate'] = str(datetime.now().strftime("%d%b%Y").lower())
-        if 'end_date' not in tags or tags['end_date'] is None:
-            tags['end_date'] = str(
-                (datetime.now() + timedelta(days=2)).strftime("%d%m%Y").lower())
+        if 'enddate' not in tags or tags['enddate'] is None:
+            tags['enddate'] = str(
+                (datetime.now() + timedelta(days=2)).strftime("%m%d%Y").lower())
         if 'project' not in tags or tags['project'] is None:
-            tags['project'] = 'self development'
+            tags['project'] = 'selfdevelopment'
         if 'deploytool' not in tags or tags['deploytool'] is None:
             tags['deploytool'] = 'whoville' + proj_ver
         tags['dps'] = 'false'
