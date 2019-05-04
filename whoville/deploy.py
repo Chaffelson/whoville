@@ -1054,9 +1054,9 @@ def prep_stack_specs(def_key, name=None):
             tags['startdate'] = str(datetime.now().strftime("%d%b%Y").lower())
         if 'enddate' not in tags or tags['enddate'] is None:
             tags['enddate'] = str(
-                (datetime.now() + timedelta(days=2)).strftime("%d%b%Y").lower())
-        if 'service' not in tags or tags['service'] is None:
-            tags['service'] = 'ephemeralhortonworkscluster'
+                (datetime.now() + timedelta(days=2)).strftime("%m%d%Y").lower())
+        if 'project' not in tags or tags['project'] is None:
+            tags['project'] = 'selfdevelopment'
         if 'deploytool' not in tags or tags['deploytool'] is None:
             tags['deploytool'] = 'whoville' + proj_ver
         tags['dps'] = 'false'
