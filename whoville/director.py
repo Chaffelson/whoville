@@ -30,7 +30,8 @@ horton = utils.Horton()
 csds = [
     "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFI-1.9.0.1.0.0.0-90.jar",
     "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFICA-1.9.0.1.0.0.0-90.jar",
-    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFIREGISTRY-0.3.0.1.0.0.0-90.jar"
+    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFIREGISTRY-0.3.0.1.0.0.0-90.jar",
+    "https://archive.cloudera.com/CSP/csd/1.0.0.0/SCHEMAREGISTRY-0.7.0.jar"
 
 ]
 
@@ -296,6 +297,13 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
         products['CFM'] = '1'
         if cdh_ver[0] == '5':
             parcels.append('http://archive.cloudera.com/CFM/parcels/1.0.0.0/')
+    if 'KAFKA' in str(services):
+        products['KAFKA'] = '4'
+        if cdh_ver[0] == '5':
+            parcels.append('http://archive.cloudera.com/kafka/parcels/4.0.0.1/')
+    if 'SCHEMAREGISTRY' in str(services):
+        products['SCHEMAREGISTRY'] = '0.7'
+        parcels.append('https://archive.cloudera.com/CSP/parcels/1.0.0.0/')
     services_configs = {}
     master_setups = {}
     master_configs = {}
@@ -343,6 +351,10 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
         services_configs['NIFITOOLKITCA'] = {
             'nifi.toolkit.tls.ca.server.token': security.get_secret('MASTERKEY')
         }
+    if 'KAFKA' in services:
+        worker_setups['KAFKA'] = ['KAFKA_BROKER']
+    if 'SCHEMAREGISTRY' in services:
+        master_setups['SCHEMAREGISTRY'] = ['SCHEMA_REGISTRY_SERVER']
     clus_name = clus_name if clus_name else \
         horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
     try:

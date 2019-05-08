@@ -29,8 +29,8 @@ group:
     nodes: 3
 mpack:
 - name: hdf
-  desc: HDF 3.3.1
-  url: http://s3.amazonaws.com/dev.hortonworks.com/HDF/centos7/3.x/BUILDS/3.3.1.0-10/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.1.0-10.tar.gz
+  desc: HDF 3.4.1.1
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.4.1.1/tars/hdf_ambari_mp/hdf-ambari-mpack-3.4.1.1-4.tar.gz
   purge_on_install: false
 - name: hdp-search
   desc: HDP Search 4.0.0

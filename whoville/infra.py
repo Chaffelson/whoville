@@ -1051,8 +1051,14 @@ def define_userdata_script(mode='cb', static_ip=None):
         log.info("Checking for Cloudbreak Version override")
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else config.cb_ver
+        log.info("Checking for FQDN to use in userdata script")
         # this allows direct passthrough if not an IP from EC2-like setups
-        fqdn = static_ip.ip if 'ip' in static_ip else static_ip + config.profile['platform']['domain']
+        if 'ElasticIP' in str(type(static_ip)):
+            fqdn = static_ip.ip
+        elif 'domain' in config.profile['platform']:
+            fqdn = static_ip + config.profile['platform']['domain']
+        else:
+            raise ValueError("Static IP or FQDN domain must be available to proceed")
         script_lines = [
             "#!/bin/bash",
             "cd /root",

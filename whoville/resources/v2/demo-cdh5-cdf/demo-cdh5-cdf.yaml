@@ -1,0 +1,10 @@
+desc: Multi node cluster with Simple CDH-5 install with CDF parcel components
+orchestrator: director
+purge: false
+deploywait: 1800
+seq:
+- prep_spec: [demo-cdh5-cdf, cdh5-cdf]
+- do_builds: [cdh5-cdf]
+services: [HDFS, YARN, IMPALA, KUDU, HBASE, HIVE, ZOOKEEPER, NIFI, NIFITOOLKITCA, NIFIREGISTRY, KAFKA, SCHEMAREGISTRY]
+version: 5.16
+tls_start: True

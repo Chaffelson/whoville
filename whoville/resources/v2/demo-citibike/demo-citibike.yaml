@@ -29,7 +29,7 @@ group:
     recipe: [post-cluster-configs]
     machine: 14x60-18x68
 mpack:
-- name: hdf330
-  desc: HDF 3.3.0
-  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.3.0.0/tars/hdf_ambari_mp/hdf-ambari-mpack-3.3.0.0-165.tar.gz
+- name: hdf
+  desc: HDF 3.4.1.1
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.4.1.1/tars/hdf_ambari_mp/hdf-ambari-mpack-3.4.1.1-4.tar.gz
   purge_on_install: false
