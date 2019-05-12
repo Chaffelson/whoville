@@ -1048,8 +1048,8 @@ def prep_stack_specs(def_key, name=None):
     
     tags = config.profile.get('tags')
     if tags is not None:
-        if 'deployer' not in tags or tags['deployer'] is None:
-            tags['deployer'] = horton.cbcred.name
+        if 'owner' not in tags or tags['owner'] is None:
+            tags['owner'] = horton.cbcred.name
         if 'startdate' not in tags or tags['startdate'] is None:
             tags['startdate'] = str(datetime.now().strftime("%d%b%Y").lower())
         if 'enddate' not in tags or tags['enddate'] is None:

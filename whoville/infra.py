@@ -823,7 +823,7 @@ def nuke_namespace(dry_run=True):
         else:
             for i in sec_groups:
                 log.info("Dry Run: Would be destoying security group %s", i.name)
-    if provider == 'AWS':
+    if provider == 'EC2':
         if not dry_run:
             aws_clean_stacks(create_boto3_session())
         else:
@@ -831,7 +831,12 @@ def nuke_namespace(dry_run=True):
 
 
 def resolve_firewall_rules():
-    my_public_ip = requests.get('https://ipv4.icanhazip.com').text.rstrip()
+    log.info("Checking local public IP")
+    try:
+        my_public_ip = requests.get('https://ipv4.icanhazip.com', timeout=3).text.rstrip()
+    except:
+        my_public_ip = requests.get('https://ifconfig.me/ip', timeout=3).text.rstrip()
+    log.info("Local Public IP is %s, using for Firewall rules", my_public_ip)
     # Defaults
     net_rules = config.default_net_rules
     # Add deployment user
