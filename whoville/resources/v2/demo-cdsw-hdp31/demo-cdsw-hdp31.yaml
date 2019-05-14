@@ -14,9 +14,13 @@ input:
   yarn.vcores: 20
   yarn.capacity: 60000
 recipe:
+- name: install-dependency-packages.sh
+  typ: PRE_AMBARI_START
 - name: cdsw-postcluster.sh
   typ: POST_CLUSTER_INSTALL
 group:
+  master1:
+    recipe: [install-dependency-packages]
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
@@ -24,6 +28,7 @@ group:
     rootvol: 150
     vols: 2x500
   worker:
+    recipe: [install-dependency-packages]
     type: CORE
     machine: 4x28-8x32
     nodes: 3
