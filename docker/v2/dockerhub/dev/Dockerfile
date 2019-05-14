@@ -33,7 +33,7 @@ RUN apk update && apk upgrade \
     && cd /whoville \
     && pip install --no-cache --no-use-pep517 -r requirements.txt \
     && apk del .build-deps \
-    && apk add --no-cache bash \
+    && apk add --no-cache bash openssh \
     && touch /profile.yml 
     
 

@@ -15,6 +15,7 @@ import base64
 import six
 from six.moves import reduce
 from time import sleep
+from datetime import datetime, timedelta
 import os
 import ruamel.yaml
 import requests
@@ -547,6 +548,7 @@ class Horton:
 def validate_profile():
     log.info("Validating provided profile.yml")
     horton = Horton()
+    # TODO: Check VPN if OpenStack
     # Check Profile is imported
     if not config.profile:
         raise ValueError("whoville Config Profile is not populated with"
@@ -586,9 +588,9 @@ def validate_profile():
                          "number, may also contain -")
     # Check Provider
     provider = config.profile.get('platform')['provider']
-    assert provider in ['EC2', 'AZURE_ARM', 'GCE']
+    assert provider in ['EC2', 'AZURE_ARM', 'GCE', 'OPENSTACK']
     # TODO: Read in the profile template, check it has all matching keys
-    # Check Profile Namespace is validate
+    # Check Profile Namespace is valid
     ns_test = re.compile(r'[a-z0-9-]')
     if not bool(ns_test.match(horton.namespace)):
         raise ValueError("Namespace must only contain 0-9 a-z -")
@@ -604,3 +606,27 @@ def validate_profile():
             raise ValueError("Platform Provider not supported")
         if not bool(bucket_test.match(config.profile['bucket'])):
             raise ValueError("Bucket name doesn't match Platform spec")
+
+
+def resolve_tags(instance_name, owner):
+    tags = config.profile.get('tags')
+    if tags is not None:
+        if 'owner' not in tags or tags['owner'] is None:
+            tags['owner'] = owner
+        if 'startdate' not in tags or tags['startdate'] is None:
+            tags['startdate'] = str(datetime.now().strftime("%m%d%Y").lower())
+        if 'enddate' not in tags or tags['enddate'] is None:
+            tags['enddate'] = str(
+                (datetime.now() + timedelta(days=2)).strftime("%m%d%Y").lower())
+        if 'project' not in tags or tags['project'] is None:
+            tags['project'] = 'selfdevelopment'
+        tags['dps'] = 'false'
+        tags['datalake'] = 'false'
+    else:
+        tags = {'datalake': 'false', 'dps': 'false'}
+
+    if 'dps' in instance_name:
+        tags['dps'] = 'true'
+    if 'datalake' in instance_name:
+        tags['datalake'] = 'true'
+    return tags

@@ -107,7 +107,10 @@ def init_cbreak_infra(create=True, create_wait=0):
     else:
         log.info("Found existing Cloudbreak in Namespace, connecting...")
     log.info("------------- Connecting to Environment")
-    public_ip = horton.cbd.public_ips[0]
+    if horton.cbd.public_ips:
+        public_ip = horton.cbd.public_ips[0]
+    else:
+        public_ip = horton.cbd.name + config.profile['platform']['domain']
     cbd_url = 'https://' + public_ip + '/cb/api'
     cad_url = 'https://' + public_ip + ':7189'
     log.info("Setting Cloudbreak endpoint to %s", cbd_url)
@@ -201,8 +204,8 @@ def resolve_bundle_reqs(def_key):
                 pass
             else:
                 log.info("K8s on K8s Engine found for provider, continuing...")
-        if 'cb' in reqs.lower():
-            log.info("Found explicit Cloudbreak requirement, processing...")
+        if 'cb' in reqs.lower() or 'ad' in reqs.lower():
+            log.info("Found explicit Cloudbreak/Director requirement, processing...")
             if not horton.cbcred:
                 log.info("Cloudbreak instance not found, deploying...")
                 init_cbreak_infra()
