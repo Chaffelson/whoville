@@ -15,6 +15,7 @@ import base64
 import six
 from six.moves import reduce
 from time import sleep
+from datetime import datetime, timedelta
 import os
 import ruamel.yaml
 import requests
@@ -605,3 +606,27 @@ def validate_profile():
             raise ValueError("Platform Provider not supported")
         if not bool(bucket_test.match(config.profile['bucket'])):
             raise ValueError("Bucket name doesn't match Platform spec")
+
+
+def resolve_tags(instance_name, owner):
+    tags = config.profile.get('tags')
+    if tags is not None:
+        if 'owner' not in tags or tags['owner'] is None:
+            tags['owner'] = owner
+        if 'startdate' not in tags or tags['startdate'] is None:
+            tags['startdate'] = str(datetime.now().strftime("%m%d%Y").lower())
+        if 'enddate' not in tags or tags['enddate'] is None:
+            tags['enddate'] = str(
+                (datetime.now() + timedelta(days=2)).strftime("%m%d%Y").lower())
+        if 'project' not in tags or tags['project'] is None:
+            tags['project'] = 'selfdevelopment'
+        tags['dps'] = 'false'
+        tags['datalake'] = 'false'
+    else:
+        tags = {'datalake': 'false', 'dps': 'false'}
+
+    if 'dps' in instance_name:
+        tags['dps'] = 'true'
+    if 'datalake' in instance_name:
+        tags['datalake'] = 'true'
+    return tags

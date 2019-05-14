@@ -18,7 +18,6 @@ import json
 import six
 from whoville import config, utils, infra, security
 from whoville import cloudbreak as cb
-from whoville import __version__ as proj_ver
 from whoville.cloudbreak.rest import ApiException
 
 
@@ -1046,28 +1045,7 @@ def prep_stack_specs(def_key, name=None):
         general='', instance_groups=''
     )
     
-    tags = config.profile.get('tags')
-    if tags is not None:
-        if 'owner' not in tags or tags['owner'] is None:
-            tags['owner'] = horton.cbcred.name
-        if 'startdate' not in tags or tags['startdate'] is None:
-            tags['startdate'] = str(datetime.now().strftime("%d%b%Y").lower())
-        if 'enddate' not in tags or tags['enddate'] is None:
-            tags['enddate'] = str(
-                (datetime.now() + timedelta(days=2)).strftime("%m%d%Y").lower())
-        if 'project' not in tags or tags['project'] is None:
-            tags['project'] = 'selfdevelopment'
-        if 'deploytool' not in tags or tags['deploytool'] is None:
-            tags['deploytool'] = 'whoville' + proj_ver
-        tags['dps'] = 'false'
-        tags['datalake'] = 'false'
-    else:
-        tags = {'datalake': 'false', 'dps': 'false'}
-    
-    if 'dps' in fullname:
-        tags['dps'] = 'true'
-    if 'datalake' in fullname:
-        tags['datalake'] = 'true'
+    tags = utils.resolve_tags(instance_name=fullname, owner=config.profile['tags']['owner'])
     
     horton.specs[fullname].tags = {'userDefinedTags': tags}
     

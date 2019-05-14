@@ -1109,9 +1109,9 @@ def aws_assign_static_ip(session, node, static_ip):
             raise e
 
 
-def set_instance_tags(session, instance):
+def set_instance_tags(session, instance, tags):
     log.info("Setting Instance Tags")
-    session.ex_create_tags(resource=instance, tags=config.profile['tags'])
+    session.ex_create_tags(resource=instance, tags=tags)
 
 
 def aws_get_hosting_infra(session):
@@ -1207,7 +1207,8 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
                 }
             )
             # Set Instance Tags
-            set_instance_tags(session, instance)
+            tags = utils.resolve_tags(name, config.profile['tags']['owner'])
+            set_instance_tags(session, instance, tags)
             log.info("Instance [%s] created as [%s]", name, instance)
             if assign_ip:
                 aws_assign_static_ip(session, instance, static_ip)
