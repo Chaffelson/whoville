@@ -603,9 +603,16 @@ def validate_profile():
         elif provider == 'GCE':
             bucket_test = re.compile(r'[a-z0-9.-]')
         else:
-            raise ValueError("Platform Provider not supported")
+            raise ValueError("bucket listed in Profile but Platform Provider not supported")
         if not bool(bucket_test.match(config.profile['bucket'])):
             raise ValueError("Bucket name doesn't match Platform spec")
+    # check tags
+    if 'tags' not in config.profile:
+        raise ValueError("Profile is missing mandatory tags entries")
+    tags = config.profile['tags']
+    for tag in ['owner']:
+        assert tag in tags, "tag {0} missing from profile".format(tag)
+        assert isinstance(tag, six.string_types) and len(tag) > 3, "Tag {0} must be a string over 3 chars".format(tag)
 
 
 def resolve_tags(instance_name, owner):
