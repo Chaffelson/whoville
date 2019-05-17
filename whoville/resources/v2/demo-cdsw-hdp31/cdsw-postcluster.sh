@@ -81,7 +81,7 @@ sed -i "s@DOMAIN=\"cdsw.company.com\"@DOMAIN=\"${DOMAIN}.xip.io\"@g" /etc/cdsw/c
 sed -i "s@DOCKER_BLOCK_DEVICES=\"\"@DOCKER_BLOCK_DEVICES=\"${DOCKER_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@APPLICATION_BLOCK_DEVICE=\"\"@APPLICATION_BLOCK_DEVICE=\"${APP_BLOCK}\"@g" /etc/cdsw/config/cdsw.conf
 sed -i "s@DISTRO=\"\"@DISTRO=\"HDP\"@g" /etc/cdsw/config/cdsw.conf
-sed -i "s@ANACONDA_DIR=\"\"@ANACONDA_DIR=\"/anaconda/bin\"@g" /etc/cdsw/config/cdsw.conf
+sed -i "s@ANACONDA_DIR=\"\"@ANACONDA_DIR=\"/anaconda\"@g" /etc/cdsw/config/cdsw.conf
 
 # CDSW will break default Amazon DNS on 127.0.0.1:53, so we use a different IP
 sed -i "s@nameserver 127.0.0.1@nameserver 169.254.169.253@g" /etc/dhcp/dhclient-enter-hooks

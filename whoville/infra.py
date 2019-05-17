@@ -29,7 +29,8 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 
            'create_node', 'list_images', 'list_sizes_aws', 'list_networks', 'initialize_k8s_master',
            'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace',
            'aws_get_static_ip', 'resolve_firewall_rules', 'ops_get_security_group', 'ops_get_ssh_key',
-           'list_sizes_ops', 'ops_get_hosting_infra', 'ops_define_base_machine', 'define_userdata_script']
+           'list_sizes_ops', 'ops_get_hosting_infra', 'ops_define_base_machine', 'define_userdata_script',
+           'aws_clean_stacks', 'delete_aws_network']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)

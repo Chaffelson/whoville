@@ -1237,20 +1237,29 @@ def monitor_event_stream(start_ts, identity, target_event, valid_events):
     )
     event_set = set([x.__getattribute__(target_event[0])
                      for x in events])
-    log.info("Found event set [%s] for target event [%s]",
-             str(event_set), target_event[0])
     if not event_set:
         log.warning("No Events received in the last interval, if this "
                     "persists please check the identity and target event "
                     "against Cloudbreak")
+    else:
+        log.info("Retrieved updated events %s, waiting for target event %s",
+                 str(event_set), target_event[0])
     if target_event[1] in event_set:
         return True
-    valid_test = [x for x in event_set if x not in valid_events]
+    valid_test = [
+        x for x in events
+        if x.__getattribute__(target_event[0]) not in valid_events
+    ]
     if valid_test:
         raise ValueError(
             "Found Event {0} for Identity {1} which is not in Valid Event "
-            "list {2}"
-            .format(str(valid_test), str(identity), str(valid_events)))
+            "list {2}. Error message is: {3}".format(
+                str(valid_test[0].__getattribute__(target_event[0])),
+                str(identity),
+                str(valid_events),
+                str(valid_test[0].event_message)
+            )
+        )
     return False
 
 
