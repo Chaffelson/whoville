@@ -596,11 +596,20 @@ def get_aws_network(session, create=True):
                 raise ValueError("Could not create Route for Route Table")
             log.info("Creating Subnet in VPC")
             zones = session.ex_list_availability_zones()
+            if 'zone' in config.profile['platform']:
+                preferred_az_name = config.profile['platform']['region'] + config.profile['platform']['zone']
+                try:
+                    az = [
+                        x.name for x in zones
+                        if x.name == preferred_az_name
+                    ][0]
+                except:
+                    az = zones[0].name
             subnet = session.ex_create_subnet(
                 cidr_block='10.0.1.0/24',
                 vpc_id=vpc.id,
                 name=horton.namespace + 'whoville',
-                availability_zone=zones[0].name
+                availability_zone=az
             )
             if not subnet:
                 raise ValueError("Could not create Subnet on EC2")
