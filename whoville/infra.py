@@ -605,6 +605,8 @@ def get_aws_network(session, create=True):
                     ][0]
                 except:
                     az = zones[0].name
+            else:
+                az = zones[0].name
             subnet = session.ex_create_subnet(
                 cidr_block='10.0.1.0/24',
                 vpc_id=vpc.id,
