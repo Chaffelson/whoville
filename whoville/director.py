@@ -228,15 +228,26 @@ def list_clusters(env_name=None, dep_name=None):
     )
 
 
-def create_instance_template(tem_name, env_name=None, image_id=None,
+def create_instance_template(tem_name, env_name=None, image_id=None, scripts=None,
                              vm_type=None, subnet_id=None, sec_id=None):
-    # This assumes that Cloudbreak aor Director have been deployed
+    # This assumes that Cloudbreak or Director have been deployed
     details = horton.cbd.extra
     env_name = env_name if env_name else horton.cadcred.name
     image_id = image_id if image_id else details['image_id']
     vm_type = vm_type if vm_type else details['instance_type']
     subnet_id = subnet_id if subnet_id else details['subnet_id']
     sec_id = sec_id if sec_id else details['groups'][0]['group_id']
+    bootstraps = [
+        cd.Script(
+            content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
+                    '"https://archive.cloudera.com/director/redhat/7/x86_64/'
+                    'director/2.8.0/RPMS/x86_64/oracle-j2sdk1.8-1.8.0+update1'
+                    '21-1.x86_64.rpm"\nexit 0'
+        )
+    ]
+    if scripts is not None:
+        for s in scripts:
+            bootstraps.append(cd.Script(content=s))
     cd.InstanceTemplatesApi(horton.cad).create(
         environment=env_name,
         instance_template=cd.InstanceTemplate(
@@ -249,14 +260,7 @@ def create_instance_template(tem_name, env_name=None, image_id=None,
                 'instanceNamePrefix': horton.namespace
             },
             tags=config.profile['tags'],
-            bootstrap_scripts=[
-                cd.Script(
-                    content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
-                            '"https://archive.cloudera.com/director/redhat/7/x86_64/'
-                            'director/2.8.0/RPMS/x86_64/oracle-j2sdk1.8-1.8.0+update1'
-                            '21-1.x86_64.rpm"\nexit 0'
-                )
-            ]
+            bootstrap_scripts=bootstraps
         )
     )
 
@@ -357,6 +361,23 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
         master_setups['SCHEMAREGISTRY'] = ['SCHEMA_REGISTRY_SERVER']
     clus_name = clus_name if clus_name else \
         horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
+    # Handle virtual instance generation
+    master_vi = [create_virtual_instance(
+        tem_name='master',
+        scripts=[
+            '''sudo -i
+            yum install mysql mariadb-server -y
+            systemctl enable mariadb
+            service mariadb start
+            mysql --execute="CREATE DATABASE registry DEFAULT CHARACTER SET utf8"
+            mysql --execute="CREATE USER 'registry'@'localhost' IDENTIFIED BY 'registry'"
+            mysql --execute="GRANT ALL PRIVILEGES ON registry.* TO 'registry'@'localhost' identified by 'registry'"
+            mysql --execute="GRANT ALL PRIVILEGES ON registry.* TO 'registry'@'localhost' WITH GRANT OPTION"
+            mysql --execute="FLUSH PRIVILEGES"
+            mysql --execute="COMMIT"'''
+        ]
+    )]
+    worker_vi = [create_virtual_instance() for _ in range(0, workers)]
     try:
         cd.ClustersApi(horton.cad).create(
             environment=env_name,
@@ -373,17 +394,14 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
                         min_count=1,
                         service_type_to_role_types=master_setups,
                         role_types_configs=master_configs,
-                        virtual_instances=[create_virtual_instance()]
+                        virtual_instances=master_vi
                     ),
                     'workers': cd.VirtualInstanceGroup(
                         name='workers',
                         min_count=workers,
                         service_type_to_role_types=worker_setups,
                         role_types_configs=worker_configs,
-                        virtual_instances=[
-                            create_virtual_instance()
-                            for _ in range(0, workers)
-                        ]
+                        virtual_instances=worker_vi
                     )
                 }
             )
@@ -432,11 +450,17 @@ def get_cluster_status(clus_name, dep_name=None, env_name=None):
             raise e
 
 
-def create_virtual_instance(tem_name=None):
+def create_virtual_instance(tem_name=None, scripts=None):
     tem_name = tem_name if tem_name else horton.cadcred.name
+    template = get_instance_template(tem_name=tem_name)
+    if not template:
+        create_instance_template(tem_name, scripts=scripts)
+        while not template:
+            sleep(2)
+            template = get_instance_template(tem_name=tem_name)
     return cd.VirtualInstance(
         id=str(uuid.uuid4()),
-        template=get_instance_template(tem_name=tem_name)
+        template=template
     )
 
 
