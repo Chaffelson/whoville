@@ -31,7 +31,8 @@ RUN apk update && apk upgrade \
     && apk add --no-cache --virtual .build-deps git gcc libffi-dev musl-dev \
     libressl-dev ca-certificates python3-dev linux-headers tzdata \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
-    && pip install --no-cache --no-use-pep517 -r requirements.txt \
+    && pip install --upgrade pip \
+    && pip install --no-cache -r requirements.txt \
     && apk del .build-deps 
     
 

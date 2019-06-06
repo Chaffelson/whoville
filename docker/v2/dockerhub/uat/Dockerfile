@@ -31,7 +31,8 @@ RUN apk update && apk upgrade \
     && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && git clone -b next --depth 1 https://github.com/Chaffelson/whoville.git /whoville \
     && cd /whoville \
-    && pip install --no-cache --no-use-pep517 -r requirements.txt \
+    && pip install --upgrade pip \
+    && pip install --no-cache -r requirements.txt \
     && apk del .build-deps \
     && apk add --no-cache bash \
     && touch /profile.yml 
