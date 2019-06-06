@@ -244,7 +244,7 @@ def get_k8svm(s_libc=None, create=True, purge=False, create_wait=0):
         instances = deploy_instances(s_libc, instances_to_create, mode='k8svm', assign_ip=False)
         log.info("Waiting for K8s instances to be available")
         for i in instances.keys():
-            log.info("Checking for connectivity to [%s]", i)
+            log.info("Checking for connectivity to [%s] on [%s]", instances[i].public_ips[0])
             utils.wait_to_complete(
                 utils.get_remote_shell,
                 target_host=instances[i].public_ips[0],
@@ -799,9 +799,10 @@ def nuke_namespace(dry_run=True):
             if x.state != 'terminated'
         ]
         log.info("Destroying nodes: %s", ", ".join(x.name for x in instances))
+        log.info("May take as long as 10 minutes to complete.")
         if not dry_run:
             if provider == 'GCE':
-                session.ex_destroy_multiple_nodes(instances, ignore_errors=True, destroy_boot_disk=True, poll_interval=2, timeout=180)
+                session.ex_destroy_multiple_nodes(instances, ignore_errors=True, destroy_boot_disk=True, poll_interval=2, timeout=600)
             else:
                 for i in instances:
                     log.info("Destroying Node %s", i.name)
@@ -826,7 +827,7 @@ def nuke_namespace(dry_run=True):
                     log.info("Destroying firewall %s", i.name)
                     if not dry_run:
                         session.ex_destroy_firewall(i)
-                if provider == 'OPENSTACK':
+                elif provider == 'OPENSTACK':
                     session.ex_delete_security_group(i)
                 else:
                     log.info("Destroying Security Group %s", i.name)
@@ -840,6 +841,13 @@ def nuke_namespace(dry_run=True):
             aws_clean_stacks(create_boto3_session())
         else:
             log.info("Dry Run: Would be cleaning AWS Stacks")
+    elif provider=='GCE':
+        for address in [
+            x for x in session.ex_list_addresses(region=config.profile.get('platform')['region'])
+            if x.name.startswith(namespace)
+        ]:
+            log.info("Destroying address [%s]", address.name)
+            session.ex_destroy_address(address)
 
 
 def resolve_firewall_rules():
@@ -1072,6 +1080,8 @@ def define_userdata_script(mode='cb', static_ip=None):
         # this allows direct passthrough if not an IP from EC2-like setups
         if 'ElasticIP' in str(type(static_ip)):
             fqdn = static_ip.ip
+        elif 'GCEAddress' in str(type(static_ip)):
+            fqdn = static_ip.address
         elif 'domain' in config.profile['platform']:
             fqdn = static_ip + config.profile['platform']['domain']
         else:
@@ -1091,8 +1101,12 @@ def define_userdata_script(mode='cb', static_ip=None):
         script_lines = [
             "#!/bin/bash",
             "cd /root",
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)"
+            "if [ -f /tmp/status.success ]; then",
+            "    exit",
+            "else",
+            "    source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)",
+            "fi"
         ]
     else:
         raise ValueError("Mode [%s] not recognised", mode)
@@ -1531,7 +1545,7 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
         subnets = session.ex_list_subnetworks(region=region)
         subnet = [
             x for x in subnets
-            if x.name == 'default'
+            if x.name == network.name
         ]
         if not subnet:
             session.ex_create_subnetwork(
@@ -1541,19 +1555,6 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
             subnet = subnet[-1]
             subnet_name = subnet.name
             log.info("Found existing subnet called: " + subnet_name)
-
-        log.info("Getting Public IP...")
-        try:
-            public_ip = session.ex_get_address(
-                name=public_ip_name, region=region
-            )
-            log.info("Found existing Public IP matching name: "
-                     + public_ip_name)
-        except ResourceNotFoundError:
-            public_ip = session.ex_create_address(
-                name=public_ip_name, region=region
-            )
-            log.info("Creating new Public IP with name: " + public_ip_name)
 
         images = session.list_images()
         image = [
@@ -1605,49 +1606,66 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
 
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else config.cb_ver
-        script_lines = [
-            "#!/bin/bash",
-            "cd /root",
-            "export cb_ver=" + cb_ver,
-            "export uaa_secret=" + security.get_secret('MASTERKEY'),
-            "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-            "export uaa_default_email=" + config.profile['email'],
-            "export public_ip=" + public_ip.address,
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
-        ]
-        script = '\n'.join(script_lines)
-        metadata = {
-            'items': [
-                {
-                    'key': 'startup-script',
-                    'value': script
-                },
-                {
-                    'key': 'ssh-keys',
-                    'value': 'centos:' + ssh_key
-                }
-            ]
-        }
 
-        log.info("Creating Cloudbreak instance...")
-        cbd = session.create_node(
-            name=name,
-            size=machine,
-            image=image,
-            location=zone,
-            ex_network=network,
-            external_ip=public_ip,
-            ex_metadata=metadata,
-            ex_tags=[name])
+        instances = {}
+        assign_ip = True
+        for name in names:
+            log.info("Handling instance [%s]", name)
 
-        log.info("Waiting for Cloudbreak Instance to be Available...")
-        session.wait_until_running(nodes=[cbd])
-        cbd = list_nodes(session, {'name': name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
-        else:
-            raise ValueError("Failed to create new Cloubreak Instance")
+            if assign_ip:
+                log.info("Getting Public IP...")
+                public_ip_name = name + '-public-ip'
+                try:
+                    public_ip = session.ex_get_address(
+                        name=public_ip_name, region=region
+                    )
+                    log.info("Found existing Public IP matching name: "
+                             + public_ip_name)
+                except ResourceNotFoundError:
+                    log.info("Creating new Public IP with name: " + public_ip_name)
+                    public_ip = session.ex_create_address(
+                        name=public_ip_name, region=region
+                    )
+                public_ip.ip = public_ip.address
+            else:
+                public_ip = None
+
+            script = define_userdata_script(mode, static_ip=public_ip)
+
+            metadata = {
+                'items': [
+                    {
+                        'key': 'startup-script',
+                        'value': script
+                    },
+                    {
+                        'key': 'ssh-keys',
+                        'value': 'centos:' + ssh_key
+                    }
+                ]
+            }
+            tags = utils.resolve_tags(name, config.profile['tags']['owner'])
+            log.info("Creating Instance for [%s]", name)
+            newnode = session.create_node(
+                name=name,
+                size=machine,
+                image=image,
+                location=zone,
+                ex_network=network,
+                external_ip=public_ip,
+                ex_metadata=metadata,
+                ex_tags=[name],
+                ex_labels=tags)
+
+            log.info("Waiting for Instance [%s] to be Available...", name)
+            session.wait_until_running(nodes=[newnode])
+            nodes = list_nodes(session, {'name': name})
+            running = [x for x in nodes if x.state == 'running']
+            if running:
+                log.info("Instance [%s] deploy complete...", name)
+                instances[name] = running[0]
+            else:
+                raise ValueError("Failed to create new Instance [%s]", name)
+        return instances
     else:
         raise ValueError("Session Provider [%s] not supported", session.type)

@@ -167,7 +167,8 @@ def init_cbreak_infra(create=True, create_wait=0):
         create=True,
         purge=horton.global_purge
     )
-    if config.profile['platform']['provider'] == 'EC2':
+    if ((config.profile['platform']['provider'] == 'EC2') or
+        (config.profile['platform']['provider'] == 'GCE')):
         log.info("Ensuring Environment Credential for Director")
         horton.cadcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
@@ -304,6 +305,7 @@ def autorun(def_key):
         resolve_bundle_reqs(def_key=def_key)
         run_bundle(def_key=def_key)
     elif 'cdh-' in def_key:
+        resolve_bundle_reqs(def_key=def_key)
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     else:
         log.info("Definition %s not recognised, please retry", def_key)
