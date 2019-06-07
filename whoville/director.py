@@ -27,15 +27,6 @@ log = logging.getLogger(__name__)
 horton = utils.Horton()
 
 
-csds = [
-    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFI-1.9.0.1.0.0.0-90.jar",
-    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFICA-1.9.0.1.0.0.0-90.jar",
-    "http://archive.cloudera.com/CFM/csd/1.0.0.0/NIFIREGISTRY-0.3.0.1.0.0.0-90.jar",
-    "https://archive.cloudera.com/CSP/csd/1.0.0.0/SCHEMAREGISTRY-0.7.0.jar"
-
-]
-
-
 def get_environment(env_name=None):
     tgt_env_name = env_name if env_name else horton.namespace + 'whoville'
     envs = list_environments()
@@ -121,7 +112,7 @@ def list_deployments(env_name=None):
 
 
 def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
-                      tls_start=False):
+                      tls_start=False, csds=None):
     assert isinstance(cm_ver, six.string_types)
     env_name = env_name if env_name else horton.cadcred.name
     log.info("Using Environment [%s]", env_name)
@@ -281,33 +272,33 @@ def get_instance_template(env_name=None, tem_name=None):
 
 
 def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
-                   dep_name=None, clus_name=None):
+                   dep_name=None, clus_name=None, parcels=None):
     env_name = env_name if env_name else horton.cadcred.name
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
     services = services if services else ['HDFS', 'YARN']
     if cdh_ver[0] == '5':
-        parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
-                   cdh_ver + '/']
+        load_parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
+                        cdh_ver + '/']
     elif cdh_ver[0] == '6':
-        parcels = ['https://archive.cloudera.com/cdh6/' + cdh_ver +
+        load_parcels = ['https://archive.cloudera.com/cdh6/' + cdh_ver +
                    '/parcels/']
     else:
         raise ValueError("Only CDH versions 5 or 6 supported")
+    if parcels:
+        load_parcels += parcels
+        if cdh_ver[0] == '6':
+            # CDH6 already has Kafka
+            load_parcels = [x for x in load_parcels if 'kafka' not in x]
     products = {
         'CDH': cdh_ver
     }
     if 'NIFI' in str(services):
         products['CFM'] = '1'
-        if cdh_ver[0] == '5':
-            parcels.append('http://archive.cloudera.com/CFM/parcels/1.0.0.0/')
-    if 'KAFKA' in str(services):
+    if 'KAFKA' in str(services) and cdh_ver[0] == '5':
         products['KAFKA'] = '4'
-        if cdh_ver[0] == '5':
-            parcels.append('http://archive.cloudera.com/kafka/parcels/4.0.0.1/')
     if 'SCHEMAREGISTRY' in str(services):
         products['SCHEMAREGISTRY'] = '0.7'
-        parcels.append('https://archive.cloudera.com/CSP/parcels/1.0.0.0/')
     services_configs = {}
     master_setups = {}
     master_configs = {}
@@ -385,7 +376,7 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
             cluster_template=cd.ClusterTemplate(
                 name=clus_name,
                 product_versions=products,
-                parcel_repositories=parcels,
+                parcel_repositories=load_parcels,
                 services=services,
                 services_configs=services_configs,
                 virtual_instance_groups={
@@ -465,17 +456,22 @@ def create_virtual_instance(tem_name=None, scripts=None):
 
 
 def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
-                 clus_name=None, tls_start=False):
+                 clus_name=None, tls_start=False, csds=None, parcels=None):
     env_name = env_name if env_name else horton.cadcred.name
     assert isinstance(cdh_ver, six.string_types)
     assert services is None or isinstance(services, list)
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
     clus_name = clus_name if clus_name else dep_name
+
     cm = get_deployment(dep_name=dep_name)
     if not cm:
-        create_deployment(cm_ver=cdh_ver, dep_name=dep_name,
-                          tls_start=tls_start)
+        create_deployment(
+            cm_ver=cdh_ver,
+            dep_name=dep_name,
+            tls_start=tls_start,
+            csds=csds
+        )
         sleep(3)
         cm_status = get_deployment_status(dep_name)
         while cm_status is None or \
@@ -491,14 +487,14 @@ def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
     if not cluster:
         log.info("Cluster not found, creating...")
         create_cluster(cdh_ver=cdh_ver, services=services, clus_name=clus_name,
-                       dep_name=dep_name)
+                       dep_name=dep_name, parcels=parcels)
         clus_status = get_cluster_status(
             clus_name=clus_name, dep_name=dep_name
         )
         while clus_status is None or \
                 clus_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
-            log.info("Waiting 15s for Cluster [%s] to Deploy", cdh_ver)
-            sleep(15)
+            log.info("Waiting 30s for Cluster [%s] to Deploy", cdh_ver)
+            sleep(30)
             clus_status = get_cluster_status(
                 clus_name=clus_name, dep_name=dep_name
             )

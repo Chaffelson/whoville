@@ -37,7 +37,9 @@ def prep_spec(args):
         _horton.specs[fullname] = {
             'cdh_ver': _horton.defs[def_key]['version'],
             'services': _horton.defs[def_key]['services'],
-            'tls_start': _horton.defs[def_key]['tls_start']
+            'tls_start': _horton.defs[def_key]['tls_start'],
+            'parcels': _horton.defs[def_key]['parcels'] if 'parcels' in _horton.defs[def_key] else None,
+            'csds': _horton.defs[def_key]['csds'] if 'csds' in _horton.defs[def_key] else None
         }
     else:
         raise ValueError("Orchestrator not supported")
@@ -65,6 +67,8 @@ def do_builds(args):
                 dep_name=fullname,
                 services=_horton.specs[fullname]['services'],
                 tls_start=_horton.specs[fullname]['tls_start'],
+                csds=_horton.specs[fullname]['csds'],
+                parcels=_horton.specs[fullname]['parcels']
             )
         else:
             raise ValueError("Orchestrator not supported")
