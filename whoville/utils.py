@@ -587,8 +587,12 @@ def validate_profile():
                          "Requires 12+ characters, at least 1 letter and "
                          "number, may also contain -")
     # Check Provider
-    provider = config.profile.get('platform')['provider']
-    assert provider in ['EC2', 'AZURE_ARM', 'GCE', 'OPENSTACK']
+    platform = config.profile.get('platform')
+    assert platform['provider'] in ['EC2', 'AZURE_ARM', 'GCE', 'OPENSTACK']
+    if platform['provider'] == 'GCE':
+        if 'apikeypath' in platform:
+            with open(platform['apikeypath'], "r") as apikey:
+                platform['jsonkey'] = apikey.read()
     # TODO: Read in the profile template, check it has all matching keys
     # Check Profile Namespace is valid
     ns_test = re.compile(r'[a-z0-9-]')
@@ -596,11 +600,11 @@ def validate_profile():
         raise ValueError("Namespace must only contain 0-9 a-z -")
     # Check storage bucket matches expected format
     if 'bucket' in config.profile:
-        if provider == 'EC2':
+        if platform['provider'] == 'EC2':
             bucket_test = re.compile(r'[a-z0-9.-]')
-        elif provider == 'AZURE_ARM':
+        elif platform['provider'] == 'AZURE_ARM':
             bucket_test = re.compile(r'[a-z0-9@]')
-        elif provider == 'GCE':
+        elif platform['provider'] == 'GCE':
             bucket_test = re.compile(r'[a-z0-9.-]')
         else:
             raise ValueError("bucket listed in Profile but Platform Provider not supported")

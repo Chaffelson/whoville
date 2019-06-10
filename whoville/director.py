@@ -12,7 +12,7 @@ import logging
 from time import sleep
 import six
 import uuid
-from whoville import config, utils, security
+from whoville import config, utils, security, infra
 import cloudera.director.latest as cd
 from cloudera.director.common.rest import ApiException
 
@@ -64,24 +64,33 @@ def create_environment():
     else:
         raise ValueError("SSH Private Key is required in your Profile, please update from the Template")
     if platform['provider'] == 'EC2':
-        cad_env = cd.Environment(
-            name=env_name,
-            credentials=cd.SshCredentials(
-                username='centos',
-                port=22,
-                private_key=priv_key
-            ),
-            provider=cd.InstanceProviderConfig(
-                type='aws',
-                config={
+        env_type = 'aws'
+        env_config = {
                     'accessKeyId': platform['key'],
                     'secretAccessKey': platform['secret'],
                     'region': platform['region']
                 }
-            )
-        )
+    elif platform['provider'] == 'GCE':
+        env_type = 'google'
+        env_config = {
+                    'projectId': platform['project'],
+                    'jsonKey': platform['jsonkey'],
+                    'region': platform['region']
+                }
     else:
         raise ValueError("Provider not supported")
+    cad_env = cd.Environment(
+        name=env_name,
+        credentials=cd.SshCredentials(
+            username='centos',
+            port=22,
+            private_key=priv_key
+        ),
+        provider=cd.InstanceProviderConfig(
+            type=env_type,
+            config=env_config
+        )
+    )
     try:
         cd.EnvironmentsApi(horton.cad).create(cad_env)
     except ApiException as e:
@@ -195,7 +204,7 @@ def get_deployment(dep_name=None, env_name=None):
 def get_deployment_status(dep_name=None, env_name=None):
     env_name = env_name if env_name else horton.cadcred.name
     dep_name = dep_name if dep_name else horton.cadcred.name
-    log.info("Fetching Deployment status for [%s]", dep_name)
+    #log.info("Fetching Deployment status for [%s]", dep_name)
     try:
         return cd.DeploymentsApi(horton.cad).get_status(
             environment=env_name,
@@ -221,13 +230,10 @@ def list_clusters(env_name=None, dep_name=None):
 
 def create_instance_template(tem_name, env_name=None, image_id=None, scripts=None,
                              vm_type=None, subnet_id=None, sec_id=None):
-    # This assumes that Cloudbreak or Director have been deployed
+    # This assumes that Cloudbreak aor Director have been deployed
+    platform = config.profile.get('platform')
     details = horton.cbd.extra
     env_name = env_name if env_name else horton.cadcred.name
-    image_id = image_id if image_id else details['image_id']
-    vm_type = vm_type if vm_type else details['instance_type']
-    subnet_id = subnet_id if subnet_id else details['subnet_id']
-    sec_id = sec_id if sec_id else details['groups'][0]['group_id']
     bootstraps = [
         cd.Script(
             content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
@@ -239,17 +245,37 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
     if scripts is not None:
         for s in scripts:
             bootstraps.append(cd.Script(content=s))
+    if platform['provider'] == 'GCE':
+        log.info("*** setting up GCE instance template ***")
+        # Director won't recognise the GCE image name as valid, have to use the URL
+        # https://community.cloudera.com/t5/Cloudera-Altus-Director/Instance-Template-Image-URLs-for-Cloudera-Director-on-Azure/td-p/45445
+        image_id = image_id if image_id else [
+            x for x in infra.create_libcloud_session().list_images()
+            if details['image'] in x.name
+        ][0].extra['selfLink']
+        vm_type = vm_type if vm_type else details['machineType'].split('/')[-1]
+        params = {
+                    'zone': horton.cbd.extra["zone"].name,
+                    'instanceNamePrefix': horton.namespace
+                }
+    else:  # assume AWS
+        log.info("*** setting up AWS instance template ***")
+        image_id = image_id if image_id else details['image_id']
+        vm_type = vm_type if vm_type else details['instance_type']
+        subnet_id = subnet_id if subnet_id else details['subnet_id']
+        sec_id = sec_id if sec_id else details['groups'][0]['group_id']
+        params = {
+                    'subnetId': subnet_id,
+                    'securityGroupsIds': sec_id,
+                    'instanceNamePrefix': horton.namespace
+                }
     cd.InstanceTemplatesApi(horton.cad).create(
         environment=env_name,
         instance_template=cd.InstanceTemplate(
             name=tem_name,
             image=image_id,
             type=vm_type,
-            config={
-                'subnetId': subnet_id,
-                'securityGroupsIds': sec_id,
-                'instanceNamePrefix': horton.namespace
-            },
+            config=params,
             tags=config.profile['tags'],
             bootstrap_scripts=bootstraps
         )
@@ -426,7 +452,7 @@ def get_cluster(clus_name, dep_name=None, env_name=None):
 def get_cluster_status(clus_name, dep_name=None, env_name=None):
     env_name = env_name if env_name else horton.cadcred.name
     dep_name = dep_name if dep_name else clus_name
-    log.info("Fetching Cluster status for [%s]", clus_name)
+    #log.info("Fetching Cluster status for [%s]", clus_name)
     try:
         return cd.ClustersApi(horton.cad).get_status(
             environment=env_name,
@@ -474,14 +500,15 @@ def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
         )
         sleep(3)
         cm_status = get_deployment_status(dep_name)
+        log.info("Deploying Cloudera Manager %s", cdh_ver)
         while cm_status is None or \
                 cm_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
-            log.info("Waiting 15s for Cloudera Manager [%s] to Deploy",
-                     cdh_ver)
             sleep(15)
             cm_status = get_deployment_status(dep_name)
+            log.info("CM [%s] status: %s, Step %s/%s, %s",cdh_ver, cm_status.stage, cm_status.completed_steps,
+                     cm_status.completed_steps + cm_status.remaining_steps, cm_status.description)
         cm = get_deployment(dep_name=dep_name)
-    log.info("Cloudera Manager [%s] is available at %s:7180",
+    log.info("Cloudera Manager [%s] is available at http://%s:7180",
              cdh_ver, cm.manager_instance.properties['publicIpAddress'])
     cluster = get_cluster(clus_name=clus_name, dep_name=dep_name)
     if not cluster:
@@ -498,6 +525,8 @@ def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
             clus_status = get_cluster_status(
                 clus_name=clus_name, dep_name=dep_name
             )
-    log.info("Cluster is deployed for %s", cdh_ver)
-    log.info("Cloudera Manager [%s] is available at %s:7180",
+            log.info("Cluster [%s] status: %s, Step %s/%s, %s", dep_name, clus_status.stage, clus_status.completed_steps,
+                     clus_status.completed_steps + clus_status.remaining_steps, clus_status.description)
+    log.info("Cluster %s is deployed for %s", dep_name, cdh_ver)
+    log.info("Cloudera Manager [%s] is available at http://%s:7180",
              cdh_ver, cm.manager_instance.properties['publicIpAddress'])
