@@ -237,9 +237,7 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
     bootstraps = [
         cd.Script(
             content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
-                    '"https://archive.cloudera.com/director/redhat/7/x86_64/'
-                    'director/2.8.0/RPMS/x86_64/oracle-j2sdk1.8-1.8.0+update1'
-                    '21-1.x86_64.rpm"\nexit 0'
+                    '"https://whoville.s3.eu-west-2.amazonaws.com/v2/or-jdk-8-212.rpm"\nexit 0'
         )
     ]
     if scripts is not None:

@@ -879,8 +879,13 @@ def prep_instance_groups(def_key, fullname):
         region = horton.specs[fullname].placement.region
         avzone = horton.specs[fullname].placement.availability_zone
     except AttributeError:
-        region = horton.cbd.extra['zone'].extra['region']
-        avzone = horton.cbd.extra['zone'].name
+        if 'zone' in horton.cbd.extra:
+            region = horton.cbd.extra['zone'].extra['region']
+            avzone = horton.cbd.extra['zone'].name
+        else:
+            # Defaulting to OpenStack defaults as a backup
+            region = 'RegionOne'
+            avzone = horton.cbd.extra['availability_zone']
 
     log.info("Fetching Infrastructure recommendation for "
              "credential[%s]:blueprint[%s]:region[%s]:availability zone[%s]",
@@ -905,8 +910,10 @@ def prep_instance_groups(def_key, fullname):
     elif horton.cbcred.cloud_platform == 'GCP':
         sec_group = lib_c_session.ex_get_firewall(
             name=horton.namespace + 'cloudbreak-firewall').name
+    elif horton.cbcred.cloud_platform == 'OPENSTACK':
+        sec_group = lib_c_session.ex_get_node_security_groups(horton.cbd)[0].id
     else:
-        raise ValueError("Only Platforms AWS, AZURE, and GCP supported")
+        raise ValueError("Only Platforms AWS, AZURE, OpenStack, and GCP supported")
     if sec_group:
         # Predefined Security Group
         sec_group = cb.SecurityGroupResponse(

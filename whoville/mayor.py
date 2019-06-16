@@ -214,7 +214,7 @@ def resolve_bundle_reqs(def_key):
                 log.info("Cloudbreak instance found for provider, continuing...")
 
 
-def run_bundle(def_key):
+def run_bundle(def_key, rename=None):
     valid_actions = [x for x in dir(actions) if not x.startswith('_')]
     steps = []
     log.info("------------- Running Build")
@@ -230,6 +230,14 @@ def run_bundle(def_key):
     for step in steps:
         for action, args in step.items():
             if action in valid_actions:
+                # Handle name overrides
+                if rename is not None:
+                    if action in ['prep_deps', 'prep_spec', 'wait_event']:
+                        args[1] = rename
+                    elif action in ['write_cache']:
+                        args[0] = rename
+                    elif action in ['do_builds']:
+                        args = [rename]
                 log.info("----- Executing Action [%s] with Args [%s] at [%s]",
                          action, str(args), _dt.utcnow())
                 getattr(actions, action)(args)
@@ -298,12 +306,19 @@ def user_menu():
             print("Sorry, that is not recognised, please try again")
 
 
-def autorun(def_key):
+def autorun(def_key, count=1):
     if not horton.defs:
         init_whoville_service()
     if def_key in horton.defs.keys():
         resolve_bundle_reqs(def_key=def_key)
-        run_bundle(def_key=def_key)
+        if count > 1:
+            log.info("Multiple deployments (%s) requested", count)
+            for x in range(0, count):
+                rename = def_key + str(x)
+                log.info("Running multiple deployment loop on [%s]", rename)
+                run_bundle(def_key=def_key, rename=rename)
+        else:
+            run_bundle(def_key=def_key)
     elif 'cdh-' in def_key:
         resolve_bundle_reqs(def_key=def_key)
         director.chain_deploy(cdh_ver=def_key.split('-')[-1])

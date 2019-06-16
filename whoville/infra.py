@@ -30,7 +30,7 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 
            'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace',
            'aws_get_static_ip', 'resolve_firewall_rules', 'ops_get_security_group', 'ops_get_ssh_key',
            'list_sizes_ops', 'ops_get_hosting_infra', 'ops_define_base_machine', 'define_userdata_script',
-           'aws_clean_stacks', 'delete_aws_network']
+           'aws_clean_stacks', 'delete_aws_network', 'aws_get_ssh_key']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -1050,8 +1050,10 @@ def aws_get_ssh_key(session):
         )
     else:
         ssh_key = [x for x in ssh_key
-                   if x.name == config.profile['sshkey_name']][0]
-    return ssh_key
+                   if x.name == config.profile['sshkey_name']]
+    if not ssh_key:
+        raise ValueError("SSH Key named [%s] not found in AWS Key Listing", config.profile['sshkey_name'])
+    return ssh_key[0]
 
 
 def aws_get_static_ip(session):
