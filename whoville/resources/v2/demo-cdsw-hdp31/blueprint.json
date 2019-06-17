@@ -86,7 +86,7 @@
   ],
   "host_groups": [
     {
-      "name": "master1",
+      "name": "master",
       "configurations": [
         
       ],
