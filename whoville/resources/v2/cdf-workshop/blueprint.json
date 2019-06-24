@@ -173,7 +173,7 @@
       "nifi-properties": {
         "nifi.sensitive.props.key": "{{{ general.password }}}",
         "nifi.security.user.login.identity.provider": "",
-        "nifi.remote.input.socket.port": 9092
+        "nifi.remote.input.socket.port": 9093
       }
     },
     {
