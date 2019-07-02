@@ -30,7 +30,7 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 
            'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace',
            'aws_get_static_ip', 'resolve_firewall_rules', 'ops_get_security_group', 'ops_get_ssh_key',
            'list_sizes_ops', 'ops_get_hosting_infra', 'ops_define_base_machine', 'define_userdata_script',
-           'aws_clean_stacks', 'delete_aws_network', 'aws_get_ssh_key']
+           'aws_clean_stacks', 'delete_aws_network', 'aws_get_ssh_key', 'aws_get_hosting_infra']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -857,7 +857,7 @@ def resolve_firewall_rules():
         my_public_ip = requests.get('https://ipv4.icanhazip.com', timeout=3).text.rstrip()
     except:
         my_public_ip = requests.get('https://ifconfig.me/ip', timeout=3).text.rstrip()
-    log.info("Local Public IP is %s, using for Firewall rules", my_public_ip)
+    log.info("Deploying User Public IP is %s, using for Firewall rules", my_public_ip)
     # Defaults
     net_rules = config.default_net_rules
     # Add deployment user
@@ -1053,24 +1053,31 @@ def aws_get_ssh_key(session):
                    if x.name == config.profile['sshkey_name']]
     if not ssh_key:
         raise ValueError("SSH Key named [%s] not found in AWS Key Listing", config.profile['sshkey_name'])
-    return ssh_key[0]
+    try:
+        return ssh_key[0]
+    except TypeError:
+        return ssh_key
 
 
 def aws_get_static_ip(session):
+    log.info("Fetching list of available Static IPs")
     try:
         static_ips = [
             x for x in session.ex_describe_all_addresses()
-            if x.instance_id is None
+            if not x.instance_id
             and x.extra['association_id'] is None
+            and x.extra['allocation_id'] is not None
         ]
     except InvalidCredsError:
         static_ips = None
     if not static_ips:
-        static_ip = session.ex_allocate_address()
+        log.info("Available Static IP not found, Allocating new")
+        static_ip = session.ex_allocate_address(domain='vpc')
     else:
+        log.info("Found available Static IPs, using first available")
         static_ip = static_ips[0]
     if not static_ip:
-        raise ValueError("Couldn't get a Static IP for Cloudbreak")
+        raise ValueError("Couldn't get a Static IP")
     return static_ip
 
 
@@ -1117,19 +1124,23 @@ def define_userdata_script(mode='cb', static_ip=None):
 
 
 def aws_assign_static_ip(session, node, static_ip):
-    log.info("Assigning Static IP to Instance")
+    log.info("Associating Static IP to Instance")
     try:
+        log.info("Attempting standard IP Association")
         session.ex_associate_address_with_node(
             node,
             static_ip
         )
+        log.info("Succeeded with Standard IP Association, we are probably not on EC2-Classic")
     except (BaseHTTPError, InvalidCredsError) as e:
         if 'InvalidParameterCombination' in e.message:
+            log.info("Attempting failback IP Association for legacy VPCs")
             session.ex_associate_address_with_node(
                 node,
                 static_ip,
                 domain='vpc'  # needed for legacy AWS accounts
             )
+            log.info("Succeeded with failback IP Association, we are probably on EC2-Classic")
         elif 'AuthFailure: You do not have permission' in e.message:
             raise EnvironmentError("Unable to Assign Static IP to Instance, you "
                                    "may be missing permissions or reached the "
@@ -1221,6 +1232,7 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
                 static_ip = aws_get_static_ip(session)
             else:
                 static_ip = None
+            log.info("Using Static IP of [%s]", static_ip.ip)
             log.info("Defining deployment userdata script")
             script = define_userdata_script(mode, static_ip=static_ip)
             log.info("Creating Instance for [%s]", name)
