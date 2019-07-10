@@ -911,13 +911,18 @@ def ops_define_base_machine(session):
 def aws_define_base_machine(session):
     log.info("Finding an appropriate base machine for AWS deployment")
     log.info("Selecting OS Image")
-    images = list_images(
+    raw_images = list_images(
         session,
         filters={
             'name': '*CentOS Linux 7 x86_64 HVM EBS ENA*',
         }
     )
-    image = sorted(images, key=lambda k: k.extra['description'][-7:])
+    # Limit to AWS Marketplace images from Centos owner only
+    official_images = [
+        x for x in raw_images
+        if '679593333241' in x.extra['owner_id']
+    ]
+    image = sorted(official_images, key=lambda k: k.extra['description'][-7:])
     if not image:
         raise ValueError("Couldn't find a valid Centos7 Image")
     else:

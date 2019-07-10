@@ -78,7 +78,7 @@ def create_environment():
                     'region': platform['region']
                 }
     else:
-        raise ValueError("Provider not supported")
+        raise ValueError("Provider %s not supported for Director in Whoville", platform['provider'])
     cad_env = cd.Environment(
         name=env_name,
         credentials=cd.SshCredentials(
@@ -108,7 +108,7 @@ def create_environment():
 
 
 def delete_environment(env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     try:
         return cd.EnvironmentsApi(horton.cad).delete(env_name)
     except ApiException as e:
@@ -116,16 +116,16 @@ def delete_environment(env_name=None):
 
 
 def list_deployments(env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     return cd.DeploymentsApi(horton.cad).list(environment=env_name)
 
 
 def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
                       tls_start=False, csds=None):
     assert isinstance(cm_ver, six.string_types)
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     log.info("Using Environment [%s]", env_name)
-    tem_name = tem_name if tem_name else horton.cadcred.name
+    tem_name = tem_name if tem_name else horton.cdcred.name
     log.info("Using Virtual Template [%s]", tem_name)
     dep_name = dep_name if dep_name else env_name + '-' + str(cm_ver).replace(
         '.', '-')
@@ -174,7 +174,7 @@ def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
 
 
 def delete_deployment(dep_name, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     try:
         return cd.DeploymentsApi(horton.cad).delete(
             environment=env_name,
@@ -185,8 +185,8 @@ def delete_deployment(dep_name, env_name=None):
 
 
 def get_deployment(dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
-    dep_name = dep_name if dep_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_name = dep_name if dep_name else horton.cdcred.name
     log.info("Attempting to get deployment %s", dep_name)
     try:
         return cd.DeploymentsApi(horton.cad).get_redacted(
@@ -202,8 +202,8 @@ def get_deployment(dep_name=None, env_name=None):
 
 
 def get_deployment_status(dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
-    dep_name = dep_name if dep_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_name = dep_name if dep_name else horton.cdcred.name
     #log.info("Fetching Deployment status for [%s]", dep_name)
     try:
         return cd.DeploymentsApi(horton.cad).get_status(
@@ -220,8 +220,8 @@ def get_deployment_status(dep_name=None, env_name=None):
 
 def list_clusters(env_name=None, dep_name=None):
     # Using default if available
-    env_name = env_name if env_name else horton.cadcred.name
-    dep_name = dep_name if dep_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_name = dep_name if dep_name else horton.cdcred.name
     cd.ClustersApi(horton.cad).list(
         environment=env_name,
         deployment=dep_name
@@ -233,11 +233,16 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
     # This assumes that Cloudbreak aor Director have been deployed
     platform = config.profile.get('platform')
     details = horton.cbd.extra
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    # Script installs JDK1.8 and force-sets Chronyd to work if present
     bootstraps = [
         cd.Script(
-            content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
-                    '"https://whoville.s3.eu-west-2.amazonaws.com/v2/or-jdk-8-212.rpm"\nexit 0'
+            content='#!/bin/sh'
+                    '\nyum remove --assumeyes *openjdk*'
+                    '\nrpm -ivh "https://whoville.s3.eu-west-2.amazonaws.com/v2/or-jdk-8-212.rpm"'
+                    '\necho "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4" >> /etc/chrony.conf'
+                    '\nservice chronyd restart'
+                    '\nexit 0'
         )
     ]
     if scripts is not None:
@@ -281,8 +286,8 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
 
 
 def get_instance_template(env_name=None, tem_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
-    tem_name = tem_name if tem_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    tem_name = tem_name if tem_name else horton.cdcred.name
     try:
         return cd.InstanceTemplatesApi(horton.cad).get(
             environment=env_name,
@@ -297,7 +302,7 @@ def get_instance_template(env_name=None, tem_name=None):
 
 def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
                    dep_name=None, clus_name=None, parcels=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
     services = services if services else ['HDFS', 'YARN']
@@ -375,7 +380,7 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
     if 'SCHEMAREGISTRY' in services:
         master_setups['SCHEMAREGISTRY'] = ['SCHEMA_REGISTRY_SERVER']
     clus_name = clus_name if clus_name else \
-        horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
+        horton.cdcred.name + '-' + str(cdh_ver).replace('.', '-')
     # Handle virtual instance generation
     master_vi = [create_virtual_instance(
         tem_name='master',
@@ -430,7 +435,7 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
 
 
 def get_cluster(clus_name, dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     dep_name = dep_name if dep_name else clus_name
     log.info("Attempting to get Cluster %s", clus_name)
     try:
@@ -448,7 +453,7 @@ def get_cluster(clus_name, dep_name=None, env_name=None):
 
 
 def get_cluster_status(clus_name, dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     dep_name = dep_name if dep_name else clus_name
     #log.info("Fetching Cluster status for [%s]", clus_name)
     try:
@@ -466,7 +471,7 @@ def get_cluster_status(clus_name, dep_name=None, env_name=None):
 
 
 def create_virtual_instance(tem_name=None, scripts=None):
-    tem_name = tem_name if tem_name else horton.cadcred.name
+    tem_name = tem_name if tem_name else horton.cdcred.name
     template = get_instance_template(tem_name=tem_name)
     if not template:
         create_instance_template(tem_name, scripts=scripts)
@@ -481,7 +486,7 @@ def create_virtual_instance(tem_name=None, scripts=None):
 
 def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
                  clus_name=None, tls_start=False, csds=None, parcels=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     assert isinstance(cdh_ver, six.string_types)
     assert services is None or isinstance(services, list)
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
