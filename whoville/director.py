@@ -31,7 +31,11 @@ def get_environment(env_name=None):
     tgt_env_name = env_name if env_name else horton.namespace + 'whoville'
     envs = list_environments()
     if tgt_env_name in envs:
-        return cd.EnvironmentsApi(horton.cad).get_redacted(tgt_env_name)
+        env_test = cd.EnvironmentsApi(horton.cad).get_redacted(tgt_env_name)
+        while not env_test:
+            sleep(2)
+            env_test = cd.EnvironmentsApi(horton.cad).get_redacted(tgt_env_name)
+        return env_test
     else:
         return create_environment()
 

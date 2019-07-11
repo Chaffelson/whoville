@@ -167,10 +167,8 @@ def init_cbreak_infra(create=True, create_wait=0):
         create=True,
         purge=horton.global_purge
     )
-    if ((config.profile['platform']['provider'] == 'EC2') or
-        (config.profile['platform']['provider'] == 'GCE')):
-        log.info("Ensuring Environment Credential for Director")
-        horton.cadcred = director.get_environment()
+    log.info("Ensuring Environment Credential for Director")
+    horton.cdcred = director.get_environment()
     init_finish_ts = _dt.utcnow()
     diff_ts = init_finish_ts - init_start_ts
     log.info("Completed Infrastructure Init at [%s] after [%d] seconds",
