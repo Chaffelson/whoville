@@ -11,7 +11,7 @@ exec 1>/var/log/cbd_bootstrap_centos7.log 2>&1
 
 # Params
 echo Exporting Params
-export cb_ver=${cb_ver:-2.9.0-rc.63}
+export cb_ver=${cb_ver:-2.9.1}
 export cbd_subdir=${cbd_subdir:-cbdeploy}
 export cad_subdir=${cad_subdir:-cadeploy}
 export cb_url=${cb_url:-public-repo-1.hortonworks.com/HDP/cloudbreak/cloudbreak-deployer_${cb_ver}_$(uname)_x86_64.tgz}
