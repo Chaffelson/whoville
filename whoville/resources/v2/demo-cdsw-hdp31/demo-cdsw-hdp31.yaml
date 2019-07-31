@@ -21,6 +21,7 @@ recipe:
 group:
   master:
     recipe: [install-dependency-packages]
+    type: GATEWAY
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE
