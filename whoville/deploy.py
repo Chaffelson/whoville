@@ -12,6 +12,7 @@ import logging
 import base64
 import re
 import sys
+from time import sleep
 from datetime import datetime, timedelta
 from calendar import timegm
 import json
@@ -146,15 +147,32 @@ def create_credential(from_profile=False, platform='EC2', name=None,
                                  selector, platform)
         else:
             raise ValueError("Platform [%s] unsupported", platform)
-    return cb.V1credentialsApi().post_private_credential(
-        body=cb.CredentialRequest(
-            cloud_platform=service,
-            description=name,
-            name=name,
-            parameters=sub_params
-        ),
-        **kwargs
-    )
+
+    try:
+        out = cb.V1credentialsApi().post_private_credential(
+            body=cb.CredentialRequest(
+                cloud_platform=service,
+                description=name,
+                name=name,
+                parameters=sub_params
+            ),
+            **kwargs
+        )
+    except ApiException as e:
+        log.info("Credential service returned an error, waiting 5 sec to retry")
+        sleep(5)
+        out = cb.V1credentialsApi().post_private_credential(
+            body=cb.CredentialRequest(
+                cloud_platform=service,
+                description=name,
+                name=name,
+                parameters=sub_params
+            ),
+            **kwargs
+        )
+    if not out:
+        raise ValueError("Could not create Credential with Cloudbreak")
+    return out
 
 
 def get_credential(name, create=False, purge=False, **kwargs):

@@ -12,7 +12,7 @@ import logging
 from time import sleep
 import six
 import uuid
-from whoville import config, utils, security
+from whoville import config, utils, security, infra
 import cloudera.director.latest as cd
 from cloudera.director.common.rest import ApiException
 
@@ -31,7 +31,11 @@ def get_environment(env_name=None):
     tgt_env_name = env_name if env_name else horton.namespace + 'whoville'
     envs = list_environments()
     if tgt_env_name in envs:
-        return cd.EnvironmentsApi(horton.cad).get_redacted(tgt_env_name)
+        env_test = cd.EnvironmentsApi(horton.cad).get_redacted(tgt_env_name)
+        while not env_test:
+            sleep(2)
+            env_test = cd.EnvironmentsApi(horton.cad).get_redacted(tgt_env_name)
+        return env_test
     else:
         return create_environment()
 
@@ -64,24 +68,43 @@ def create_environment():
     else:
         raise ValueError("SSH Private Key is required in your Profile, please update from the Template")
     if platform['provider'] == 'EC2':
-        cad_env = cd.Environment(
-            name=env_name,
-            credentials=cd.SshCredentials(
-                username='centos',
-                port=22,
-                private_key=priv_key
-            ),
-            provider=cd.InstanceProviderConfig(
-                type='aws',
-                config={
+        env_type = 'aws'
+        env_config = {
                     'accessKeyId': platform['key'],
                     'secretAccessKey': platform['secret'],
                     'region': platform['region']
                 }
-            )
-        )
+    elif platform['provider'] == 'GCE':
+        env_type = 'google'
+        env_config = {
+                    'projectId': platform['project'],
+                    'jsonKey': platform['jsonkey'],
+                    'region': platform['region']
+                }
+    elif platform['provider'] == 'AZURE_ARM':
+        env_type = 'azure'
+        env_config = {
+            'clientId': env_type,
+            'azureCloudEnvironment': env_type,
+            'tenantId': platform['application'],
+            'clientSecret': platform['secret'],
+            'region': platform['region'].lower().replace(' ', ''),
+            'subscriptionId': platform['subscription'],
+        }
     else:
-        raise ValueError("Provider not supported")
+        raise ValueError("Provider %s not supported for Director in Whoville", platform['provider'])
+    cad_env = cd.Environment(
+        name=env_name,
+        credentials=cd.SshCredentials(
+            username='centos',
+            port=22,
+            private_key=priv_key
+        ),
+        provider=cd.InstanceProviderConfig(
+            type=env_type,
+            config=env_config
+        )
+    )
     try:
         cd.EnvironmentsApi(horton.cad).create(cad_env)
     except ApiException as e:
@@ -99,7 +122,7 @@ def create_environment():
 
 
 def delete_environment(env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     try:
         return cd.EnvironmentsApi(horton.cad).delete(env_name)
     except ApiException as e:
@@ -107,16 +130,16 @@ def delete_environment(env_name=None):
 
 
 def list_deployments(env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     return cd.DeploymentsApi(horton.cad).list(environment=env_name)
 
 
 def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
                       tls_start=False, csds=None):
     assert isinstance(cm_ver, six.string_types)
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     log.info("Using Environment [%s]", env_name)
-    tem_name = tem_name if tem_name else horton.cadcred.name
+    tem_name = tem_name if tem_name else horton.cdcred.name
     log.info("Using Virtual Template [%s]", tem_name)
     dep_name = dep_name if dep_name else env_name + '-' + str(cm_ver).replace(
         '.', '-')
@@ -165,7 +188,7 @@ def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
 
 
 def delete_deployment(dep_name, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     try:
         return cd.DeploymentsApi(horton.cad).delete(
             environment=env_name,
@@ -176,8 +199,8 @@ def delete_deployment(dep_name, env_name=None):
 
 
 def get_deployment(dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
-    dep_name = dep_name if dep_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_name = dep_name if dep_name else horton.cdcred.name
     log.info("Attempting to get deployment %s", dep_name)
     try:
         return cd.DeploymentsApi(horton.cad).get_redacted(
@@ -193,9 +216,9 @@ def get_deployment(dep_name=None, env_name=None):
 
 
 def get_deployment_status(dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
-    dep_name = dep_name if dep_name else horton.cadcred.name
-    log.info("Fetching Deployment status for [%s]", dep_name)
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_name = dep_name if dep_name else horton.cdcred.name
+    #log.info("Fetching Deployment status for [%s]", dep_name)
     try:
         return cd.DeploymentsApi(horton.cad).get_status(
             environment=env_name,
@@ -211,8 +234,8 @@ def get_deployment_status(dep_name=None, env_name=None):
 
 def list_clusters(env_name=None, dep_name=None):
     # Using default if available
-    env_name = env_name if env_name else horton.cadcred.name
-    dep_name = dep_name if dep_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_name = dep_name if dep_name else horton.cdcred.name
     cd.ClustersApi(horton.cad).list(
         environment=env_name,
         deployment=dep_name
@@ -221,35 +244,55 @@ def list_clusters(env_name=None, dep_name=None):
 
 def create_instance_template(tem_name, env_name=None, image_id=None, scripts=None,
                              vm_type=None, subnet_id=None, sec_id=None):
-    # This assumes that Cloudbreak or Director have been deployed
+    # This assumes that Cloudbreak aor Director have been deployed
+    platform = config.profile.get('platform')
     details = horton.cbd.extra
-    env_name = env_name if env_name else horton.cadcred.name
-    image_id = image_id if image_id else details['image_id']
-    vm_type = vm_type if vm_type else details['instance_type']
-    subnet_id = subnet_id if subnet_id else details['subnet_id']
-    sec_id = sec_id if sec_id else details['groups'][0]['group_id']
+    env_name = env_name if env_name else horton.cdcred.name
+    # Script installs JDK1.8 and force-sets Chronyd to work if present
     bootstraps = [
         cd.Script(
-            content='#!/bin/sh\nyum remove --assumeyes *openjdk*\nrpm -ivh '
-                    '"https://archive.cloudera.com/director/redhat/7/x86_64/'
-                    'director/2.8.0/RPMS/x86_64/oracle-j2sdk1.8-1.8.0+update1'
-                    '21-1.x86_64.rpm"\nexit 0'
+            content='#!/bin/sh'
+                    '\nyum remove --assumeyes *openjdk*'
+                    '\nrpm -ivh "https://whoville.s3.eu-west-2.amazonaws.com/v2/or-jdk-8-212.rpm"'
+                    '\necho "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4" >> /etc/chrony.conf'
+                    '\nservice chronyd restart'
+                    '\nexit 0'
         )
     ]
     if scripts is not None:
         for s in scripts:
             bootstraps.append(cd.Script(content=s))
+    if platform['provider'] == 'GCE':
+        log.info("*** setting up GCE instance template ***")
+        # Director won't recognise the GCE image name as valid, have to use the URL
+        # https://community.cloudera.com/t5/Cloudera-Altus-Director/Instance-Template-Image-URLs-for-Cloudera-Director-on-Azure/td-p/45445
+        image_id = image_id if image_id else [
+            x for x in infra.create_libcloud_session().list_images()
+            if details['image'] in x.name
+        ][0].extra['selfLink']
+        vm_type = vm_type if vm_type else details['machineType'].split('/')[-1]
+        params = {
+                    'zone': horton.cbd.extra["zone"].name,
+                    'instanceNamePrefix': horton.namespace
+                }
+    else:  # assume AWS
+        log.info("*** setting up AWS instance template ***")
+        image_id = image_id if image_id else details['image_id']
+        vm_type = vm_type if vm_type else details['instance_type']
+        subnet_id = subnet_id if subnet_id else details['subnet_id']
+        sec_id = sec_id if sec_id else details['groups'][0]['group_id']
+        params = {
+                    'subnetId': subnet_id,
+                    'securityGroupsIds': sec_id,
+                    'instanceNamePrefix': horton.namespace
+                }
     cd.InstanceTemplatesApi(horton.cad).create(
         environment=env_name,
         instance_template=cd.InstanceTemplate(
             name=tem_name,
             image=image_id,
             type=vm_type,
-            config={
-                'subnetId': subnet_id,
-                'securityGroupsIds': sec_id,
-                'instanceNamePrefix': horton.namespace
-            },
+            config=params,
             tags=config.profile['tags'],
             bootstrap_scripts=bootstraps
         )
@@ -257,8 +300,8 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
 
 
 def get_instance_template(env_name=None, tem_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
-    tem_name = tem_name if tem_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
+    tem_name = tem_name if tem_name else horton.cdcred.name
     try:
         return cd.InstanceTemplatesApi(horton.cad).get(
             environment=env_name,
@@ -273,7 +316,7 @@ def get_instance_template(env_name=None, tem_name=None):
 
 def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
                    dep_name=None, clus_name=None, parcels=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
         '.', '-')
     services = services if services else ['HDFS', 'YARN']
@@ -351,7 +394,7 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
     if 'SCHEMAREGISTRY' in services:
         master_setups['SCHEMAREGISTRY'] = ['SCHEMA_REGISTRY_SERVER']
     clus_name = clus_name if clus_name else \
-        horton.cadcred.name + '-' + str(cdh_ver).replace('.', '-')
+        horton.cdcred.name + '-' + str(cdh_ver).replace('.', '-')
     # Handle virtual instance generation
     master_vi = [create_virtual_instance(
         tem_name='master',
@@ -406,7 +449,7 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
 
 
 def get_cluster(clus_name, dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     dep_name = dep_name if dep_name else clus_name
     log.info("Attempting to get Cluster %s", clus_name)
     try:
@@ -424,9 +467,9 @@ def get_cluster(clus_name, dep_name=None, env_name=None):
 
 
 def get_cluster_status(clus_name, dep_name=None, env_name=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     dep_name = dep_name if dep_name else clus_name
-    log.info("Fetching Cluster status for [%s]", clus_name)
+    #log.info("Fetching Cluster status for [%s]", clus_name)
     try:
         return cd.ClustersApi(horton.cad).get_status(
             environment=env_name,
@@ -442,7 +485,7 @@ def get_cluster_status(clus_name, dep_name=None, env_name=None):
 
 
 def create_virtual_instance(tem_name=None, scripts=None):
-    tem_name = tem_name if tem_name else horton.cadcred.name
+    tem_name = tem_name if tem_name else horton.cdcred.name
     template = get_instance_template(tem_name=tem_name)
     if not template:
         create_instance_template(tem_name, scripts=scripts)
@@ -457,7 +500,7 @@ def create_virtual_instance(tem_name=None, scripts=None):
 
 def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
                  clus_name=None, tls_start=False, csds=None, parcels=None):
-    env_name = env_name if env_name else horton.cadcred.name
+    env_name = env_name if env_name else horton.cdcred.name
     assert isinstance(cdh_ver, six.string_types)
     assert services is None or isinstance(services, list)
     dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
@@ -474,14 +517,15 @@ def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
         )
         sleep(3)
         cm_status = get_deployment_status(dep_name)
+        log.info("Deploying Cloudera Manager %s", cdh_ver)
         while cm_status is None or \
                 cm_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
-            log.info("Waiting 15s for Cloudera Manager [%s] to Deploy",
-                     cdh_ver)
             sleep(15)
             cm_status = get_deployment_status(dep_name)
+            log.info("CM [%s] status: %s, Step %s/%s, %s",cdh_ver, cm_status.stage, cm_status.completed_steps,
+                     cm_status.completed_steps + cm_status.remaining_steps, cm_status.description)
         cm = get_deployment(dep_name=dep_name)
-    log.info("Cloudera Manager [%s] is available at %s:7180",
+    log.info("Cloudera Manager [%s] is available at http://%s:7180",
              cdh_ver, cm.manager_instance.properties['publicIpAddress'])
     cluster = get_cluster(clus_name=clus_name, dep_name=dep_name)
     if not cluster:
@@ -498,6 +542,8 @@ def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
             clus_status = get_cluster_status(
                 clus_name=clus_name, dep_name=dep_name
             )
-    log.info("Cluster is deployed for %s", cdh_ver)
-    log.info("Cloudera Manager [%s] is available at %s:7180",
+            log.info("Cluster [%s] status: %s, Step %s/%s, %s", dep_name, clus_status.stage, clus_status.completed_steps,
+                     clus_status.completed_steps + clus_status.remaining_steps, clus_status.description)
+    log.info("Cluster %s is deployed for %s", dep_name, cdh_ver)
+    log.info("Cloudera Manager [%s] is available at http://%s:7180",
              cdh_ver, cm.manager_instance.properties['publicIpAddress'])
