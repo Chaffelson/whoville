@@ -59,8 +59,8 @@ sed -i "s@# End of file@*                soft    nofile         1048576\n*      
 # Install CDSW
 #wget -q --no-check-certificate https://s3.eu-west-2.amazonaws.com/whoville/v2/temp.blob
 #mv temp.blob cloudera-data-science-workbench-1.5.0.818361-1.el7.centos.x86_64.rpm
-wget -q https://archive.cloudera.com/cdsw1/1.5.0/redhat7/yum/RPMS/x86_64/cloudera-data-science-workbench-1.5.0.849870-1.el7.centos.x86_64.rpm
-yum install -y cloudera-data-science-workbench-1.5.0.849870-1.el7.centos.x86_64.rpm
+wget -q https://archive.cloudera.com/cdsw1/1.6.0/redhat7/yum/RPMS/x86_64/cloudera-data-science-workbench-1.6.0.1294376-1.el7.centos.x86_64.rpm
+yum install -y cloudera-data-science-workbench-1.6.0.1294376-1.el7.centos.x86_64.rpm
 
 # Install Anaconda
 curl -Ok https://repo.anaconda.com/archive/Anaconda2-5.2.0-Linux-x86_64.sh
@@ -86,7 +86,7 @@ sed -i "s@ANACONDA_DIR=\"\"@ANACONDA_DIR=\"/anaconda\"@g" /etc/cdsw/config/cdsw.
 # CDSW will break default Amazon DNS on 127.0.0.1:53, so we use a different IP
 sed -i "s@nameserver 127.0.0.1@nameserver 169.254.169.253@g" /etc/dhcp/dhclient-enter-hooks
 
-cdsw init
+cdsw start
 
 echo "CDSW will shortly be available on ${DOMAIN}"
 

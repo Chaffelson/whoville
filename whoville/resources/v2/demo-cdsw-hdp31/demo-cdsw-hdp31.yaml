@@ -19,8 +19,9 @@ recipe:
 - name: cdsw-postcluster.sh
   typ: POST_CLUSTER_INSTALL
 group:
-  master1:
+  master:
     recipe: [install-dependency-packages]
+    type: GATEWAY
   cdswmaster:
     recipe: [cdsw-postcluster]
     type: CORE

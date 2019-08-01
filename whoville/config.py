@@ -87,6 +87,13 @@ default_net_rules = [
         },
         {
             'protocol': 'tcp',  # high port secured access
+            'from_port': 7189,
+            'to_port': 7189,
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Director PublicIP'
+        },
+        {
+            'protocol': 'tcp',  # high port secured access
             'from_port': 8443,
             'to_port': 8443,
             'cidr_ips': ['0.0.0.0/0'],
@@ -98,6 +105,13 @@ default_net_rules = [
             'to_port': 443,
             'cidr_ips': ['0.0.0.0/0'],
             'description': 'SSL'
+        },
+        {
+            'protocol': 'tcp',  # general secured access
+            'from_port': 8080,
+            'to_port': 8080,
+            'cidr_ips': ['0.0.0.0/0'],
+            'description': 'Ambari'
         }
     ]
 

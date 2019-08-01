@@ -81,16 +81,6 @@ def create_environment():
                     'jsonKey': platform['jsonkey'],
                     'region': platform['region']
                 }
-    elif platform['provider'] == 'AZURE_ARM':
-        env_type = 'azure'
-        env_config = {
-            'clientId': env_type,
-            'azureCloudEnvironment': env_type,
-            'tenantId': platform['application'],
-            'clientSecret': platform['secret'],
-            'region': platform['region'].lower().replace(' ', ''),
-            'subscriptionId': platform['subscription'],
-        }
     else:
         raise ValueError("Provider %s not supported for Director in Whoville", platform['provider'])
     cad_env = cd.Environment(

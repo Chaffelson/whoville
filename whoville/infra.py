@@ -30,7 +30,7 @@ __all__ = ['create_libcloud_session', 'create_boto3_session', 'get_cloudbreak', 
            'list_subnets', 'list_security_groups', 'list_keypairs', 'list_nodes', 'nuke_namespace',
            'aws_get_static_ip', 'resolve_firewall_rules', 'ops_get_security_group', 'ops_get_ssh_key',
            'list_sizes_ops', 'ops_get_hosting_infra', 'ops_define_base_machine', 'define_userdata_script',
-           'aws_clean_stacks', 'delete_aws_network']
+           'aws_clean_stacks', 'delete_aws_network', 'aws_get_ssh_key', 'aws_get_hosting_infra']
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -244,7 +244,7 @@ def get_k8svm(s_libc=None, create=True, purge=False, create_wait=0):
         instances = deploy_instances(s_libc, instances_to_create, mode='k8svm', assign_ip=False)
         log.info("Waiting for K8s instances to be available")
         for i in instances.keys():
-            log.info("Checking for connectivity to [%s]", i)
+            log.info("Checking for connectivity to [%s] on [%s]", instances[i].public_ips[0])
             utils.wait_to_complete(
                 utils.get_remote_shell,
                 target_host=instances[i].public_ips[0],
@@ -420,6 +420,7 @@ def list_images(session, filters):
 
 def list_sizes_aws(session, cpu_min=2, cpu_max=16, mem_min=4096, mem_max=32768,
                    disk_min=0, disk_max=0):
+    # todo: refactor
     sizes = session.list_sizes()
     machines = [
         x for x in sizes
@@ -799,9 +800,10 @@ def nuke_namespace(dry_run=True):
             if x.state != 'terminated'
         ]
         log.info("Destroying nodes: %s", ", ".join(x.name for x in instances))
+        log.info("May take as long as 10 minutes to complete.")
         if not dry_run:
             if provider == 'GCE':
-                session.ex_destroy_multiple_nodes(instances, ignore_errors=True, destroy_boot_disk=True, poll_interval=2, timeout=180)
+                session.ex_destroy_multiple_nodes(instances, ignore_errors=True, destroy_boot_disk=True, poll_interval=2, timeout=600)
             else:
                 for i in instances:
                     log.info("Destroying Node %s", i.name)
@@ -826,7 +828,7 @@ def nuke_namespace(dry_run=True):
                     log.info("Destroying firewall %s", i.name)
                     if not dry_run:
                         session.ex_destroy_firewall(i)
-                if provider == 'OPENSTACK':
+                elif provider == 'OPENSTACK':
                     session.ex_delete_security_group(i)
                 else:
                     log.info("Destroying Security Group %s", i.name)
@@ -840,6 +842,13 @@ def nuke_namespace(dry_run=True):
             aws_clean_stacks(create_boto3_session())
         else:
             log.info("Dry Run: Would be cleaning AWS Stacks")
+    elif provider=='GCE':
+        for address in [
+            x for x in session.ex_list_addresses(region=config.profile.get('platform')['region'])
+            if x.name.startswith(namespace)
+        ]:
+            log.info("Destroying address [%s]", address.name)
+            session.ex_destroy_address(address)
 
 
 def resolve_firewall_rules():
@@ -848,7 +857,7 @@ def resolve_firewall_rules():
         my_public_ip = requests.get('https://ipv4.icanhazip.com', timeout=3).text.rstrip()
     except:
         my_public_ip = requests.get('https://ifconfig.me/ip', timeout=3).text.rstrip()
-    log.info("Local Public IP is %s, using for Firewall rules", my_public_ip)
+    log.info("Deploying User Public IP is %s, using for Firewall rules", my_public_ip)
     # Defaults
     net_rules = config.default_net_rules
     # Add deployment user
@@ -902,13 +911,18 @@ def ops_define_base_machine(session):
 def aws_define_base_machine(session):
     log.info("Finding an appropriate base machine for AWS deployment")
     log.info("Selecting OS Image")
-    images = list_images(
+    raw_images = list_images(
         session,
         filters={
             'name': '*CentOS Linux 7 x86_64 HVM EBS ENA*',
         }
     )
-    image = sorted(images, key=lambda k: k.extra['description'][-7:])
+    # Limit to AWS Marketplace images from Centos owner only
+    official_images = [
+        x for x in raw_images
+        if '679593333241' in x.extra['owner_id']
+    ]
+    image = sorted(official_images, key=lambda k: k.extra['description'][-7:])
     if not image:
         raise ValueError("Couldn't find a valid Centos7 Image")
     else:
@@ -1041,25 +1055,34 @@ def aws_get_ssh_key(session):
         )
     else:
         ssh_key = [x for x in ssh_key
-                   if x.name == config.profile['sshkey_name']][0]
-    return ssh_key
+                   if x.name == config.profile['sshkey_name']]
+    if not ssh_key:
+        raise ValueError("SSH Key named [%s] not found in AWS Key Listing", config.profile['sshkey_name'])
+    try:
+        return ssh_key[0]
+    except TypeError:
+        return ssh_key
 
 
 def aws_get_static_ip(session):
+    log.info("Fetching list of available Static IPs")
     try:
         static_ips = [
             x for x in session.ex_describe_all_addresses()
-            if x.instance_id is None
+            if not x.instance_id
             and x.extra['association_id'] is None
+            and x.extra['allocation_id'] is not None
         ]
     except InvalidCredsError:
         static_ips = None
     if not static_ips:
-        static_ip = session.ex_allocate_address()
+        log.info("Available Static IP not found, Allocating new")
+        static_ip = session.ex_allocate_address(domain='vpc')
     else:
+        log.info("Found available Static IPs, using first available")
         static_ip = static_ips[0]
     if not static_ip:
-        raise ValueError("Couldn't get a Static IP for Cloudbreak")
+        raise ValueError("Couldn't get a Static IP")
     return static_ip
 
 
@@ -1072,6 +1095,8 @@ def define_userdata_script(mode='cb', static_ip=None):
         # this allows direct passthrough if not an IP from EC2-like setups
         if 'ElasticIP' in str(type(static_ip)):
             fqdn = static_ip.ip
+        elif 'GCEAddress' in str(type(static_ip)):
+            fqdn = static_ip.address
         elif 'domain' in config.profile['platform']:
             fqdn = static_ip + config.profile['platform']['domain']
         else:
@@ -1091,8 +1116,12 @@ def define_userdata_script(mode='cb', static_ip=None):
         script_lines = [
             "#!/bin/bash",
             "cd /root",
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)"
+            "if [ -f /tmp/status.success ]; then",
+            "    exit",
+            "else",
+            "    source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
+            "/whoville/master/bootstrap/v2/k8svm_bootstrap_centos7.sh)",
+            "fi"
         ]
     else:
         raise ValueError("Mode [%s] not recognised", mode)
@@ -1100,19 +1129,23 @@ def define_userdata_script(mode='cb', static_ip=None):
 
 
 def aws_assign_static_ip(session, node, static_ip):
-    log.info("Assigning Static IP to Instance")
+    log.info("Associating Static IP to Instance")
     try:
+        log.info("Attempting standard IP Association")
         session.ex_associate_address_with_node(
             node,
             static_ip
         )
+        log.info("Succeeded with Standard IP Association, we are probably not on EC2-Classic")
     except (BaseHTTPError, InvalidCredsError) as e:
         if 'InvalidParameterCombination' in e.message:
+            log.info("Attempting failback IP Association for legacy VPCs")
             session.ex_associate_address_with_node(
                 node,
                 static_ip,
                 domain='vpc'  # needed for legacy AWS accounts
             )
+            log.info("Succeeded with failback IP Association, we are probably on EC2-Classic")
         elif 'AuthFailure: You do not have permission' in e.message:
             raise EnvironmentError("Unable to Assign Static IP to Instance, you "
                                    "may be missing permissions or reached the "
@@ -1204,6 +1237,7 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
                 static_ip = aws_get_static_ip(session)
             else:
                 static_ip = None
+            log.info("Using Static IP of [%s]", static_ip.ip)
             log.info("Defining deployment userdata script")
             script = define_userdata_script(mode, static_ip=static_ip)
             log.info("Creating Instance for [%s]", name)
@@ -1531,7 +1565,7 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
         subnets = session.ex_list_subnetworks(region=region)
         subnet = [
             x for x in subnets
-            if x.name == 'default'
+            if x.name == network.name
         ]
         if not subnet:
             session.ex_create_subnetwork(
@@ -1541,19 +1575,6 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
             subnet = subnet[-1]
             subnet_name = subnet.name
             log.info("Found existing subnet called: " + subnet_name)
-
-        log.info("Getting Public IP...")
-        try:
-            public_ip = session.ex_get_address(
-                name=public_ip_name, region=region
-            )
-            log.info("Found existing Public IP matching name: "
-                     + public_ip_name)
-        except ResourceNotFoundError:
-            public_ip = session.ex_create_address(
-                name=public_ip_name, region=region
-            )
-            log.info("Creating new Public IP with name: " + public_ip_name)
 
         images = session.list_images()
         image = [
@@ -1605,49 +1626,66 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
 
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else config.cb_ver
-        script_lines = [
-            "#!/bin/bash",
-            "cd /root",
-            "export cb_ver=" + cb_ver,
-            "export uaa_secret=" + security.get_secret('MASTERKEY'),
-            "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-            "export uaa_default_email=" + config.profile['email'],
-            "export public_ip=" + public_ip.address,
-            "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
-            "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
-        ]
-        script = '\n'.join(script_lines)
-        metadata = {
-            'items': [
-                {
-                    'key': 'startup-script',
-                    'value': script
-                },
-                {
-                    'key': 'ssh-keys',
-                    'value': 'centos:' + ssh_key
-                }
-            ]
-        }
 
-        log.info("Creating Cloudbreak instance...")
-        cbd = session.create_node(
-            name=name,
-            size=machine,
-            image=image,
-            location=zone,
-            ex_network=network,
-            external_ip=public_ip,
-            ex_metadata=metadata,
-            ex_tags=[name])
+        instances = {}
+        assign_ip = True
+        for name in names:
+            log.info("Handling instance [%s]", name)
 
-        log.info("Waiting for Cloudbreak Instance to be Available...")
-        session.wait_until_running(nodes=[cbd])
-        cbd = list_nodes(session, {'name': name})
-        cbd = [x for x in cbd if x.state == 'running']
-        if cbd:
-            return cbd[0]
-        else:
-            raise ValueError("Failed to create new Cloubreak Instance")
+            if assign_ip:
+                log.info("Getting Public IP...")
+                public_ip_name = name + '-public-ip'
+                try:
+                    public_ip = session.ex_get_address(
+                        name=public_ip_name, region=region
+                    )
+                    log.info("Found existing Public IP matching name: "
+                             + public_ip_name)
+                except ResourceNotFoundError:
+                    log.info("Creating new Public IP with name: " + public_ip_name)
+                    public_ip = session.ex_create_address(
+                        name=public_ip_name, region=region
+                    )
+                public_ip.ip = public_ip.address
+            else:
+                public_ip = None
+
+            script = define_userdata_script(mode, static_ip=public_ip)
+
+            metadata = {
+                'items': [
+                    {
+                        'key': 'startup-script',
+                        'value': script
+                    },
+                    {
+                        'key': 'ssh-keys',
+                        'value': 'centos:' + ssh_key
+                    }
+                ]
+            }
+            tags = utils.resolve_tags(name, config.profile['tags']['owner'])
+            log.info("Creating Instance for [%s]", name)
+            newnode = session.create_node(
+                name=name,
+                size=machine,
+                image=image,
+                location=zone,
+                ex_network=network,
+                external_ip=public_ip,
+                ex_metadata=metadata,
+                ex_tags=[name],
+                ex_labels=tags)
+
+            log.info("Waiting for Instance [%s] to be Available...", name)
+            session.wait_until_running(nodes=[newnode])
+            nodes = list_nodes(session, {'name': name})
+            running = [x for x in nodes if x.state == 'running']
+            if running:
+                log.info("Instance [%s] deploy complete...", name)
+                instances[name] = running[0]
+            else:
+                raise ValueError("Failed to create new Instance [%s]", name)
+        return instances
     else:
         raise ValueError("Session Provider [%s] not supported", session.type)
