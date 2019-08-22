@@ -304,12 +304,20 @@ def get_instance_template(env_name=None, tem_name=None):
             raise e
 
 
-def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
-                   dep_name=None, clus_name=None, parcels=None):
+def create_cluster(cluster_def, dep_name, workers=3, env_name=None, scripts=None):
     env_name = env_name if env_name else horton.cdcred.name
-    dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
-        '.', '-')
-    services = services if services else ['HDFS', 'YARN']
+    cdh_ver = str(cluster_def['products']['CDH'])
+    services = cluster_def['services']
+    cluster_name = cluster_def['name']
+    products = cluster_def['products']
+    if 'post_create_scripts' in cluster_def and cluster_def['post_create_scripts'] is not None:
+        log.info("Including post_create_scripts in cluster of %s", cluster_def['post_create_scripts'])
+        post_create_scripts = []
+        for script_name in cluster_def['post_create_scripts']:
+            log.info("Adding script %s like [%s]", script_name, scripts[script_name][:50])
+            post_create_scripts.append(cd.Script(content=scripts[script_name]))
+    else:
+        post_create_scripts = None
     if cdh_ver[0] == '5':
         load_parcels = ['https://archive.cloudera.com/cdh5/parcels/' +
                         cdh_ver + '/']
@@ -318,20 +326,9 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
                    '/parcels/']
     else:
         raise ValueError("Only CDH versions 5 or 6 supported")
-    if parcels:
-        load_parcels += parcels
-        if cdh_ver[0] == '6':
-            # CDH6 already has Kafka
-            load_parcels = [x for x in load_parcels if 'kafka' not in x]
-    products = {
-        'CDH': cdh_ver
-    }
-    if 'NIFI' in str(services):
-        products['CFM'] = '1'
-    if 'KAFKA' in str(services) and cdh_ver[0] == '5':
-        products['KAFKA'] = '4'
-    if 'SCHEMAREGISTRY' in str(services):
-        products['SCHEMAREGISTRY'] = '0.7'
+    if 'parcels' in cluster_def:
+        load_parcels += cluster_def['parcels']
+    # Default Role and Service configs
     services_configs = {}
     master_setups = {}
     master_configs = {}
@@ -381,22 +378,35 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
         }
     if 'KAFKA' in services:
         worker_setups['KAFKA'] = ['KAFKA_BROKER']
+        services_configs['KAFKA'] = {
+            'producer.metrics.enable': True
+        }
     if 'SCHEMAREGISTRY' in services:
         master_setups['SCHEMAREGISTRY'] = ['SCHEMA_REGISTRY_SERVER']
-    clus_name = clus_name if clus_name else \
-        horton.cdcred.name + '-' + str(cdh_ver).replace('.', '-')
+    # Handle Services Configs overrides
+    if 'servicesconfigs' in cluster_def.keys():
+        for k, v in cluster_def['servicesconfigs']:
+            services_configs[k] = v
     # Handle virtual instance generation
     master_vi = [create_virtual_instance(
         tem_name='master',
         scripts=[
             '''sudo -i
-            yum install mysql mariadb-server -y
+            yum install mysql mariadb-server epel-release -y  # MariaDB
+            yum -y install npm gcc-c++ make  # SMM-UI
+            npm install forever -g  # SMM-UI
             systemctl enable mariadb
             service mariadb start
             mysql --execute="CREATE DATABASE registry DEFAULT CHARACTER SET utf8"
             mysql --execute="CREATE USER 'registry'@'localhost' IDENTIFIED BY 'registry'"
             mysql --execute="GRANT ALL PRIVILEGES ON registry.* TO 'registry'@'localhost' identified by 'registry'"
             mysql --execute="GRANT ALL PRIVILEGES ON registry.* TO 'registry'@'localhost' WITH GRANT OPTION"
+            mysql --execute="CREATE DATABASE streamsmsgmgr DEFAULT CHARACTER SET utf8"
+            mysql --execute="CREATE USER 'streamsmsgmgr'@'localhost' IDENTIFIED BY 'streamsmsgmgr'"
+            mysql --execute="GRANT ALL PRIVILEGES ON streamsmsgmgr.* TO 'streamsmsgmgr'@'%' identified by 'streamsmsgmgr'"
+            mysql --execute="GRANT ALL PRIVILEGES ON streamsmsgmgr.* TO 'streamsmsgmgr'@'%' WITH GRANT OPTION"
+            mysql --execute="GRANT ALL PRIVILEGES ON streamsmsgmgr.* TO 'streamsmsgmgr'@'localhost' identified by 'streamsmsgmgr'"
+            mysql --execute="GRANT ALL PRIVILEGES ON streamsmsgmgr.* TO 'streamsmsgmgr'@'localhost' WITH GRANT OPTION"
             mysql --execute="FLUSH PRIVILEGES"
             mysql --execute="COMMIT"'''
         ]
@@ -407,7 +417,7 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
             environment=env_name,
             deployment=dep_name,
             cluster_template=cd.ClusterTemplate(
-                name=clus_name,
+                name=cluster_name,
                 product_versions=products,
                 parcel_repositories=load_parcels,
                 services=services,
@@ -427,13 +437,14 @@ def create_cluster(cdh_ver, workers=3, services=None, env_name=None,
                         role_types_configs=worker_configs,
                         virtual_instances=worker_vi
                     )
-                }
+                },
+                post_create_scripts=post_create_scripts
             )
         )
     except ApiException as e:
         if e.status == 409:
-            log.error("Cluster %s already exists", clus_name)
-            raise ValueError("Cluster %s already exists", clus_name)
+            log.error("Cluster %s already exists", cluster_name)
+            raise ValueError("Cluster %s already exists", cluster_name)
         else:
             raise e
 
@@ -488,52 +499,55 @@ def create_virtual_instance(tem_name=None, scripts=None):
     )
 
 
-def chain_deploy(cdh_ver, dep_name=None, services=None, env_name=None,
-                 clus_name=None, tls_start=False, csds=None, parcels=None):
+def chain_deploy(cm_ver, dep_name=None, clusters=None, env_name=None,
+                 tls_start=False, csds=None, scripts=None):
     env_name = env_name if env_name else horton.cdcred.name
-    assert isinstance(cdh_ver, six.string_types)
-    assert services is None or isinstance(services, list)
-    dep_name = dep_name if dep_name else env_name + '-' + cdh_ver.replace(
+    assert isinstance(cm_ver, six.string_types)
+    dep_name = dep_name if dep_name else env_name + '-' + cm_ver.replace(
         '.', '-')
-    clus_name = clus_name if clus_name else dep_name
 
+    # Handle Cloudera Manager deployment
     cm = get_deployment(dep_name=dep_name)
     if not cm:
         create_deployment(
-            cm_ver=cdh_ver,
+            cm_ver=cm_ver,
             dep_name=dep_name,
             tls_start=tls_start,
             csds=csds
         )
         sleep(3)
         cm_status = get_deployment_status(dep_name)
-        log.info("Deploying Cloudera Manager %s", cdh_ver)
+        log.info("Deploying Cloudera Manager %s", cm_ver)
         while cm_status is None or \
                 cm_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
             sleep(15)
             cm_status = get_deployment_status(dep_name)
-            log.info("CM [%s] status: %s, Step %s/%s, %s",cdh_ver, cm_status.stage, cm_status.completed_steps,
+            log.info("CM [%s] status: %s, Step %s/%s, %s", cm_ver, cm_status.stage, cm_status.completed_steps,
                      cm_status.completed_steps + cm_status.remaining_steps, cm_status.description)
         cm = get_deployment(dep_name=dep_name)
     log.info("Cloudera Manager [%s] is available at http://%s:7180",
-             cdh_ver, cm.manager_instance.properties['publicIpAddress'])
-    cluster = get_cluster(clus_name=clus_name, dep_name=dep_name)
-    if not cluster:
-        log.info("Cluster not found, creating...")
-        create_cluster(cdh_ver=cdh_ver, services=services, clus_name=clus_name,
-                       dep_name=dep_name, parcels=parcels)
-        clus_status = get_cluster_status(
-            clus_name=clus_name, dep_name=dep_name
-        )
-        while clus_status is None or \
-                clus_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
-            log.info("Waiting 30s for Cluster [%s] to Deploy", cdh_ver)
-            sleep(30)
-            clus_status = get_cluster_status(
-                clus_name=clus_name, dep_name=dep_name
-            )
-            log.info("Cluster [%s] status: %s, Step %s/%s, %s", dep_name, clus_status.stage, clus_status.completed_steps,
-                     clus_status.completed_steps + clus_status.remaining_steps, clus_status.description)
-    log.info("Cluster %s is deployed for %s", dep_name, cdh_ver)
+             cm_ver, cm.manager_instance.properties['publicIpAddress'])
+    # Handle Cluster builds
+    log.info("Checking if any clusters are defined in the Spec")
+    if clusters:
+        for cluster in clusters:
+            cluster_name = cluster['name']
+            cluster_test = get_cluster(clus_name=cluster_name, dep_name=dep_name)
+            if not cluster_test:
+                log.info("Cluster not found, creating...")
+                create_cluster(cluster_def=cluster, dep_name=dep_name, scripts=scripts)
+                clus_status = get_cluster_status(
+                    clus_name=cluster_name, dep_name=dep_name
+                )
+                log.info("Checking every 30s for Cluster [%s] to Deploy", cluster_name)
+                while clus_status is None or \
+                        clus_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
+                    sleep(30)
+                    clus_status = get_cluster_status(
+                        clus_name=cluster_name, dep_name=dep_name
+                    )
+                    log.info("Cluster [%s] status: %s, Step %s/%s, %s", dep_name, clus_status.stage, clus_status.completed_steps,
+                             clus_status.completed_steps + clus_status.remaining_steps, clus_status.description)
+            log.info("Cluster %s is deployed for %s", cluster_name, dep_name)
     log.info("Cloudera Manager [%s] is available at http://%s:7180",
-             cdh_ver, cm.manager_instance.properties['publicIpAddress'])
+             cm_ver, cm.manager_instance.properties['publicIpAddress'])

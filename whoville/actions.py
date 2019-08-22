@@ -34,12 +34,14 @@ def prep_spec(args):
         deploy.prep_stack_specs(def_key, shortname)
     elif 'director' in _horton.defs[def_key]['orchestrator']:
         fullname = _horton.namespace + shortname
+        scripts = copy.deepcopy(_horton.resources[def_key])
+        _ = scripts.pop(def_key + '.yaml')
         _horton.specs[fullname] = {
-            'cdh_ver': _horton.defs[def_key]['version'],
-            'services': _horton.defs[def_key]['services'],
+            'cm_ver': str(_horton.defs[def_key]['cmver']),
             'tls_start': _horton.defs[def_key]['tls_start'],
-            'parcels': _horton.defs[def_key]['parcels'] if 'parcels' in _horton.defs[def_key] else None,
-            'csds': _horton.defs[def_key]['csds'] if 'csds' in _horton.defs[def_key] else None
+            'csds': _horton.defs[def_key]['csds'] if 'csds' in _horton.defs[def_key] else None,
+            'clusters': _horton.defs[def_key]['clusters'],
+            'scripts': scripts
         }
     else:
         raise ValueError("Orchestrator not supported")
@@ -60,15 +62,15 @@ def do_builds(args):
                 _datetime.utcnow(),
                 600
             )
-        elif 'cdh_ver' in _horton.specs[fullname]:
+        elif 'cm_ver' in _horton.specs[fullname]:
             # Using Director
             director.chain_deploy(
-                cdh_ver=str(_horton.specs[fullname]['cdh_ver']),
+                cm_ver=str(_horton.specs[fullname]['cm_ver']),
                 dep_name=fullname,
-                services=_horton.specs[fullname]['services'],
+                clusters=_horton.specs[fullname]['clusters'],
                 tls_start=_horton.specs[fullname]['tls_start'],
                 csds=_horton.specs[fullname]['csds'],
-                parcels=_horton.specs[fullname]['parcels']
+                scripts=_horton.specs[fullname]['scripts']
             )
         else:
             raise ValueError("Orchestrator not supported")

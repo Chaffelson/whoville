@@ -272,8 +272,6 @@ def print_intro():
     for def_key in horton.defs.keys():
         print('\033[1m' + "\n  " + def_key + '\033[0m')
         print("        " + horton.defs[def_key].get('desc'))
-    print("\nTo deploy a CDH cluster, type 'cdh-' followed by the version "
-          "number, e.g. 'cdh-5.12.2'")
 
 
 def user_menu():
@@ -317,9 +315,6 @@ def autorun(def_key, count=1):
                 run_bundle(def_key=def_key, rename=rename)
         else:
             run_bundle(def_key=def_key)
-    elif 'cdh-' in def_key:
-        resolve_bundle_reqs(def_key=def_key)
-        director.chain_deploy(cdh_ver=def_key.split('-')[-1])
     else:
         log.info("Definition %s not recognised, please retry", def_key)
     print_intro()
