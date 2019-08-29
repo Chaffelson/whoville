@@ -106,7 +106,7 @@ sudo chown nifi:hadoop /home/nifi/minifi-k8s/minifi.yml
 
 # Finally cloning the scripts we need 
 
-sudo wget -O /home/nifi/minifi-k8s/launch_aks_cluster.sh https://gist.githubusercontent.com/paulvid/ae7f0ec16baada158a45b2f803114c45/raw/b211d635ef7ae47628e88b09f497420701450485/launch_aks_cluster.sh
+sudo wget -O /home/nifi/minifi-k8s/launch_aks_cluster.sh https://gist.githubusercontent.com/paulvid/ae7f0ec16baada158a45b2f803114c45/raw/20865ead5a32796d05510d11965235c904a6ce86/launch_aks_cluster.sh
 sudo chmod a+x /home/nifi/minifi-k8s/launch_aks_cluster.sh
 sudo chown nifi:hadoop /home/nifi/minifi-k8s/launch_aks_cluster.sh
 

@@ -57,12 +57,13 @@ export AWS_ACCESS_KEY_ID=$1
 export AWS_SECRET_ACCESS_KEY=$2
 export REGION=$3
 export PREFIX=$4
+pip install awscli --upgrade --user
 
 aws ec2 describe-subnets --filters Name=tag:Name,Values=$PREFIX"whoville" --region $REGION > subnets.json
 
 # Create additional subnet if needed
 num_subnets=$(jq '.Subnets[].SubnetId' subnets.json | wc -l)
-if [  num_subnets -eq 1 ] 
+if [ $((num_subnets + 0)) -eq 1 ] 
 then 
    # Setting Availability zone to original region + b 
    sub_1_az=$(jq '.Subnets[0].AvailabilityZone' subnets.json |  sed -r 's/\"//g')
