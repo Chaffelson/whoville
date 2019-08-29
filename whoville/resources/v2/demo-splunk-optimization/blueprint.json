@@ -1,0 +1,324 @@
+{
+  "Blueprints": {
+    "blueprint_name": "citibike-demo",
+    "stack_name": "HDP",
+    "stack_version": "3.1"
+  },
+  "configurations": [
+    {
+      "yarn-site": {
+        "properties": {
+          "yarn.nodemanager.resource.cpu-vcores": "{{{ yarn.vcores }}}",
+          "yarn.nodemanager.resource.memory-mb": "{{{ yarn.capacity }}}",
+          "yarn.scheduler.maximum-allocation-mb": "{{{ yarn.capacity }}}",
+          "yarn.timeline-service.reader.webapp.address": " ",
+          "yarn.timeline-service.reader.webapp.https.address": " "
+        }
+      }
+    },
+    {
+      "hdfs-site": {
+        "properties_attributes": {},
+        "properties": {
+          "fs.s3a.access.key": "{{{ fs.s3a.access.key }}}",
+          "fs.s3a.secret.key": "{{{ fs.s3a.secret.key }}}"
+        }
+      }
+    },
+    {
+      "zeppelin-site": {
+        "zeppelin.pyspark.python": "/opt/anaconda/bin/python2.7"
+      }
+    },
+    {
+      "capacity-scheduler": {
+        "properties": {
+          "yarn.scheduler.capacity.root.queues": "default",
+          "yarn.scheduler.capacity.root.capacity": "100",
+          "yarn.scheduler.capacity.root.default.capacity": "100",
+          "yarn.scheduler.capacity.root.default.maximum-capacity": "100",
+          "yarn.scheduler.capacity.maximum-am-resource-percent": "0.4"
+        }
+      }
+    },
+    {
+      "spark2-defaults": {
+        "properties_attributes": {},
+        "properties": {
+          "spark.sql.hive.hiveserver2.jdbc.url": "jdbc:hive2://%HOSTGROUP::master%:2181/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2",
+          "spark.sql.hive.hiveserver2.jdbc.url.principal": "hive/_HOST@EC2.INTERNAL",
+          "spark.datasource.hive.warehouse.metastoreUri": "thrift://%HOSTGROUP::master%:9083",
+          "spark.datasource.hive.warehouse.load.staging.dir": "/tmp",
+          "spark.hadoop.hive.llap.daemon.service.hosts": "@llap0",
+          "spark.hadoop.hive.zookeeper.quorum": "%HOSTGROUP::master%:2181"
+        }
+      }
+    },
+    {
+      "ranger-hive-audit": {
+        "properties_attributes": {},
+        "properties": {
+          "xasecure.audit.destination.hdfs.file.rollover.sec": "600"
+        }
+      }
+    },
+    {
+      "hive-site": {
+        "hive.exec.compress.output": "true",
+        "hive.merge.mapfiles": "true",
+        "hive.server2.tez.initialize.default.sessions": "true",
+        "hive.server2.transport.mode": "http",
+        "hive.metastore.dlm.events": "true",
+        "hive.metastore.transactional.event.listeners": "org.apache.hive.hcatalog.listener.DbNotificationListener",
+        "hive.repl.cm.enabled": "true",
+        "hive.repl.cmrootdir": "/apps/hive/cmroot",
+        "hive.repl.rootdir": "/apps/hive/repl"
+      }
+    },
+    {
+      "ranger-admin-site": {
+        "properties_attributes": {},
+        "properties": {
+          "ranger.jpa.jdbc.url": "jdbc:postgresql://localhost:5432/ranger"
+        }
+      }
+    },
+    {
+      "ranger-env": {
+        "properties_attributes": {},
+        "properties": {
+          "ranger_admin_password": "{{{ general.password }}}",
+          "keyadmin_user_password": "{{{ general.password }}}",
+          "rangertagsync_user_password": "{{{ general.password }}}",
+          "rangerusersync_user_password": "{{{ general.password }}}",
+          "is_solrCloud_enabled": "true",
+          "ranger-hdfs-plugin-enabled": "Yes",
+          "ranger-hive-plugin-enabled": "Yes",
+          "ranger-atlas-plugin-enabled": "Yes",
+          "ranger-knox-plugin-enabled": "Yes"
+        }
+      }
+    },
+    {
+      "atlas-env": {
+        "properties_attributes": {},
+        "properties": {
+          "atlas.admin.password": "{{{ general.password }}}"
+        }
+      }
+    },
+    {
+      "kafka-broker": {
+        "properties_attributes": {},
+        "properties": {
+          "default.replication.factor": "1",
+          "offsets.topic.replication.factor": "1"
+        }
+      }
+    },
+    {
+      "hbase-site": {
+        "properties_attributes": {},
+        "properties": {
+          "phoenix.query.timeoutMs": "60000",
+          "hfile.block.cache.size": "0.4",
+          "hbase.regionserver.global.memstore.size": "0.4",
+          "hbase.regionserver.handler.count": "60",
+          "hbase.hregion.memstore.flush.size": "536870912",
+          "hbase.hregion.max.filesize": "21474836480",
+          "hbase.regionserver.wal.codec": "org.apache.hadoop.hbase.regionserver.wal.IndexedWALEditCodec",
+          "hbase.defaults.for.version.skip": "true",
+          "hbase.region.server.rpc.scheduler.factory.class": "org.apache.hadoop.hbase.ipc.PhoenixRpcSchedulerFactory",
+          "hbase.rpc.controllerfactory.class": "org.apache.hadoop.hbase.ipc.controller.ServerRpcControllerFactory",
+          "phoenix.functions.allowUserDefinedFunctions": "true",
+          "hbase.bucketcache.size": "24000",
+          "hbase.bucketcache.ioengine": "file:/hbase/cache",
+          "hbase.bucketcache.combinedcache.enabled": "true",
+          "hbase.rs.cacheblocksonwrite": "true",
+          "hfile.block.bloom.cacheonwrite": "true",
+          "hfile.block.index.cacheonwrite": "true",
+          "hbase.rootdir": "/apps/hbase"
+        }
+      }
+    },
+    {
+      "hbase-env": {
+        "properties_attributes": {},
+        "properties": {
+          "hbase_java_io_tmpdir": "/tmp",
+          "hbase_log_dir": "/var/log/hbase",
+          "hbase_master_heapsize": "1024m",
+          "hbase_pid_dir": "/var/run/hbase",
+          "hbase_regionserver_heapsize": "8192m",
+          "hbase_regionserver_shutdown_timeout": "30",
+          "hbase_regionserver_xmn_max": "8192m",
+          "hbase_regionserver_xmn_ratio": "0.2",
+          "hbase_user": "hbase",
+          "hbase_user_nofile_limit": "32000",
+          "hbase_user_nproc_limit": "16000",
+          "phoenix_sql_enabled": "true"
+        }
+      }
+    },
+    {
+      "nifi-ambari-config": {
+        "nifi.sensitive.props.key": "{{{ general.password }}}",
+        "nifi.security.encrypt.configuration.password": "{{{ general.password }}}",
+        "nifi.max_mem": "4g",
+        "nifi.node.protocol.port": "9089",
+        "nifi.node.port": "9092"
+      }
+    },
+    {
+      "nifi-properties": {
+        "nifi.sensitive.props.key": "{{{ general.password }}}",
+        "nifi.security.user.login.identity.provider": "",
+        "nifi.remote.input.socket.port": 9093
+      }
+    },
+    {
+      "nifi-registry-ambari-config": {
+        "nifi.registry.security.encrypt.configuration.password": "{{{ general.password }}}"
+      }
+    },
+    {
+      "nifi-registry-properties": {
+        "nifi.registry.sensitive.props.key": "{{{ general.password }}}",
+        "nifi.registry.db.password": "{{{ general.password }}}"
+      }
+    },
+    {
+      "registry-common": {
+        "properties_attributes": {},
+        "properties": {
+          "jar.storage.type": "local",
+          "database_name": "registry",
+          "registry.storage.query.timeout": "30",
+          "registry.schema.cache.expiry.interval": "3600",
+          "registry.storage.connector.connectURI": "jdbc:mysql://localhost:3306/registry",
+          "jar.storage": "/hdf/registry",
+          "registry.storage.connector.user": "registry",
+          "registry.storage.connector.password": "registry",
+          "jar.storage.hdfs.url": "hdfs://localhost:9090",
+          "port": "7788",
+          "adminPort": "7789",
+          "registry.schema.cache.size": "10000",
+          "registry.storage.type": "mysql"
+        }
+      }
+    }
+  ],
+  "host_groups": [
+    {
+      "name": "master",
+      "cardinality": "1",
+      "components": [
+        {
+          "name": "ATLAS_SERVER"
+        },
+        {
+          "name": "RANGER_TAGSYNC"
+        },
+        {
+          "name": "RANGER_USERSYNC"
+        },
+        {
+          "name": "RANGER_ADMIN"
+        },
+        {
+          "name": "INFRA_SOLR"
+        },
+        {
+          "name": "HIVE_SERVER"
+        },
+        {
+          "name": "HIVE_METASTORE"
+        },
+        {
+          "name": "HBASE_MASTER"
+        },
+        {
+          "name": "KAFKA_BROKER"
+        },
+        {
+          "name": "ZOOKEEPER_SERVER"
+        },
+        {
+          "name": "NAMENODE"
+        },
+        {
+          "name": "SECONDARY_NAMENODE"
+        },
+        {
+          "name": "RESOURCEMANAGER"
+        },
+        {
+          "name": "HISTORYSERVER"
+        },
+        {
+          "name": "APP_TIMELINE_SERVER"
+        },
+        {
+          "name": "LIVY2_SERVER"
+        },
+        {
+          "name": "SPARK2_CLIENT"
+        },
+        {
+          "name": "SPARK2_JOBHISTORYSERVER"
+        },
+        {
+          "name": "ZEPPELIN_MASTER"
+        },
+        {
+          "name": "REGISTRY_SERVER"
+        },
+        {
+          "name": "NIFI_REGISTRY_MASTER"
+        },
+        {
+          "name": "NIFI_CA"
+        },
+        {
+          "name": "NIFI_MASTER"
+        },
+        {
+          "name": "HBASE_REGIONSERVER"
+        },
+        {
+          "name": "DATANODE"
+        },
+        {
+          "name": "NODEMANAGER"
+        },
+        {
+          "name": "YARN_CLIENT"
+        },
+        {
+          "name": "HDFS_CLIENT"
+        },
+        {
+          "name": "TEZ_CLIENT"
+        },
+        {
+          "name": "INFRA_SOLR_CLIENT"
+        },
+        {
+          "name": "ZOOKEEPER_CLIENT"
+        },
+        {
+          "name": "MAPREDUCE2_CLIENT"
+        },
+        {
+          "name": "ATLAS_CLIENT"
+        },
+        {
+          "name": "HBASE_CLIENT"
+        },
+        {
+          "name": "HIVE_CLIENT"
+        }
+      ]
+    }
+  ]
+}
