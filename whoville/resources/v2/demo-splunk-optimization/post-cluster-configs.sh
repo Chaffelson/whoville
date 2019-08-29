@@ -110,6 +110,10 @@ sudo wget -O /home/nifi/minifi-k8s/launch_aks_cluster.sh https://gist.githubuser
 sudo chmod a+x /home/nifi/minifi-k8s/launch_aks_cluster.sh
 sudo chown nifi:hadoop /home/nifi/minifi-k8s/launch_aks_cluster.sh
 
+sudo wget -O /home/nifi/minifi-k8s/delete_aks_cluster.sh https://gist.githubusercontent.com/paulvid/ecd220cda30dc99761ddc8d7935fe205/raw/1dcdbd6d87a3f22235890b0b571428079a59e171/delete_aks_cluster.sh
+sudo chmod a+x /home/nifi/minifi-k8s/delete_aks_cluster.sh
+sudo chown nifi:hadoop /home/nifi/minifi-k8s/delete_aks_cluster.sh
+
 
 # Install and setup EFM
 # We need it after cluster start as we want NiFi Registry to be available
