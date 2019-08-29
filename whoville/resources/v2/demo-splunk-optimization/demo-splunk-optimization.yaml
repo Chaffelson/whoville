@@ -7,11 +7,11 @@ deploywait: 1800
 purge: false
 priority: 
 seq:
-- copy_def: [inf-hdp31-single, workshop]
-- merge_def: [cdf-workshop, workshop]
-- prep_deps: [workshop, workshop]
-- prep_spec: [workshop, workshop]
-- do_builds: [workshop]
+- copy_def: [inf-hdp31-single, splunk-optimization]
+- merge_def: [demo-splunk-optimization, splunk-optimization]
+- prep_deps: [splunk-optimization, splunk-optimization]
+- prep_spec: [splunk-optimization, splunk-optimization]
+- do_builds: [splunk-optimization]
 input:
   yarn.vcores: 16
   yarn.capacity: 60000

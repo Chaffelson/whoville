@@ -90,7 +90,7 @@ sub_id_2=$(jq '.Subnets[1].SubnetId' subnets.json |  sed -r 's/\"//g')
 
 
 eksctl create cluster \
---name $PREFIX-k8s \
+--name $PREFIX"k8s" \
 --version 1.13 \
 --nodegroup-name standard-workers \
 --node-type t3.medium \
