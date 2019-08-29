@@ -129,7 +129,7 @@ def create_deployment(cm_ver, env_name=None, tem_name=None, dep_name=None,
     assert isinstance(cm_ver, six.string_types)
     env_name = env_name if env_name else horton.cdcred.name
     log.info("Using Environment [%s]", env_name)
-    tem_name = tem_name if tem_name else horton.cdcred.name
+    tem_name = tem_name if tem_name else dep_name if dep_name else horton.cdcred.name
     log.info("Using Virtual Template [%s]", tem_name)
     dep_name = dep_name if dep_name else env_name + '-' + str(cm_ver).replace(
         '.', '-')
@@ -263,7 +263,7 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
         vm_type = vm_type if vm_type else details['machineType'].split('/')[-1]
         params = {
                     'zone': horton.cbd.extra["zone"].name,
-                    'instanceNamePrefix': horton.namespace
+                    'instanceNamePrefix': tem_name,
                 }
     else:  # assume AWS
         log.info("*** setting up AWS instance template ***")
@@ -274,7 +274,7 @@ def create_instance_template(tem_name, env_name=None, image_id=None, scripts=Non
         params = {
                     'subnetId': subnet_id,
                     'securityGroupsIds': sec_id,
-                    'instanceNamePrefix': horton.namespace
+                    'instanceNamePrefix': tem_name,
                 }
     cd.InstanceTemplatesApi(horton.cad).create(
         environment=env_name,
@@ -389,7 +389,7 @@ def create_cluster(cluster_def, dep_name, workers=3, env_name=None, scripts=None
             services_configs[k] = v
     # Handle virtual instance generation
     master_vi = [create_virtual_instance(
-        tem_name='master',
+        tem_name=dep_name + '-' + cluster_name + '-master',
         scripts=[
             '''sudo -i
             yum install mysql mariadb-server epel-release -y  # MariaDB
@@ -411,7 +411,8 @@ def create_cluster(cluster_def, dep_name, workers=3, env_name=None, scripts=None
             mysql --execute="COMMIT"'''
         ]
     )]
-    worker_vi = [create_virtual_instance() for _ in range(0, workers)]
+    worker_vi = [create_virtual_instance(tem_name=dep_name + '-' + cluster_name + '-worker')
+                 for _ in range(0, workers)]
     try:
         cd.ClustersApi(horton.cad).create(
             environment=env_name,
