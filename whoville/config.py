@@ -24,8 +24,10 @@ if sys.version_info < MIN_PYTHON:
 
 # --- Profile File Name ------
 profile_loc = os.environ.get("PROFILE")
-if not profile_loc:
-    profile_loc = 'profile.yml'
+if profile_loc is None:
+    profile_loc = ['/profile.yml', 'profile.yml']
+else:
+    profile_loc = [profile_loc]
 
 
 # --- Project Root -----
@@ -116,8 +118,16 @@ default_net_rules = [
     ]
 
 # Resolve Configuration overrides from local profile
-try:
-    with open(str(profile_loc), 'r') as f:
-        profile = safe_load(f.read())
-except IOError as e:
+profile = None
+for p in profile_loc:
+    print("Trying profile path ", p)
+    try:
+        with open(str(p), 'r') as f:
+            profile = safe_load(f.read())
+    except IOError as e:
+        print("Profile not found at ", p)
+    if profile:
+        print("Found Profile at ", p)
+        break
+if not profile:
     raise IOError("profile.yml not found - Have you set your Profile up?")

@@ -225,11 +225,11 @@ def get_deployment_status(dep_name=None, env_name=None):
 def list_clusters(env_name=None, dep_name=None):
     # Using default if available
     env_name = env_name if env_name else horton.cdcred.name
-    dep_name = dep_name if dep_name else horton.cdcred.name
-    cd.ClustersApi(horton.cad).list(
-        environment=env_name,
-        deployment=dep_name
-    )
+    dep_names = [dep_name] if dep_name else list_deployments(env_name)
+    clusters = []
+    for d in dep_names:
+        [clusters.append(x) for x in [cd.ClustersApi(horton.cad).list(environment=env_name, deployment=d)]]
+    return [x for y in clusters for x in y]
 
 
 def create_instance_template(tem_name, env_name=None, image_id=None, scripts=None,
@@ -461,7 +461,7 @@ def get_cluster(clus_name, dep_name=None, env_name=None):
         )
     except ApiException as e:
         if e.status == 404:
-            log.error("Cluster %s not found", dep_name)
+            log.error("Cluster %s not found, error: %s", clus_name, e.body)
             return []
         else:
             raise e
@@ -499,6 +499,19 @@ def create_virtual_instance(tem_name=None, scripts=None):
     )
 
 
+def get_hostfile_list(dep_name=None, env_name=None):
+    env_name = env_name if env_name else horton.cdcred.name
+    dep_names = [dep_name] if dep_name else list_deployments(env_name)
+    hosts = []
+    for d in dep_names:
+        cluster_names = list_clusters(env_name, d)
+        for c in cluster_names:
+            c_info = get_cluster(c, d, env_name)
+            for host in c_info.instances:
+                hosts.append('{0} {1}'.format(host.properties['publicIpAddress'], host.properties['privateDnsName']))
+    return hosts
+
+
 def chain_deploy(cm_ver, dep_name=None, clusters=None, env_name=None,
                  tls_start=False, csds=None, scripts=None):
     env_name = env_name if env_name else horton.cdcred.name
@@ -529,25 +542,39 @@ def chain_deploy(cm_ver, dep_name=None, clusters=None, env_name=None,
              cm_ver, cm.manager_instance.properties['publicIpAddress'])
     # Handle Cluster builds
     log.info("Checking if any clusters are defined in the Spec")
-    if clusters:
+    if not clusters:
+        log.info("No Clusters defined in Bundle")
+    else:
+        # Do Builds in parallel
+        builds = []
         for cluster in clusters:
             cluster_name = cluster['name']
-            cluster_test = get_cluster(clus_name=cluster_name, dep_name=dep_name)
+            cluster_test = get_cluster_status(clus_name=cluster_name, dep_name=dep_name)
             if not cluster_test:
                 log.info("Cluster not found, creating...")
                 create_cluster(cluster_def=cluster, dep_name=dep_name, scripts=scripts)
-                clus_status = get_cluster_status(
-                    clus_name=cluster_name, dep_name=dep_name
-                )
-                log.info("Checking every 30s for Cluster [%s] to Deploy", cluster_name)
-                while clus_status is None or \
-                        clus_status.stage not in ['READY', 'BOOTSTRAP_FAILED']:
-                    sleep(30)
-                    clus_status = get_cluster_status(
-                        clus_name=cluster_name, dep_name=dep_name
-                    )
-                    log.info("Cluster [%s] status: %s, Step %s/%s, %s", dep_name, clus_status.stage, clus_status.completed_steps,
-                             clus_status.completed_steps + clus_status.remaining_steps, clus_status.description)
-            log.info("Cluster %s is deployed for %s", cluster_name, dep_name)
+            builds.append(cluster_name)
+        # Monitor all builds
+        log.info("Checking every 30s for Builds [{0}] to finish Deployment".format(str(builds)))
+        finished = False
+        while finished is False:
+            clus_status = {
+                x: get_cluster_status(clus_name=x, dep_name=dep_name)
+                for x in builds
+            }
+            still_deploying = False
+            for x in clus_status.keys():
+                log.info("[%s][%s][Step %s/%s]: %s", x, clus_status[x].stage,
+                         clus_status[x].completed_steps,
+                         clus_status[x].completed_steps + clus_status[x].remaining_steps,
+                         clus_status[x].description
+                         )
+                if clus_status[x].stage not in ['READY', 'BOOTSTRAP_FAILED']:
+                    still_deploying = True
+            finished = not still_deploying
+            if not finished:
+                sleep(30)
+        log.info("Builds are complete")
+    ### Final messages
     log.info("Cloudera Manager [%s] is available at http://%s:7180",
              cm_ver, cm.manager_instance.properties['publicIpAddress'])

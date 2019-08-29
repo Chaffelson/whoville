@@ -35,14 +35,21 @@ def init_whoville_service():
     log.info("------------- Validating Profile")
     utils.validate_profile()
     log.info("------------- Loading Default Resources")
-    default_resources = os.path.abspath(os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), 'resources', 'v2'
-    ))
-    horton.resources.update(
-        utils.load_resources_from_files(default_resources)
-    )
+    default_resources = []
+    for d in os.listdir(
+            os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources'))):
+        if d[0] == 'v':
+            default_resources.append(d)
+    for d in default_resources:
+        horton.resources.update(
+            utils.load_resources_from_files(
+                os.path.abspath(os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), 'resources', d)
+                )
+            )
+        )
     log.info("------------- Fetching Resources from Profile Definitions")
-    if config.profile['resources']:
+    if 'resources' in config.profile and config.profile['resources']:
         for res_def in config.profile['resources']:
             if res_def['loc'] == 'local':
                 log.info("Loading resources from Local path [%s]",
@@ -63,7 +70,7 @@ def init_whoville_service():
                 raise ValueError("Resource Location [%s] Unsupported",
                                  res_def['loc'])
     else:
-        log.warning("Found no additional Resources to load!")
+        log.info("Unable to find additional Demo resources")
     key_test = _re.compile(r'[a-z0-9-.]')
     for def_key, res_list in horton.resources.items():
         log.debug('def_key [%s] res_list [%s]', def_key, res_list)
@@ -118,9 +125,11 @@ def init_cbreak_infra(create=True, create_wait=0):
     log.info("Setting Altus Director endpoint to %s", cad_url)
     utils.set_endpoint(cad_url)
     log.info("------------- Authenticating to Cloudbreak")
+    email = config.profile['email'] if 'email' in config.profile else 'admin@example.com'
+    username = config.profile['username'] if 'username' in config.profile else 'admin'
     cbd_auth_success = security.service_login(
             service='cloudbreak',
-            username=config.profile['email'],
+            username=email,
             password=security.get_secret('ADMINPASSWORD'),
             bool_response=False
         )
@@ -131,7 +140,7 @@ def init_cbreak_infra(create=True, create_wait=0):
     log.info("------------- Authenticating to Altus Director")
     cad_auth_success = security.service_login(
         service='director',
-        username=config.profile['username'],
+        username=username,
         password=security.get_secret('ADMINPASSWORD'),
         bool_response=False
     )
@@ -182,10 +191,7 @@ def resolve_bundle_reqs(def_key):
         log.info("Bundle requirements not explicitly set, defaulting to Cloudbreak and Director")
         # Default to Cloudbreak / Director service
         if not horton.cbcred:
-            log.info("Cloudbreak instance not found, deploying...")
             init_cbreak_infra()
-        else:
-            log.info("Cloudbreak instance found for provider, continuing...")
     else:
         # Work through deps declaration
         log.info("Bundle requirements found, processing...")
@@ -258,9 +264,11 @@ def print_intro():
         print("\nCloudbreak is available at (browser): " + url)
         print("\nAltus Director is available at (browser): " + url
               .replace('/sl', ':7189'))
-        print("Currently Deployed Environments: " + str(
-            [x.name for x in deploy.list_stacks()])
-            )
+        print("Currently Deployed Environments: "
+              + 'Cloudbreak: ' + str([x.name for x in deploy.list_stacks()]) + '\n'
+              + 'Director: ' + ', '.join(['http://{0}:7180'.format(director.get_deployment(dep_name=x).manager_instance.properties['publicIpAddress']) for x in director.list_deployments()]))
+        log.info("Suggested Hosts File Entries for Director Environments:\n{0}"
+                 .format('\n'.join(director.get_hostfile_list())))
     if horton.k8svm:
         k8s_master_name = [x for x in horton.k8svm if 'k8s-master' in x][0]
         if isinstance(horton.k8svm[k8s_master_name], list):

@@ -185,13 +185,13 @@ def wait_to_complete(test_function, *args, **kwargs):
         test_result = test_function(*args, **kwargs)
         log.debug("Checking result")
         if test_result:
-            log.info("Function output [%s] eval to True, returning output",
+            log.debug("Function output [%s] eval to True, returning output",
                      str(test_result)[:25])
             return test_result
-        log.info("Function output [%s] evaluated to False, sleeping...",
+        log.debug("Function output [%s] evaluated to False, sleeping...",
                  str(test_result)[:25])
         time.sleep(delay)
-    log.info("Hit Timeout, raising TimeOut Error")
+    log.debug("Hit Timeout, raising TimeOut Error")
     raise ValueError("Timed Out waiting for {0} to complete".format(
         test_function.__name__))
 
@@ -313,19 +313,19 @@ def set_endpoint(endpoint_url):
     """
     log.info("Called set_endpoint with args %s", locals())
     if 'cb/api' in endpoint_url:
-        log.info("Setting Cloudbreak endpoint to %s", endpoint_url)
+        log.debug("Setting Cloudbreak endpoint to %s", endpoint_url)
         this_config = config.cb_config
     elif ':7189' in endpoint_url:
-        log.info("Setting Altus Director endpoint to %s", endpoint_url)
+        log.debug("Setting Altus Director endpoint to %s", endpoint_url)
         this_config = config.cd_config
     else:
         raise ValueError("Unrecognised API Endpoint")
     try:
         if this_config.api_client:
-            log.info("Found Active API Client, updating...")
+            log.debug("Found Active API Client, updating...")
             this_config.api_client.host = endpoint_url
     except AttributeError:
-        log.info("No Active API Client found to update")
+        log.debug("No Active API Client found to update")
     this_config.host = endpoint_url
     if this_config.host == endpoint_url:
         return True
@@ -461,20 +461,20 @@ def load_resources_from_files(file_path):
     resources = {}
     # http://code.activestate.com/recipes/577879-create-a-nested-dictionary-from-oswalk/
     rootdir = file_path.rstrip(os.sep)
-    log.info("Trying path {0}".format(rootdir))
+    log.debug("Trying path {0}".format(rootdir))
     head = rootdir.rsplit(os.sep)[-1]
     start = rootdir.rfind(os.sep) + 1
     for path, dirs, files in os.walk(rootdir):
-        log.info("Trying path {0}".format(path))
+        log.debug("Trying path {0}".format(path))
         folders = path[start:].split(os.sep)
         subdir = dict.fromkeys(files)
         parent = reduce(dict.get, folders[:-1], resources)
         parent[folders[-1]] = subdir
         for file_name in subdir.keys():
             if file_name[0] == '.':
-                log.info("skipping dot file [%s]", file_name)
+                log.debug("skipping dot file [%s]", file_name)
             else:
-                log.info("loading [%s]", os.path.join(path, file_name))
+                log.debug("loading [%s]", os.path.join(path, file_name))
             if file_name.rsplit('.')[1] not in ['yaml', 'json']:
                 subdir[file_name] = fs_read(os.path.join(path, file_name))
             else:
@@ -522,7 +522,7 @@ class Horton:
         self.cache = {}  # Key:Value store for passing params between Defs
         self.shells = {}  # Key:Value session store for remote shells
         self.namespace = config.profile['namespace']
-        self.global_purge = config.profile['globalpurge']
+        self.global_purge = config.profile['globalpurge'] if 'globalpurge' in config.profile else False
 
     def __iter__(self):
         for attr, value in self.__dict__.items():
@@ -631,6 +631,8 @@ def resolve_tags(instance_name, owner):
                 (datetime.now() + timedelta(days=2)).strftime("%m%d%Y").lower())
         if 'project' not in tags or tags['project'] is None:
             tags['project'] = 'selfdevelopment'
+        if 'deploytool' not in tags or tags['deploytool'] is None:
+            tags['deploytool'] = 'whoville'
         tags['dps'] = 'false'
         tags['datalake'] = 'false'
     else:
