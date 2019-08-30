@@ -37,7 +37,7 @@ def prep_spec(args):
         scripts = copy.deepcopy(_horton.resources[def_key])
         _ = scripts.pop(def_key + '.yaml')
         _horton.specs[fullname] = {
-            'cm_ver': str(_horton.defs[def_key]['cm_ver']),
+            'cm_ver': str(_horton.defs[def_key]['cmver']),
             'tls_start': _horton.defs[def_key]['tls_start'],
             'csds': _horton.defs[def_key]['csds'] if 'csds' in _horton.defs[def_key] else None,
             'clusters': _horton.defs[def_key]['clusters'],
