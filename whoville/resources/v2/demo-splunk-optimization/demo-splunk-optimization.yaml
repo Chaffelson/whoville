@@ -1,0 +1,35 @@
+# Known issues:
+# Hive LLAP will not start on small machines
+# NiFi moved to 9092 to avoid a port clash when everything is on one node
+
+desc: Single noderunning CEM, Nifi and Minifi on K8s
+deploywait: 1800
+purge: false
+priority: 
+seq:
+- copy_def: [inf-hdp31-single, splunk-optimization]
+- merge_def: [demo-splunk-optimization, splunk-optimization]
+- prep_deps: [splunk-optimization, splunk-optimization]
+- prep_spec: [splunk-optimization, splunk-optimization]
+- do_builds: [splunk-optimization]
+input:
+  yarn.vcores: 16
+  yarn.capacity: 60000
+  enable_hive_interactive: false
+  fs.s3a.access.key: GET:config.profile.platform.key
+  fs.s3a.secret.key: GET:config.profile.platform.secret
+blueprint:
+  name: blueprint.json
+recipe:
+- name: post-cluster-configs.sh
+  typ: POST_CLUSTER_INSTALL
+group:
+  master:
+    recipe: [post-cluster-configs]
+    machine: 14x60-18x68
+    type: GATEWAY
+mpack:
+- name: hdf
+  desc: HDF 3.4.1.1
+  url: http://public-repo-1.hortonworks.com/HDF/centos7/3.x/updates/3.4.1.1/tars/hdf_ambari_mp/hdf-ambari-mpack-3.4.1.1-4.tar.gz
+  purge_on_install: false
