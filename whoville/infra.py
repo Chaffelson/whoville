@@ -1108,7 +1108,7 @@ def define_userdata_script(mode='cb', static_ip=None):
             "export cb_ver=" + cb_ver,
             "export uaa_secret=" + security.get_secret('MASTERKEY'),
             "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-            "export uaa_default_email=" + 'admin@example.com',
+            "export uaa_default_email=admin@example.com",
             "export public_ip=" + fqdn,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
             "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"

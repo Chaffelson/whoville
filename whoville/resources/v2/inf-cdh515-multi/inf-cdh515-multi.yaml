@@ -5,6 +5,10 @@ deploywait: 1800
 seq:
 - prep_spec: [inf-cdh515-multi, cdh515-m]
 - do_builds: [cdh515-m]
-services: [HDFS, YARN, IMPALA, KUDU, HBASE, HIVE, ZOOKEEPER]
-version: 5.15
+clusters:
+  - name: cdh515multi
+    products:
+      CDH: 5.15
+    services: [HDFS, YARN, IMPALA, KUDU, HBASE, HIVE, ZOOKEEPER]
+cmver: 5.15
 tls_start: True
