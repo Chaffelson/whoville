@@ -369,6 +369,12 @@ def create_cluster(cluster_def, dep_name, workers=3, env_name=None, scripts=None
         worker_setups['IMPALA'] = ['IMPALAD']
     if 'NIFI' in services:
         worker_setups['NIFI'] = ['NIFI_NODE']
+        worker_configs['NIFI'] = {
+            'NIFI_NODE': {
+                'nifi.cluster.flow.election.max.wait.time': "2 mins",
+                "nifi.cluster.flow.election.max.candidates": str(workers)
+            }
+        }
     if 'NIFIREGISTRY' in services:
         master_setups['NIFIREGISTRY'] = ['NIFI_REGISTRY_SERVER']
     if 'NIFITOOLKITCA' in services:
@@ -507,7 +513,13 @@ def get_hostfile_list(dep_name=None, env_name=None):
     for d in dep_names:
         cluster_names = list_clusters(env_name, d)
         for c in cluster_names:
-            c_info = get_cluster(c, d, env_name)
+            try:
+                c_info = get_cluster(c, d, env_name)
+            except ApiException as e:
+                if 'Precondition Failed' in e.reason:
+                    return ['One or more deployments are in a failed state']
+                else:
+                    raise e
             for host in c_info.instances:
                 hosts.append('{0} {1}'.format(host.properties['publicIpAddress'], host.properties['privateDnsName']))
     return hosts
