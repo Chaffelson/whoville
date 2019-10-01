@@ -341,6 +341,11 @@ def interactive():
 
 @app.route("/api/whoville/v1/getCB")
 def getCB():
+    horton.cbd = infra.get_cloudbreak(
+        purge=False,
+        create_wait=0,
+        create=False
+    )
     if horton.cbd:
         return json.dumps(horton.cbd.public_ips)
     else:
@@ -355,6 +360,24 @@ def apiCheck():
 @app.route("/api/whoville/v1/getProfile")
 def getProfile():
     return json.dumps(config.profile)
+
+@app.route("/api/whoville/v1/purge")
+def purgeDeployment():
+    horton.cbd = infra.get_cloudbreak(
+        purge=False,
+        create_wait=0,
+        create=False
+    )
+    if horton.cbd:
+        init_cbreak_infra()
+        deploy.purge_cloudbreak(for_reals=True, ns=horton.namespace)
+        return "Purge Complete"
+    else:
+        return Response("", status=404)
+
+    
+    
+    
 
 
 @app.route("/api/whoville/v1/getMenu")
@@ -378,16 +401,26 @@ def getDefsInfraBreakdown():
 
 @app.route("/api/whoville/v1/getCredentials")
 def getCredentials():
-    if horton.cbcred:
-        var = {'platform': horton.cbcred.cloud_platform,
-               'name': horton.cbcred.name}
-        return json.dumps(var)
+    horton.cbd = infra.get_cloudbreak(
+        purge=False,
+        create_wait=0,
+        create=False
+    )
+    if horton.cbd:
+        init_cbreak_infra()
+        if horton.cbcred:
+            var = {'platform': horton.cbcred.cloud_platform,
+                    'name': horton.cbcred.name}
+            return json.dumps(var)
+        else:
+            return Response("", status=404)
     else:
         return Response("", status=404)
-
+    
 
 @app.route("/api/whoville/v1/getStacks")
 def getStacks():
+    
     var = json.loads(deploy.list_stacks_json().data.decode())
     return json.dumps(var)
 
