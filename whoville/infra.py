@@ -1102,13 +1102,14 @@ def define_userdata_script(mode='cb', static_ip=None):
             fqdn = static_ip + config.profile['platform']['domain']
         else:
             raise ValueError("Static IP or FQDN domain must be available to proceed")
+        email = config.profile['email'] if 'email' in config.profile else 'admin@example.com'
         script_lines = [
             "#!/bin/bash",
             "cd /root",
             "export cb_ver=" + cb_ver,
             "export uaa_secret=" + security.get_secret('MASTERKEY'),
             "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-            "export uaa_default_email=admin@example.com",
+            "export uaa_default_email=" + email,
             "export public_ip=" + fqdn,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
             "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
@@ -1465,6 +1466,7 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
         public_ip = public_ip.ip_address
         cb_ver = config.profile.get('cloudbreak_ver')
         cb_ver = str(cb_ver) if cb_ver else config.cb_ver
+        email = config.profile['email'] if 'email' in config.profile else 'admin@example.com'
         script_lines = [
             "#!/bin/bash",
             "cd /root",
@@ -1476,7 +1478,7 @@ def deploy_instances(session, names, mode='cb', assign_ip=True):
             "export cb_ver=" + cb_ver,
             "export uaa_secret=" + security.get_secret('MASTERKEY'),
             "export uaa_default_pw=" + security.get_secret('ADMINPASSWORD'),
-            "export uaa_default_email=" + config.profile['email'],
+            "export uaa_default_email=" + email,
             "export public_ip=" + public_ip,
             "source <(curl -sSL https://raw.githubusercontent.com/Chaffelson"
             "/whoville/master/bootstrap/v2/cbd_bootstrap_centos7.sh)"
