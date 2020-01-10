@@ -389,6 +389,8 @@ def create_cluster(cluster_def, dep_name, workers=3, env_name=None, scripts=None
         }
     if 'SCHEMAREGISTRY' in services:
         master_setups['SCHEMAREGISTRY'] = ['SCHEMA_REGISTRY_SERVER']
+    if 'FLINK' in services:
+        master_setups['FLINK'] = ['GATEWAY', 'FLINK_HISTORY_SERVER']
     # Handle Services Configs overrides
     if 'servicesconfigs' in cluster_def.keys():
         for k, v in cluster_def['servicesconfigs']:
