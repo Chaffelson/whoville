@@ -66,6 +66,10 @@ EOF
 # Startup
 
 echo Configuring Cloudbreak
+echo "Workaround for certm being unavailable"
+docker pull hortonworks/certm:0.2.0
+docker tag hortonworks/certm:0.2.0 ehazlett/certm:0.2.0
+#
 rm -f *.yml
 cbd generate
 cbd pull-parallel
