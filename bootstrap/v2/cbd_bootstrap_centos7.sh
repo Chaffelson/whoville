@@ -94,3 +94,53 @@ sed -i "s/# lp.normalization.required/lp.normalization.required/" /etc/cloudera-
 
 echo Starting Cloudera Director
 service cloudera-director-server start
+
+# Setup nginx static file hosting
+yum install -y epel-release
+yum install -y nginx
+mkdir -p /var/www/downloads
+mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
+tee /etc/nginx/nginx.conf <<-'EOF'
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+events {
+    worker_connections 64;
+}
+http {
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log  /var/log/nginx/access.log  main;
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   65;
+    types_hash_max_size 2048;
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen       *:3201;
+        server_name  $hostname;
+        root         /var/www/downloads;
+        # Load configuration files for the default server block.
+        include /etc/nginx/default.d/*.conf;
+        location / {
+          autoindex on;
+        }
+        error_page 404 /404.html;
+            location = /40x.html {
+        }
+        error_page 500 502 503 504 /50x.html;
+            location = /50x.html {
+        }
+    }
+  }
+EOF
+chmod o+x /var
+systemctl start nginx && systemctl enable nginx
+
+echo "Finished!"
