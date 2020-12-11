@@ -30,7 +30,8 @@ yum install -y yum-utils
 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 yum repolist
 yum -y install net-tools ntp wget lsof unzip tar iptables-services sed device-mapper-persistent-data lvm2 java-1.8.0-openjdk
-yum -y install docker-ce docker-ce-cli containerd.io
+yum  -y remove  docker-common docker container-selinux docker-selinux docker-engineyum install docker-ce-19.03.0-3.el7
+yum -y install docker-ce-19.03.0-3.el7 docker-ce-cli containerd.io
 
 # Environment Setup 
 echo Modifying Environment Settings
