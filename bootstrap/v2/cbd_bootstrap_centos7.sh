@@ -29,7 +29,8 @@ yum clean all
 yum install -y yum-utils
 yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 yum repolist
-yum -y install net-tools ntp wget lsof unzip tar iptables-services sed device-mapper-persistent-data lvm2 docker-ce java-1.8.0-openjdk
+yum -y install net-tools ntp wget lsof unzip tar iptables-services sed device-mapper-persistent-data lvm2 java-1.8.0-openjdk
+yum -y install docker-ce docker-ce-cli containerd.io
 
 # Environment Setup 
 echo Modifying Environment Settings
@@ -43,6 +44,7 @@ service iptables save
 setenforce 0
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 
+echo Starting Docker Service
 systemctl start docker
 systemctl enable docker
 
@@ -65,7 +67,7 @@ EOF
 
 # Startup
 
-echo Configuring Cloudbreak
+echo "Install Cloudbreak"
 echo "Workaround for certm being unavailable"
 docker pull hortonworks/certm:0.2.0
 docker tag hortonworks/certm:0.2.0 ehazlett/certm:0.2.0
@@ -73,10 +75,10 @@ docker tag hortonworks/certm:0.2.0 ehazlett/certm:0.2.0
 rm -f *.yml
 cbd generate
 cbd pull-parallel
-
+#
 echo Starting Cloudbreak
 cbd start
-
+#
 echo Configuring Director
 cd /opt && mkdir ${cad_subdir} && cd ${cad_subdir}
 keytool -genkeypair -alias director -keyalg RSA \
