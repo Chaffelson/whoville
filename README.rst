@@ -1,7 +1,7 @@
 Whoville
 ========
 Cloudy Hortonworks Platforms in under 60 minutes
-    A set of demos in a small Docker Image with Orchestration for AWS/GCP/Azure deployment from a simple Profile
+    A set of demos in a small Docker Image with Orchestration for AWS/GCP/Azure deployment from a simple Profile. This project is implemented directly in python rather than using a framework like Ansible because, when we started, the level of customisation and process wrangling for the new open source project integrations seemed easier in that manner. As the underlying platform matured the need for those invasive processes diminished and now this installation is much better executed in Ansible on a Terraform infrastructure, which is now the Cloudera standard. This repository and project is kept for historic purposes.
 
 Requirements
 ------------
